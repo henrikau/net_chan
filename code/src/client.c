@@ -3,15 +3,16 @@
 #include <unistd.h>
 #include <argp.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
 #include <common.h>
 
-static char nic[IFNAMSIZ] = DEFAULT_NIC;
-static char dstmac[ETH_ALEN] = DEFAULT_MAC;
-static char m_ip[INET6_ADDRSTRLEN];
+static unsigned char nic[IFNAMSIZ] = DEFAULT_NIC;
+static unsigned char dstmac[ETH_ALEN] = DEFAULT_MAC;
+static unsigned char m_ip[INET6_ADDRSTRLEN];
 
 static struct argp_option options[] = {
 	{"dst" , 'd', "MACADDR", 0, "Stream Destination MAC address" },
@@ -48,9 +49,23 @@ static error_t parser(int key, char *arg, struct argp_state *state)
 
 static struct argp argp = { options, parser };
 
+static int cb(void *priv, struct timedc_avtp *pdu)
+{
+	if (!priv)
+		printf("Calling cb, priv: %p, pdu: %p\n", priv, pdu);
+	else
+		printf("%s pdu: %p\n", (char *)priv, pdu);
+
+	return 0;
+}
 
 int main(int argc, char *argv[])
 {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	printf("\n------------------------------\n");
+	printf("%ld Hello, World\n", tv.tv_sec);
+
 	argp_parse(&argp, argc, argv, 0, NULL, NULL);
 
 	printf("Mac Address: %s\n", ether_ntoa((struct ether_addr *)&dstmac));
@@ -61,11 +76,36 @@ int main(int argc, char *argv[])
 	printf("IP Multicast: %s\n", ip);
 
 	struct timedc_avtp *pdu = pdu_create(42, 1, sizeof(uint64_t));
+	struct timedc_avtp *pdu2 = pdu_create(10, 1, sizeof(uint64_t));
+
 	uint64_t data = 0xdeadbeef;
 
+
 	pdu_update(pdu, 0, &data, sizeof(data));
+	pdu_update(pdu2, 0, &data, sizeof(data));
+
 	printf("Data in payload: 0x%lx\n", *(uint64_t *)pdu->payload);
+
+	struct nethandler *nh = nh_init(nic, 16, dstmac);
+	char *msg = "cb for 10";
+	nh_reg_callback(nh, 42, "msg for 42", cb);
+	nh_reg_callback(nh, 10, (void*)msg, cb);
+
+	printf("Feeding data: %d\n", nh_feed_pdu(nh, pdu));
+	printf("Feeding data: %d\n", nh_feed_pdu(nh, pdu2));
 	if (pdu)
 		free(pdu);
+	if (pdu2)
+		free(pdu2);
+
+	nh_start(nh);
+
+	/* send a frame, tickle cb */
+
+	printf("nh: %p\n", nh);
+	nh_destroy(&nh);
+	printf("nh: %p\n", nh);
+
+	printf("------------------------------\n\n");
 	return 0;
 }

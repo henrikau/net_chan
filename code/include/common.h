@@ -1,4 +1,5 @@
 #pragma once
+#include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
 #define DEFAULT_NIC "eth0"
@@ -82,3 +83,27 @@ static inline int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, s
 	memcpy(pdu->payload, data, sz);
 	return 0;
 }
+
+struct nethandler;
+
+struct nethandler * nh_init(const unsigned char *ifname, size_t hmap_size, const unsigned char *dstmac);
+
+/* Register a callback for a given stream_id
+ *
+ * Whenever a new frame arrives with the registred streamID, the
+ * provided callback will be invoked with the captured pdu
+ *
+ * Note: this is done from the receiver thread, so cb should should be
+ * non-blocking and fast.
+ *
+ */
+int nh_reg_callback(struct nethandler *nh,
+		uint64_t stream_id,
+		void *priv_data,
+		int (*cb)(void *priv_data, struct timedc_avtp *pdu));
+
+
+int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu);
+int nh_start(struct nethandler *nh);
+
+void nh_destroy(struct nethandler **nh);
