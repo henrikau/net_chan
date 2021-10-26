@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include <errno.h>
+
 #define DEFAULT_NIC "eth0"
 
 /* Empty mac multicast (ip multicast should be appended (low order 23
@@ -74,9 +76,11 @@ static inline struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t chan_
 static inline int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, size_t sz)
 {
 	if (!pdu)
-		return -1;
+		return -ENOMEM;
 	if (sz > pdu->payload_size)
-		return -1;
+		return -EINVAL;
+	if (!data)
+		return -EINVAL;
 
 	pdu->pdu.avtp_timestamp = ts;
 	pdu->pdu.tv = 1;
