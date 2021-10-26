@@ -16,8 +16,8 @@ static struct timedc_avtp *pdu17 = NULL;
 
 void setUp(void)
 {
-	pdu42 = pdu_create(42, 0, DATA42SZ);
-	pdu17 = pdu_create(17, 1, DATA17SZ);
+	pdu42 = pdu_create(42, DATA42SZ);
+	pdu17 = pdu_create(17, DATA17SZ);
 }
 
 void tearDown(void)
@@ -34,7 +34,7 @@ void tearDown(void)
 
 static void test_pdu_create(void)
 {
-	struct timedc_avtp *pdu = pdu_create(43, 0, 128);
+	struct timedc_avtp *pdu = pdu_create(43, 128);
 	TEST_ASSERT(pdu->pdu.stream_id == 43);
 	TEST_ASSERT(pdu->payload_size == 128);
 	free(pdu);

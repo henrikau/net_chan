@@ -52,17 +52,12 @@ struct timedc_avtp
 {
 	struct avtpdu_cshdr pdu;
 
-	/* channel to use internal. Must be agreed upon beforehand and
-	 * configured before starting app
-	 */
-	uint16_t chan_id;
-
 	/* payload */
 	uint16_t payload_size;
 	unsigned char payload[0];
 } __attribute__((__packed__));
 
-static inline struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t chan_id, size_t sz)
+static inline struct timedc_avtp * pdu_create(uint64_t stream_id, size_t sz)
 {
 	struct timedc_avtp *pdu = malloc(sizeof(*pdu));
 	if (!pdu) {
@@ -74,7 +69,6 @@ static inline struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t chan_
 
 	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
 	pdu->pdu.stream_id = stream_id;
-	pdu->chan_id = chan_id;
 	pdu->payload_size = sz;
 	return pdu;
 }

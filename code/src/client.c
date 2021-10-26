@@ -75,8 +75,8 @@ int main(int argc, char *argv[])
 	inet_ntop(AF_INET, m_ip, ip, INET6_ADDRSTRLEN);
 	printf("IP Multicast: %s\n", ip);
 
-	struct timedc_avtp *pdu = pdu_create(42, 1, sizeof(uint64_t));
-	struct timedc_avtp *pdu2 = pdu_create(10, 1, sizeof(uint64_t));
+	struct timedc_avtp *pdu = pdu_create(42, sizeof(uint64_t));
+	struct timedc_avtp *pdu2 = pdu_create(10, sizeof(uint64_t));
 
 	uint64_t data = 0xdeadbeef;
 
