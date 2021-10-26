@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
 
 #define DEFAULT_NIC "eth0"
 
@@ -63,9 +64,14 @@ struct timedc_avtp
 
 static inline struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t chan_id, size_t sz)
 {
-	struct timedc_avtp *pdu = calloc(sizeof(*pdu),1);
-	if (!pdu)
+	struct timedc_avtp *pdu = malloc(sizeof(*pdu));
+	if (!pdu) {
+		perror("could not allocate memory for pdu!");
 		return NULL;
+	}
+	printf("allocated for stream_id=%lu\n", stream_id);
+	memset(pdu, 0, sizeof(*pdu));
+
 	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
 	pdu->pdu.stream_id = stream_id;
 	pdu->chan_id = chan_id;

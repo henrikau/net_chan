@@ -37,14 +37,14 @@ static int _nh_socket_setup_common(struct nethandler *nh, const unsigned char *i
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
 	if (sock == -1) {
 		perror("Failed opening socket");
-		exit (1);
+		return -1;
 	}
 
 	struct ifreq req;
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", ifname);
 	if (ioctl(sock, SIOCGIFINDEX, &req) == -1) {
 		perror("Could not get interface index");
-		exit(1);
+		return -1;
 	}
 
 	nh->sk_addr.sll_family = AF_PACKET;
@@ -129,6 +129,9 @@ static void * nh_runner(void *data)
 		return NULL;
 
 	struct nethandler *nh = (struct nethandler *)data;
+	if (nh->rx_sock == -1)
+		return NULL;
+
 	unsigned char buffer[1522] = {0};
 	nh->running = true;
 	while (nh->running) {
@@ -147,6 +150,8 @@ static void * nh_runner(void *data)
 int nh_start(struct nethandler *nh)
 {
 	if (!nh)
+		return -1;
+	if (nh->rx_sock == -1)
 		return -1;
 
 	if (nh->dst_mac[0] == 0x01 &&
@@ -176,10 +181,11 @@ void nh_destroy(struct nethandler **nh)
 	if (*nh) {
 		printf("Destroying nethandler\n");
 		(*nh)->running = false;
-		/* This will abort the entire thread, should rather send a frame to self to wake recv() */
-		pthread_kill((*nh)->tid, SIGINT);
-		pthread_join((*nh)->tid, NULL);
-
+		if ((*nh)->tid > 0) {
+			/* This will abort the entire thread, should rather send a frame to self to wake recv() */
+			pthread_kill((*nh)->tid, SIGINT);
+			pthread_join((*nh)->tid, NULL);
+		}
 		/* close down and exit safely */
 		if ((*nh)->hmap != NULL)
 			free((*nh)->hmap);
