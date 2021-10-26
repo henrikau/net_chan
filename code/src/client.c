@@ -37,7 +37,7 @@ static error_t parser(int key, char *arg, struct argp_state *state)
 
 		break;
 	case 'i':
-		strncpy(nic, arg, sizeof(nic) - 1);
+		strncpy((char *)nic, arg, sizeof(nic) - 1);
 		break;
 	case 'm':
 		inet_pton(AF_INET, arg, m_ip);
