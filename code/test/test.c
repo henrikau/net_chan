@@ -1,6 +1,11 @@
 #include <stdio.h>
-#include <common.h>
 #include "unity.h"
+
+/*
+ * include c directly (need access to internals) as common hides
+ * internals (and we want to produce a single file for ktc later)
+ */
+#include "../src/common.c"
 
 #define DATA42SZ 8
 #define DATA17SZ 32

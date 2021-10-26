@@ -19,7 +19,6 @@ executable(
 t = executable('testprog',
 	       'test/test.c',
 	       'test/unity.c',
-	       'src/common.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
 	       dependencies: deps
