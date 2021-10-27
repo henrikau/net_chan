@@ -7,23 +7,26 @@
  */
 #include "../src/common.c"
 
-#define DATA42SZ 8
 #define DATA17SZ 32
-static char data42[DATA42SZ] = {0};
-static char data17[DATA17SZ] = {0};
-static struct timedc_avtp *pdu42;
-static struct timedc_avtp *pdu17;
+char data17[DATA17SZ] = {0};
+struct timedc_avtp *pdu17;
+
+#define DATA42SZ 8
+char data42[DATA42SZ] = {0};
+struct timedc_avtp *pdu42;
 
 void setUp(void)
 {
-	pdu42 = pdu_create(42, DATA42SZ);
 	pdu17 = pdu_create(17, DATA17SZ);
+	pdu42 = pdu_create(42, DATA42SZ);
+	memset(data42, 0x42, DATA42SZ);
+	memset(data17, 0x17, DATA17SZ);
 }
 
 void tearDown(void)
 {
-	pdu_destroy(&pdu42);
 	pdu_destroy(&pdu17);
+	pdu_destroy(&pdu42);
 }
 
 static void test_pdu_create(void)
@@ -40,19 +43,31 @@ static void test_pdu_create(void)
 static void test_pdu_update(void)
 {
 	TEST_ASSERT(pdu_update(NULL, 1, NULL, 7) == -ENOMEM);
+
+	/* Test failed update of data and that other fields have not been altered*/
+	TEST_ASSERT(pdu42->pdu.stream_id == 42);
 	TEST_ASSERT(pdu_update(pdu42, 2, data42, DATA42SZ+1) == -EMSGSIZE);
+	TEST_ASSERT(pdu42->pdu.stream_id == 42);
+
 	TEST_ASSERT(pdu_update(pdu17, 3, NULL, DATA17SZ) == -ENOMEM);
 	TEST_ASSERT(pdu_update(pdu17, 4, data17, DATA17SZ) == 0);
 	TEST_ASSERT(pdu17->pdu.avtp_timestamp == 4);
 	TEST_ASSERT(pdu17->pdu.tv == 1);
+	TEST_ASSERT(pdu17->payload[0] == 0x17);
+	TEST_ASSERT(pdu17->payload[DATA17SZ-1] == 0x17);
 
 	/* Test payload */
+	TEST_ASSERT(pdu42->pdu.stream_id == 42);
 	uint64_t val = 0xdeadbeef;
 	TEST_ASSERT(pdu_update(pdu42, 5, &val, DATA42SZ) == 0);
 	TEST_ASSERT(pdu42->pdu.stream_id == 42);
+
 	TEST_ASSERT(pdu42->pdu.avtp_timestamp == 5);
 	uint64_t *pl = (uint64_t *)pdu42->payload;
 	TEST_ASSERT(*pl == 0xdeadbeef);
+
+	TEST_ASSERT(pdu17->pdu.subtype == AVTP_SUBTYPE_TIMEDC);
+	TEST_ASSERT(pdu42->pdu.subtype == AVTP_SUBTYPE_TIMEDC);
 }
 
 
