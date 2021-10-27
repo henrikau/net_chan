@@ -34,7 +34,7 @@ struct nethandler {
 
 struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t sz)
 {
-	struct timedc_avtp *pdu = malloc(sizeof(*pdu));
+	struct timedc_avtp *pdu = malloc(sizeof(*pdu)+sz);
 	if (!pdu)
 		return NULL;
 
