@@ -6,7 +6,7 @@ pushd "$(dirname $(dirname $(realpath -s $0)))"
 
 test -z ${NUM_CPUS} && NUM_CPUS=$(($(nproc)*2))
 
-dirs=$(for f in $(find . -name "*.[c|h]" -o -name "CMakeLists.txt"); do dirname ${f}; done|grep -v build|sort|uniq)
+dirs=$(for f in $(find . -name "*.[c|h]" -o -name "meson.build"); do dirname ${f}; done|grep -v build|sort|uniq)
 if [[ -z ${dirs} ]]; then
     echo "Could not find any source-files, try to move to the root of the project!"
     exit 1
@@ -21,10 +21,10 @@ while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
     test -d build/ || { mkdir build; meson build; }
     ninja -C build/
     pushd build > /dev/null
-    time meson test -v
+    meson test -v
     popd > /dev/null
 
-    dirs=$(for f in $(find . -name "*.[c|h]" -o -name "CMakeLists.txt"); do dirname ${f}; done|grep -v build|sort|uniq)
+    dirs=$(for f in $(find . -name "*.[c|h]" -o -name "meson.build"); do dirname ${f}; done|grep -v build|sort|uniq)
 done
 
 popd > /dev/null
