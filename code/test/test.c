@@ -11,8 +11,8 @@
 #define DATA17SZ 32
 static char data42[DATA42SZ] = {0};
 static char data17[DATA17SZ] = {0};
-static struct timedc_avtp *pdu42 = NULL;
-static struct timedc_avtp *pdu17 = NULL;
+static struct timedc_avtp *pdu42;
+static struct timedc_avtp *pdu17;
 
 void setUp(void)
 {
@@ -22,52 +22,60 @@ void setUp(void)
 
 void tearDown(void)
 {
-	if (pdu42) {
-		free(pdu42);
-		pdu42 = NULL;
-	}
-	if (pdu17) {
-		free(pdu17);
-		pdu17 = NULL;
-	}
+	pdu_destroy(&pdu42);
+	pdu_destroy(&pdu17);
 }
 
 static void test_pdu_create(void)
 {
+	printf("%s(): start\n", __func__);
 	struct timedc_avtp *pdu = pdu_create(43, 128);
+	TEST_ASSERT(pdu != NULL);
 	TEST_ASSERT(pdu->pdu.stream_id == 43);
 	TEST_ASSERT(pdu->payload_size == 128);
-	free(pdu);
+	pdu_destroy(&pdu);
+	printf("%s(): end\n", __func__);
 }
 
 static void test_pdu_update(void)
 {
-	TEST_ASSERT(pdu_update(NULL, 1234, NULL, 7) == -ENOMEM);
-	TEST_ASSERT(pdu_update(pdu42, 1234, data42, DATA42SZ+1) == -EINVAL);
-	TEST_ASSERT(pdu_update(pdu17, 1236, NULL, DATA17SZ) == -EINVAL);
-	TEST_ASSERT(pdu_update(pdu17, 1235, data17, DATA17SZ) == 0);
-	TEST_ASSERT(pdu17->pdu.avtp_timestamp == 1235);
+	TEST_ASSERT(pdu_update(NULL, 1, NULL, 7) == -ENOMEM);
+	TEST_ASSERT(pdu_update(pdu42, 2, data42, DATA42SZ+1) == -EMSGSIZE);
+	TEST_ASSERT(pdu_update(pdu17, 3, NULL, DATA17SZ) == -ENOMEM);
+	TEST_ASSERT(pdu_update(pdu17, 4, data17, DATA17SZ) == 0);
+	TEST_ASSERT(pdu17->pdu.avtp_timestamp == 4);
 	TEST_ASSERT(pdu17->pdu.tv == 1);
+
+	/* Test payload */
+	uint64_t val = 0xdeadbeef;
+	TEST_ASSERT(pdu_update(pdu42, 5, &val, DATA42SZ) == 0);
+	TEST_ASSERT(pdu42->pdu.stream_id == 42);
+	TEST_ASSERT(pdu42->pdu.avtp_timestamp == 5);
+	uint64_t *pl = (uint64_t *)pdu42->payload;
+	TEST_ASSERT(*pl == 0xdeadbeef);
 }
+
 
 static void *cb_data = NULL;
 static void *cb_pdu = NULL;
-
 int nh_callback(void *data, struct timedc_avtp *pdu)
 {
 	cb_data = data;
 	cb_pdu = pdu;
-
 	return 0;
 }
 
 static void test_nh_hashmap(void)
 {
+	printf("%s(): start\n", __func__);
 	struct nethandler *nh;
 	unsigned char *cb_priv_data = malloc(32);
+	if (!cb_priv_data)
+		return;
+	printf("testing hashmap\n");
 	nh = nh_init((unsigned char *)"lo", 16, (unsigned char *)"14:da:e9:2b:0a:c1");
 	TEST_ASSERT(nh->hmap_sz == 16);
-	TEST_ASSERT(nh_reg_callback(NULL, 17, cb_priv_data, nh_callback) == -1);
+	TEST_ASSERT(nh_reg_callback(NULL, 17, cb_priv_data, nh_callback) == -EINVAL);
 	TEST_ASSERT(nh_reg_callback(nh, 16, cb_priv_data, nh_callback) == 0);
 	TEST_ASSERT(nh->hmap[0].priv_data == cb_priv_data);
 	TEST_ASSERT(nh->hmap[0].cb == nh_callback);
