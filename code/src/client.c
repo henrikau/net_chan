@@ -8,7 +8,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
-#include <common.h>
+#include <timedc_avtp.h>
 
 static unsigned char nic[IFNAMSIZ] = DEFAULT_NIC;
 static unsigned char dstmac[ETH_ALEN] = DEFAULT_MAC;

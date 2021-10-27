@@ -8,7 +8,7 @@ project(
 deps = dependency('threads')
 
 timedc_avtp = static_library('timedc_avtp',
-			'src/common.c',
+			'src/timedc_avtp.c',
 			include_directories: include_directories('include'),
 			dependencies: deps
 		       )
