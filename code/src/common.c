@@ -32,6 +32,46 @@ struct nethandler {
 	struct cb_entity *hmap;
 };
 
+struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t sz)
+{
+	struct timedc_avtp *pdu = malloc(sizeof(*pdu));
+	if (!pdu)
+		return NULL;
+
+	memset(pdu, 0, sizeof(*pdu));
+	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
+	pdu->pdu.stream_id = stream_id;
+	pdu->payload_size = sz;
+	printf("Created new PDU with StreamID=%lu\n", pdu->pdu.stream_id);
+	return pdu;
+}
+
+void pdu_destroy(struct timedc_avtp **pdu)
+{
+	if(!*pdu)
+		return;
+	printf("%s(): Destroying pdu with stream_id=%lu\n", __func__, (*pdu)->pdu.stream_id);
+	free(*pdu);
+	*pdu = NULL;
+}
+
+int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, size_t sz)
+{
+	if (!pdu)
+		return -ENOMEM;
+
+	if (sz > pdu->payload_size)
+		return -EMSGSIZE;
+
+	if (!data)
+		return -ENOMEM;
+
+	pdu->pdu.avtp_timestamp = ts;
+	pdu->pdu.tv = 1;
+	memcpy(pdu->payload, data, sz);
+	return 0;
+}
+
 static int _nh_socket_setup_common(struct nethandler *nh, const unsigned char *ifname)
 {
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
@@ -84,7 +124,7 @@ int nh_reg_callback(struct nethandler *nh,
 		int (*cb)(void *priv_data, struct timedc_avtp *pdu))
 {
 	if (!nh || !nh->hmap_sz)
-		return -1;
+		return -EINVAL;
 
 	int idx = stream_id % nh->hmap_sz;
 	printf("%s(): %lu -> nh->hmap[%d].cb: %p\n", __func__, stream_id, idx, nh->hmap[idx].cb);
@@ -120,7 +160,8 @@ int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu)
 	if (idx >= 0)
 		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, pdu);
 
-	return -1;
+	/* no callback registred, though not exactly an FD-error< */
+	return -EBADFD;
 }
 
 static void * nh_runner(void *data)
@@ -147,7 +188,7 @@ static void * nh_runner(void *data)
 	return NULL;
 }
 
-int nh_start(struct nethandler *nh)
+int nh_start_rx(struct nethandler *nh)
 {
 	if (!nh)
 		return -1;

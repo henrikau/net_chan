@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 	if (pdu2)
 		free(pdu2);
 
-	nh_start(nh);
+	nh_start_rx(nh);
 
 	/* send a frame, tickle cb */
 
