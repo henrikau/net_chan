@@ -7,14 +7,19 @@ project(
 
 deps = dependency('threads')
 
+timedc_avtp = static_library('timedc_avtp',
+			'src/common.c',
+			include_directories: include_directories('include'),
+			dependencies: deps
+		       )
+
 executable(
    'client',
    'src/client.c',
-   'src/common.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-   dependencies: deps
-)
+   link_with : timedc_avtp)
+
 
 t = executable('testprog',
 	       'test/test.c',
