@@ -42,7 +42,6 @@ struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t sz)
 	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
 	pdu->pdu.stream_id = stream_id;
 	pdu->payload_size = sz;
-	printf("Created new PDU with StreamID=%lu\n", pdu->pdu.stream_id);
 	return pdu;
 }
 
@@ -50,7 +49,6 @@ void pdu_destroy(struct timedc_avtp **pdu)
 {
 	if(!*pdu)
 		return;
-	printf("%s(): Destroying pdu with stream_id=%lu\n", __func__, (*pdu)->pdu.stream_id);
 	free(*pdu);
 	*pdu = NULL;
 }
@@ -91,7 +89,7 @@ static int _nh_socket_setup_common(struct nethandler *nh, const unsigned char *i
 	nh->sk_addr.sll_protocol = htons(ETH_P_TSN);
 	nh->sk_addr.sll_halen = ETH_ALEN;
 	nh->sk_addr.sll_ifindex = req.ifr_ifindex;
-	printf("Sending data to / Receiving from %s\n", ether_ntoa((struct ether_addr *)nh->dst_mac));
+
 	memcpy(nh->sk_addr.sll_addr, nh->dst_mac, ETH_ALEN);
 
 	return sock;
@@ -127,7 +125,6 @@ int nh_reg_callback(struct nethandler *nh,
 		return -EINVAL;
 
 	int idx = stream_id % nh->hmap_sz;
-	printf("%s(): %lu -> nh->hmap[%d].cb: %p\n", __func__, stream_id, idx, nh->hmap[idx].cb);
 
 	for (int i = 0; i < nh->hmap_sz && nh->hmap[idx].cb; i++)
 		idx = (idx + 1) % nh->hmap_sz;
@@ -220,7 +217,6 @@ int nh_start_rx(struct nethandler *nh)
 void nh_destroy(struct nethandler **nh)
 {
 	if (*nh) {
-		printf("Destroying nethandler\n");
 		(*nh)->running = false;
 		if ((*nh)->tid > 0) {
 			/* This will abort the entire thread, should rather send a frame to self to wake recv() */
