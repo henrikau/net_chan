@@ -121,7 +121,7 @@ int nh_reg_callback(struct nethandler *nh,
 		void *priv_data,
 		int (*cb)(void *priv_data, struct timedc_avtp *pdu))
 {
-	if (!nh || !nh->hmap_sz)
+	if (!nh || !nh->hmap_sz || !cb)
 		return -EINVAL;
 
 	int idx = stream_id % nh->hmap_sz;
@@ -153,6 +153,8 @@ static int get_hm_idx(struct nethandler *nh, uint64_t stream_id)
 
 int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu)
 {
+	if (!nh || !pdu)
+		return -EINVAL;
 	int idx = get_hm_idx(nh, pdu->pdu.stream_id);
 	if (idx >= 0)
 		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, pdu);
