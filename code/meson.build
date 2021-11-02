@@ -20,12 +20,21 @@ executable(
    build_by_default: true,
    link_with : timedc_avtp)
 
+t_pdu = executable('testpdu',
+	       'test/test_pdu.c',
+	       'test/unity.c',
+	       include_directories: include_directories('include'),
+	       build_by_default: true,
+	       dependencies: deps
+	      )
 
-t = executable('testprog',
+t1 = executable('testprog',
 	       'test/test.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
 	       dependencies: deps
 	      )
-test('first test', t)
+
+test('pdu test', t_pdu)
+test('first test', t1)
