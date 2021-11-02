@@ -11,60 +11,8 @@
  */
 #define DEFAULT_MAC {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
 
-/* Rename experimental type to TimedC subtype for now */
-#define AVTP_SUBTYPE_TIMEDC 0x7F
-
-struct avtpdu_cshdr {
-	uint8_t subtype;
-
-	/* Network-order, bitfields reversed */
-	uint8_t tv:1;		/* timestamp valid, 4.4.4. */
-	uint8_t fsd:2;		/* format specific data */
-	uint8_t mr:1;		/* medica clock restart */
-	uint8_t version:3;	/* version, 4.4.3.4*/
-	uint8_t sv:1;		/* stream_id valid, 4.4.4.2 */
-
-	/* 4.4.4.6, inc. for each msg in stream, wrap from 0xff to 0x00,
-	 * start at arbitrary position.
-	 */
-	uint8_t seqnr;
-
-	/* Network-order, bitfields reversed */
-	uint8_t tu:1;		/* timestamp uncertain, 4.4.4.7 */
-	uint8_t fsd_1:7;
-
-	/* EUI-48 MAC address + 16 bit unique ID
-	 * 1722-2016, 4.4.4.8, 802.1Q-2014, 35.2.2.8(.2)
-	 */
-	uint64_t stream_id;
-
-	/* gPTP timestamp, in ns, derived from gPTP, lower 32 bit,
-	 * approx 4.29 timespan */
-	uint32_t avtp_timestamp;
-	uint32_t fsd_2;
-
-	uint16_t sdl;		/* stream data length (octets/bytes) */
-	uint16_t fsd_3;
-} __attribute__((packed));
-
-/**
- * timedc_avtp - Container for fifo/lvchan over TSN/AVB
- *
- * Internal bits including the payload itself that a channel will send
- * between tasks.
- *
- * @pdu: wrapper to AVTP Data Unit, common header
- * @payload_size: num bytes for the payload
- * @payload: grows at the end of the struct
- */
-struct timedc_avtp
-{
-	struct avtpdu_cshdr pdu;
-
-	/* payload */
-	uint16_t payload_size;
-	unsigned char payload[0];
-} __attribute__((__packed__));
+struct timedc_avtp;
+struct nethandler;
 
 /**
  * pdu_create - create and initialize a new PDU.
@@ -80,17 +28,30 @@ struct timedc_avtp
  *    UPDATE -> SEND
  * DESTROY
  *
+ * @param nh nethandler container
+ * @param dst destination address for this PDU
  * @param stream_id 64 bit unique value for the stream allotted to our channel.
  * @param sz: expexted size of data. Once set, larger datasets cannot be sent via this PDU (allthough smaller is possible)
  *
  * @returns the new PDU or NULL upon failure.
  */
-struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t sz);
+struct timedc_avtp * pdu_create(struct nethandler *nh,
+				unsigned char *dst,
+				uint64_t stream_id,
+				uint16_t sz);
+
+/**
+ * pdu_get_payload
+ *
+ * @param pdu AVTP dataunit
+ * @returns pointer to payload
+ */
+void * pdu_get_payload(struct timedc_avtp *pdu);
 
 /**
  * pdu_destroy : clean up and destroy a pdu
  *
- * @param pdu: indirect pointer to pdu (will update callers ref to NULL as well)
+ * @param pdu: pointer to pdu
  */
 void pdu_destroy(struct timedc_avtp **pdu);
 
@@ -106,8 +67,26 @@ void pdu_destroy(struct timedc_avtp **pdu);
  */
 int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, size_t sz);
 
-struct nethandler;
+/**
+ * pdu_send : send payload of TimedC data unit
+ *
+ * This will extract the AVTP payload from the PDU and send it to the
+ * correct destination MAC.
+ *
+ * @params: pdu
+ * @returns: 0 on success negative value on error.
+ */
+int pdu_send(struct timedc_avtp *pdu);
 
+/**
+ * nh_init - initialize nethandler
+ *
+ * @param ifname: NIC to attach to
+ * @param hmap_size: sizeof incoming frame hashmap
+ * @param dstmac: remote end of incoming frames.
+ *
+ * @returns struct nethandler on success, NULL on error
+ */
 struct nethandler * nh_init(const unsigned char *ifname, size_t hmap_size, const unsigned char *dstmac);
 
 /**
@@ -130,6 +109,7 @@ int nh_reg_callback(struct nethandler *nh,
 		uint64_t stream_id,
 		void *priv_data,
 		int (*cb)(void *priv_data, struct timedc_avtp *pdu));
+
 
 /**
  * nh_feed_pdu - feed a pdu to nethandler which will be passed to relevant callback

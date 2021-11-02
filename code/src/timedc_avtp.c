@@ -11,6 +11,66 @@
 #include <sys/socket.h>
 #include <signal.h>
 
+/* Rename experimental type to TimedC subtype for now */
+#define AVTP_SUBTYPE_TIMEDC 0x7F
+
+
+struct avtpdu_cshdr {
+	uint8_t subtype;
+
+	/* Network-order, bitfields reversed */
+	uint8_t tv:1;		/* timestamp valid, 4.4.4. */
+	uint8_t fsd:2;		/* format specific data */
+	uint8_t mr:1;		/* medica clock restart */
+	uint8_t version:3;	/* version, 4.4.3.4*/
+	uint8_t sv:1;		/* stream_id valid, 4.4.4.2 */
+
+	/* 4.4.4.6, inc. for each msg in stream, wrap from 0xff to 0x00,
+	 * start at arbitrary position.
+	 */
+	uint8_t seqnr;
+
+	/* Network-order, bitfields reversed */
+	uint8_t tu:1;		/* timestamp uncertain, 4.4.4.7 */
+	uint8_t fsd_1:7;
+
+	/* EUI-48 MAC address + 16 bit unique ID
+	 * 1722-2016, 4.4.4.8, 802.1Q-2014, 35.2.2.8(.2)
+	 */
+	uint64_t stream_id;
+
+	/* gPTP timestamp, in ns, derived from gPTP, lower 32 bit,
+	 * approx 4.29 timespan */
+	uint32_t avtp_timestamp;
+	uint32_t fsd_2;
+
+	uint16_t sdl;		/* stream data length (octets/bytes) */
+	uint16_t fsd_3;
+} __attribute__((packed));
+
+/**
+ * timedc_avtp - Container for fifo/lvchan over TSN/AVB
+ *
+ * Internal bits including the payload itself that a channel will send
+ * between tasks.
+ *
+ * @pdu: wrapper to AVTP Data Unit, common header
+ * @payload_size: num bytes for the payload
+ * @payload: grows at the end of the struct
+ */
+struct timedc_avtp
+{
+	struct nethandler *nh;
+
+	uint8_t dst[ETH_ALEN];
+
+	/* payload */
+	uint16_t payload_size;
+
+	struct avtpdu_cshdr pdu;
+	unsigned char payload[0];
+} __attribute__((__packed__));
+
 struct cb_entity {
 	uint64_t stream_id;
 	void *priv_data;
@@ -23,7 +83,6 @@ struct nethandler {
 	int rx_sock;
 	bool running;
 	pthread_t tid;
-        uint8_t src_mac[ETH_ALEN]; /* MAC of local NIC */
 	uint8_t dst_mac[ETH_ALEN];
 	struct sockaddr_ll sk_addr;
 
@@ -32,9 +91,14 @@ struct nethandler {
 	struct cb_entity *hmap;
 };
 
-struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t sz)
+
+
+struct timedc_avtp * pdu_create(struct nethandler *nh,
+				unsigned char *dst,
+				uint64_t stream_id,
+				uint16_t sz)
 {
-	struct timedc_avtp *pdu = malloc(sizeof(*pdu)+sz);
+	struct timedc_avtp *pdu = malloc(sizeof(*pdu) + sz);
 	if (!pdu)
 		return NULL;
 
@@ -42,12 +106,16 @@ struct timedc_avtp * pdu_create(uint64_t stream_id, uint16_t sz)
 	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
 	pdu->pdu.stream_id = stream_id;
 	pdu->payload_size = sz;
+	pdu->nh = nh;
+
+	memcpy(pdu->dst, dst, ETH_ALEN);
+
 	return pdu;
 }
 
 void pdu_destroy(struct timedc_avtp **pdu)
 {
-	if(!*pdu)
+	if (!*pdu)
 		return;
 	free(*pdu);
 	*pdu = NULL;
@@ -69,6 +137,21 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, size_t sz)
 	memcpy(pdu->payload, data, sz);
 	return 0;
 }
+
+int pdu_send(struct timedc_avtp *pdu)
+{
+	if (!pdu)
+		return -ENOMEM;
+	return -EINVAL;		/* not implemented yet */
+}
+
+void * pdu_get_payload(struct timedc_avtp *pdu)
+{
+	if (!pdu)
+		return NULL;
+	return (void *)pdu->payload;
+}
+
 
 static int _nh_socket_setup_common(struct nethandler *nh, const unsigned char *ifname)
 {
