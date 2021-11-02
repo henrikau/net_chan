@@ -226,10 +226,15 @@ int nh_reg_callback(struct nethandler *nh,
 
 static int get_hm_idx(struct nethandler *nh, uint64_t stream_id)
 {
+	if (!nh)
+		return -ENOMEM;
+
+	int idx = stream_id % nh->hmap_sz;
 	for (int i = 0; i < nh->hmap_sz; i++) {
-		int idx = (idx + i) % nh->hmap_sz;
 		if (nh->hmap[idx].stream_id == stream_id && nh->hmap[idx].cb)
 			return idx;
+
+		idx = (idx + 1) % nh->hmap_sz;
 	}
 	return -1;
 }
