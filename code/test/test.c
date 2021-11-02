@@ -57,8 +57,9 @@ static void test_nh_hashmap(void)
 	TEST_ASSERT(nh_reg_callback(nh, 16, cb_priv_data, nh_callback) == 0);
 	TEST_ASSERT(nh->hmap[0].priv_data == cb_priv_data);
 	TEST_ASSERT(nh->hmap[0].cb == nh_callback);
-	TEST_ASSERT(get_hm_idx(nh, 16) == 0);
+	TEST_ASSERT(get_hm_idx(NULL, 17) == -ENOMEM);
 
+	TEST_ASSERT(get_hm_idx(nh, 16) == 0);
 	TEST_ASSERT(get_hm_idx(nh, 17) == -1);
 	TEST_ASSERT(nh_reg_callback(nh, 17, cb_priv_data, nh_callback) == 0);
 	TEST_ASSERT(get_hm_idx(nh, 17) == 1);
@@ -97,8 +98,11 @@ static void test_nh_feed_pdu(void)
 	TEST_ASSERT(nh_reg_callback(nh, 17, cb_priv_data, nh_callback) == 0);
 	TEST_ASSERT(nh_feed_pdu(nh, pdu17) == 0);
 	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == 17);
-	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == 0);
+	int res = 0;
+	res = nh_feed_pdu(nh, pdu42);
+	TEST_ASSERT(res == 0);
 	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == 42);
+	free(cb_priv_data);
 }
 
 int main(int argc, char *argv[])
