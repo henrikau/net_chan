@@ -17,7 +17,7 @@ static unsigned char m_ip[INET6_ADDRSTRLEN];
 static struct argp_option options[] = {
 	{"dst" , 'd', "MACADDR", 0, "Stream Destination MAC address" },
 	{"nic" , 'i', "NIC" , 0, "Network Interface" },
-	{"multicast", 'm', "MULTICAST IP", 0, "Multicast IP address for stream" },
+	{"multicast", 'm', "MULTICAST IP", 0, "Multicast IP address for stream (can be used instead of MAC)" },
 	{ 0 }
 };
 
@@ -63,20 +63,18 @@ int main(int argc, char *argv[])
 {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
-	printf("\n------------------------------\n");
-	printf("%ld Hello, World\n", tv.tv_sec);
 
 	argp_parse(&argp, argc, argv, 0, NULL, NULL);
 
-	printf("Mac Address: %s\n", ether_ntoa((struct ether_addr *)&dstmac));
 	printf("Iface: %s\n", nic);
+	printf("Mac Address: %s\n", ether_ntoa((struct ether_addr *)&dstmac));
 
 	char ip[INET6_ADDRSTRLEN];
 	inet_ntop(AF_INET, m_ip, ip, INET6_ADDRSTRLEN);
-	printf("IP Multicast: %s\n", ip);
+	printf("IP address: %s\n", ip);
 
-	struct timedc_avtp *pdu = pdu_create(42, sizeof(uint64_t));
-	struct timedc_avtp *pdu2 = pdu_create(10, sizeof(uint64_t));
+	struct timedc_avtp *pdu = pdu_create(nic, 16, 42, sizeof(uint64_t));
+	struct timedc_avtp *pdu2 = pdu_create(nic, 16, 10, sizeof(uint64_t));
 
 	uint64_t data = 0xdeadbeef;
 
@@ -84,7 +82,7 @@ int main(int argc, char *argv[])
 	pdu_update(pdu, 0, &data, sizeof(data));
 	pdu_update(pdu2, 0, &data, sizeof(data));
 
-	printf("Data in payload: 0x%lx\n", *(uint64_t *)pdu->payload);
+	printf("Data in payload: 0x%lx\n", *(uint64_t *)pdu_get_payload(pdu));
 
 	struct nethandler *nh = nh_init(nic, 16, dstmac);
 	char *msg = "cb for 10";
