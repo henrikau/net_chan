@@ -28,8 +28,8 @@ t_pdu = executable('testpdu',
 	       dependencies: deps
 	      )
 
-t1 = executable('testprog',
-	       'test/test.c',
+t_nh = executable('testprog',
+	       'test/test_nh.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
@@ -37,4 +37,4 @@ t1 = executable('testprog',
 	      )
 
 test('pdu test', t_pdu)
-test('first test', t1)
+test('nh test', t_nh)
