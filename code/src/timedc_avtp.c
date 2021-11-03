@@ -239,7 +239,7 @@ int nh_reg_callback(struct nethandler *nh,
 		printf("Found no available slots (stream_id=%lu, idx=%d -> %p)\n", stream_id, idx, nh->hmap[idx].cb);
 		return -1;
 	}
-	printf("Availalbe idx for %lu at %d\n", stream_id, idx);
+	/* printf("Availalbe idx for %lu at %d\n", stream_id, idx); */
 	nh->hmap[idx].stream_id = stream_id;
 	nh->hmap[idx].priv_data = priv_data;
 	nh->hmap[idx].cb = cb;
