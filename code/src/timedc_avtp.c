@@ -289,6 +289,7 @@ static void * nh_runner(void *data)
 		int n = recv(nh->rx_sock, buffer, 1522, 0);
 		if (n > 0) {
 			struct timedc_avtp *pdu = (struct timedc_avtp *)buffer;
+			nh_feed_pdu(nh, pdu);
 			printf("Got packet with stream_id %lu\n", pdu->pdu.stream_id);
 		}
 
