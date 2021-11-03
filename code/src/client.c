@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 	inet_ntop(AF_INET, m_ip, ip, INET6_ADDRSTRLEN);
 	printf("IP address: %s\n", ip);
 
-	struct nethandler *nh = nh_init(nic, 16, dstmac);
+	struct nethandler *nh = nh_init(nic, 16);
 	struct timedc_avtp *pdu  = pdu_create(nh, dstmac, 42, sizeof(uint64_t));
 	struct timedc_avtp *pdu2 = pdu_create(nh, dstmac, 10, sizeof(uint64_t));
 

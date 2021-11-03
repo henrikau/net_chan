@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <arpa/inet.h>
 #include <linux/if.h>
-#include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
 #include <sys/ioctl.h>
@@ -83,14 +82,22 @@ struct nethandler {
 	int rx_sock;
 	bool running;
 	pthread_t tid;
-	uint8_t dst_mac[ETH_ALEN];
 	struct sockaddr_ll sk_addr;
 
 	/* hashmap, chan_id -> cb_entity  */
 	size_t hmap_sz;
 	struct cb_entity *hmap;
 };
+static struct nethandler *_nh;
 
+int get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
+{
+	for (int i = 0; i < arr_size; i++) {
+		if (strncmp(name, arr[i].name, 32) == 0)
+			return i;
+	}
+	return -1;
+}
 
 
 struct timedc_avtp * pdu_create(struct nethandler *nh,
@@ -107,10 +114,29 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	pdu->pdu.stream_id = stream_id;
 	pdu->payload_size = sz;
 	pdu->nh = nh;
-
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
 	return pdu;
+}
+
+struct timedc_avtp *pdu_create_standalone(char *name,
+					bool tx_update,
+					struct net_fifo *arr,
+					int arr_size,
+					unsigned char *nic,
+					int hmap_size)
+{
+	if (!name || !arr || arr_size <= 0)
+		return NULL;
+	int idx = get_chan_idx(name, arr, arr_size);
+	if (idx < 0)
+		return NULL;
+	if (!_nh) {
+		_nh = nh_init(nic, hmap_size);
+		if (!_nh)
+			return NULL;
+	}
+	return pdu_create(_nh, arr[idx].mcast, arr[idx].stream_id, arr[idx].size);
 }
 
 void pdu_destroy(struct timedc_avtp **pdu)
@@ -173,14 +199,11 @@ static int _nh_socket_setup_common(struct nethandler *nh, const unsigned char *i
 	nh->sk_addr.sll_halen = ETH_ALEN;
 	nh->sk_addr.sll_ifindex = req.ifr_ifindex;
 
-	memcpy(nh->sk_addr.sll_addr, nh->dst_mac, ETH_ALEN);
-
 	return sock;
 }
 
-struct nethandler * nh_init(const unsigned char *ifname,
-			size_t hmap_size,
-			const unsigned char *dst_mac)
+struct nethandler * nh_init(unsigned char *ifname,
+			size_t hmap_size)
 {
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
@@ -192,7 +215,7 @@ struct nethandler * nh_init(const unsigned char *ifname,
 		free(nh);
 		return NULL;
 	}
-	memcpy(nh->dst_mac, dst_mac, ETH_ALEN);
+
 	nh->tx_sock = _nh_socket_setup_common(nh, ifname);
 	nh->rx_sock = _nh_socket_setup_common(nh, ifname);
 
@@ -282,6 +305,8 @@ int nh_start_rx(struct nethandler *nh)
 	if (nh->rx_sock == -1)
 		return -1;
 
+	/* FIXME: must be done on each pdu */
+/*
 	if (nh->dst_mac[0] == 0x01 &&
 		nh->dst_mac[1] == 0x00 &&
 		nh->dst_mac[2] == 0x5e) {
@@ -298,7 +323,7 @@ int nh_start_rx(struct nethandler *nh)
 			return -1;
 		}
 	}
-
+*/
 	pthread_create(&nh->tid, NULL, nh_runner, nh);
 
 	return 0;

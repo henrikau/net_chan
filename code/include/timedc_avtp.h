@@ -3,6 +3,9 @@
 #include <inttypes.h>
 #include <string.h>
 #include <errno.h>
+#include <stdbool.h>
+
+#include <linux/if_ether.h>
 
 #define DEFAULT_NIC "eth0"
 
@@ -11,9 +14,50 @@
  */
 #define DEFAULT_MAC {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
 
+/**
+ * struct net_fifo
+ *
+ * This struct is used by client to populate a set of channels, by
+ * calling nh_create_default, it will read "net_fifo.h" expected to be
+ * in the standard include-path and create all the channels.
+ *
+ * The channels will be assigned to a static, global scope.
+ */
+struct net_fifo
+{
+	/* mcast: address of multicast group the talker will publish
+	 * to
+	 */
+	uint8_t mcast[ETH_ALEN];
+	uint64_t stream_id;
+
+	/* Size of payload, 0..1500 bytes */
+	uint16_t size;
+
+	/* Minimum distance between each frame, in Hz */
+	uint8_t freq;
+
+	/* Name of net_fifo (used by macros to create variable)
+	 * It expects a callback
+	 */
+	char name[32];
+};
+
 struct timedc_avtp;
 struct nethandler;
 
+
+#define NETFIFO_RX(x) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size)
+#define NETFIFO_TX(x) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size)
+
+/* if nh == nULL ->create */
+/* create pdu, tx, add callback */
+
+#define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
+
+int get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
+
+#define FREQ_TO_MS(x) (1000 / x)
 /**
  * pdu_create - create and initialize a new PDU.
  *
@@ -39,6 +83,29 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
 				uint16_t sz);
+
+
+/**
+ * pdu_create_standalone - create pdu using internal refs as much as possible
+ *
+ * Intended to be used when retrieving values from struct net_fifo and
+ * other magic constants in net_fifo.h
+ *
+ * @param name : name of net_fifo
+ * @param tx : tx or rx end of net_fifo
+ * @param arr : net_fifo array of values
+ * @param arr_size : size of net_fifo array
+ * @param nic : NIC we are bound to (if nethandler must be created)
+ * @param hmap_size : size of hmap in nethandler
+ *
+ * @returns new pdu, NULL on error
+ */
+struct timedc_avtp *pdu_create_standalone(char *name,
+					bool tx,
+					struct net_fifo *arr,
+					int arr_size,
+					unsigned char *nic,
+					int hmap_size);
 
 /**
  * pdu_get_payload
@@ -83,11 +150,10 @@ int pdu_send(struct timedc_avtp *pdu);
  *
  * @param ifname: NIC to attach to
  * @param hmap_size: sizeof incoming frame hashmap
- * @param dstmac: remote end of incoming frames.
  *
  * @returns struct nethandler on success, NULL on error
  */
-struct nethandler * nh_init(const unsigned char *ifname, size_t hmap_size, const unsigned char *dstmac);
+struct nethandler * nh_init(unsigned char *ifname, size_t hmap_size);
 
 /**
  * nh_reg_callback - Register a callback for a given stream_id
