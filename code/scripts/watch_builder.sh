@@ -20,6 +20,10 @@ echo ${dirs}
 while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
     test -d build/ || { mkdir build; meson build; }
     ninja -C build/
+    sudo setcap cap_net_raw,cap_net_admin=eip build/testnetfifo
+    sudo setcap cap_net_raw,cap_net_admin=eip build/testpdu
+    sudo setcap cap_net_raw,cap_net_admin=eip build/testprog
+    sudo setcap cap_net_raw,cap_net_admin=eip build/client
     pushd build > /dev/null
     meson test -v
     popd > /dev/null
