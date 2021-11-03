@@ -73,8 +73,9 @@ int main(int argc, char *argv[])
 	inet_ntop(AF_INET, m_ip, ip, INET6_ADDRSTRLEN);
 	printf("IP address: %s\n", ip);
 
-	struct timedc_avtp *pdu = pdu_create(nic, 16, 42, sizeof(uint64_t));
-	struct timedc_avtp *pdu2 = pdu_create(nic, 16, 10, sizeof(uint64_t));
+	struct nethandler *nh = nh_init(nic, 16, dstmac);
+	struct timedc_avtp *pdu  = pdu_create(nh, dstmac, 42, sizeof(uint64_t));
+	struct timedc_avtp *pdu2 = pdu_create(nh, dstmac, 10, sizeof(uint64_t));
 
 	uint64_t data = 0xdeadbeef;
 
@@ -84,7 +85,6 @@ int main(int argc, char *argv[])
 
 	printf("Data in payload: 0x%lx\n", *(uint64_t *)pdu_get_payload(pdu));
 
-	struct nethandler *nh = nh_init(nic, 16, dstmac);
 	char *msg = "cb for 10";
 	nh_reg_callback(nh, 42, "msg for 42", cb);
 	nh_reg_callback(nh, 10, (void*)msg, cb);
