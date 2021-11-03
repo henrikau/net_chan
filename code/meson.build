@@ -36,5 +36,14 @@ t_nh = executable('testprog',
 	       dependencies: deps
 	      )
 
+t_net_fifo = executable('testnetfifo',
+	       'test/test_net_fifo.c',
+	       'test/unity.c',
+	       include_directories: include_directories('include'),
+	       build_by_default: true,
+	       dependencies: deps
+	      )
+
 test('pdu test', t_pdu)
 test('nh test', t_nh)
+test('nh net fifo', t_net_fifo)
