@@ -68,6 +68,7 @@ static void test_create_standalone(void)
 	TEST_ASSERT(pdu->nh == _nh);
 
 	pdu_destroy(&pdu);
+	nh_destroy(&_nh);	/* remember to destroy _nh when using standalone */
  }
 
 int main(int argc, char *argv[])
