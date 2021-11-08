@@ -58,7 +58,10 @@ int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
 #define NF_CHAN_IDX(x) (nf_get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
 struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_size);
+const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size);
+
 #define NF_GET(x) (nf_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+#define NF_GET_REF(x) (nf_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
 #define FREQ_TO_MS(x) (1000 / x)
 

@@ -114,6 +114,17 @@ struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_si
 	return nf;
 }
 
+const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size)
+{
+	if (!name || !arr || arr_size < 1)
+		return NULL;
+	int idx = nf_get_chan_idx(name, arr, arr_size);
+	if (idx == -1)
+		return NULL;
+
+	return &arr[idx];
+}
+
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,

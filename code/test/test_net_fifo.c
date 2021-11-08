@@ -59,6 +59,21 @@ static void test_arr_idx(void)
 		free(nf);
 }
 
+static void test_arr_get_ref(void)
+{
+	TEST_ASSERT_NULL_MESSAGE(NF_GET_REF("missing"), "should not get ref to missing net_fifo");
+
+	const struct net_fifo *nf = NF_GET_REF("test1");
+	TEST_ASSERT_NOT_NULL_MESSAGE(nf, "nf should *not* be null when name ('test1') of net_fifo is available");
+	TEST_ASSERT_MESSAGE(nf == &(net_fifo_chans[0]), "Expected ref, not copy!");
+
+	TEST_ASSERT_MESSAGE(strncmp(nf->name, "test1", 5) == 0, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->size == 8, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->freq == 50, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->mcast[2] == 0x5e, "wrong net_fifo returned");
+}
+
 static void test_create_standalone(void)
 {
 
@@ -93,6 +108,7 @@ int main(int argc, char *argv[])
 	UNITY_BEGIN();
 	RUN_TEST(test_arr_size);
 	RUN_TEST(test_arr_idx);
+	RUN_TEST(test_arr_get_ref);
 	RUN_TEST(test_create_standalone);
 	return UNITY_END();
 }
