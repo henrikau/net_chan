@@ -90,7 +90,7 @@ struct nethandler {
 };
 static struct nethandler *_nh;
 
-int get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
+int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 {
 	for (int i = 0; i < arr_size; i++) {
 		if (strncmp(name, arr[i].name, 32) == 0)
@@ -128,7 +128,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 {
 	if (!name || !arr || arr_size <= 0)
 		return NULL;
-	int idx = get_chan_idx(name, arr, arr_size);
+	int idx = nf_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
 		return NULL;
 	if (!_nh) {

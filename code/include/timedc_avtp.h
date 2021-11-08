@@ -54,8 +54,8 @@ struct nethandler;
 
 /* Get idx of a channel based on the name
  */
-#define CHAN_IDX(x) (get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
-int get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
+#define NF_CHAN_IDX(x) (nf_get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
 
 #define FREQ_TO_MS(x) (1000 / x)
 

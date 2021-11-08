@@ -37,12 +37,12 @@ static void test_arr_size(void)
 
 static void test_arr_idx(void)
 {
-	TEST_ASSERT(get_chan_idx("test1", net_fifo_chans, ARRAY_SIZE(net_fifo_chans)) == 0);
-	TEST_ASSERT(get_chan_idx("test2", net_fifo_chans, nfc_sz) == 1);
-	TEST_ASSERT(get_chan_idx("missing", net_fifo_chans, nfc_sz) == -1);
+	TEST_ASSERT(nf_get_chan_idx("test1", net_fifo_chans, ARRAY_SIZE(net_fifo_chans)) == 0);
+	TEST_ASSERT(nf_get_chan_idx("test2", net_fifo_chans, nfc_sz) == 1);
+	TEST_ASSERT(nf_get_chan_idx("missing", net_fifo_chans, nfc_sz) == -1);
 
-	TEST_ASSERT(CHAN_IDX("test2") == 1);
-	TEST_ASSERT(CHAN_IDX("missing") == -1);
+	TEST_ASSERT(NF_CHAN_IDX("test2") == 1);
+	TEST_ASSERT(NF_CHAN_IDX("missing") == -1);
 }
 
 static void test_create_standalone(void)
