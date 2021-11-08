@@ -50,14 +50,15 @@ struct nethandler;
 #define NETFIFO_RX(x) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size)
 #define NETFIFO_TX(x) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size)
 
-/* if nh == nULL ->create */
-/* create pdu, tx, add callback */
-
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
+/* Get idx of a channel based on the name
+ */
+#define CHAN_IDX(x) (get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 int get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
 
 #define FREQ_TO_MS(x) (1000 / x)
+
 /**
  * pdu_create - create and initialize a new PDU.
  *
