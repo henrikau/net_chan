@@ -99,6 +99,20 @@ int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 	return -1;
 }
 
+struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_size)
+{
+	if (!name || !arr || arr_size < 1)
+		return NULL;
+	int idx = nf_get_chan_idx(name, arr, arr_size);
+	if (idx == -1)
+		return NULL;
+
+	struct net_fifo *nf = malloc(sizeof(*nf));
+	if (!nf)
+		return NULL;
+	*nf = arr[idx];
+	return nf;
+}
 
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,

@@ -43,6 +43,20 @@ static void test_arr_idx(void)
 
 	TEST_ASSERT(NF_CHAN_IDX("test2") == 1);
 	TEST_ASSERT(NF_CHAN_IDX("missing") == -1);
+
+	TEST_ASSERT_NULL_MESSAGE(NULL, "Should be null");
+	struct net_fifo *nf = NF_GET("missing");
+	TEST_ASSERT_NULL_MESSAGE(nf, "nf should be null when name of net_fifo is not available");
+	nf = NF_GET("test1");
+	TEST_ASSERT_NOT_NULL_MESSAGE(nf, "nf should *not* be null when name ('test1') of net_fifo is available");
+	TEST_ASSERT_MESSAGE(strncmp(nf->name, "test1", 5) == 0, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->size == 8, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->freq == 50, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->mcast[2] == 0x5e, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf != &(net_fifo_chans[0]), "Expected copy to be returned, not ref");
+	if (nf)
+		free(nf);
 }
 
 static void test_create_standalone(void)
