@@ -1,33 +1,17 @@
 #include <stdio.h>
 #include "unity.h"
+#include "test_net_fifo.h"
 #include <timedc_avtp.h>
-
-struct net_fifo net_fifo_chans[] = {
-	{
-		{0x01, 0x00, 0x5E, 0x00, 0x00, 0x00},
-		42,
-		8,
-		50,
-		"test1"
-	},
-	{
-		{0x01, 0x00, 0x5E, 0xde, 0xad, 0x42},
-		43,
-		8,
-		10,
-		"test2"
-	},
-};
-unsigned char nf_nic[] = "eth0";
-int nf_hmap_size = 41;
 
 /*
  * include c directly (need access to internals) as common hides
  * internals (and we want to produce a single file for ktc later)
  */
 #include "../src/timedc_avtp.c"
-
-static int nfc_sz = ARRAY_SIZE(net_fifo_chans);
+void tearDown(void)
+{
+	nh_destroy(&_nh);
+}
 
 static void test_arr_size(void)
 {

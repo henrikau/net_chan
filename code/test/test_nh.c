@@ -1,5 +1,9 @@
 #include <stdio.h>
+
 #include "unity.h"
+#include "test_net_fifo.h"
+
+#include <unistd.h>
 
 /*
  * include c directly (need access to internals) as common hides
