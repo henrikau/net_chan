@@ -172,20 +172,17 @@ void pdu_destroy(struct timedc_avtp **pdu)
 	*pdu = NULL;
 }
 
-int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, size_t sz)
+int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
 {
 	if (!pdu)
 		return -ENOMEM;
-
-	if (sz > pdu->payload_size)
-		return -EMSGSIZE;
 
 	if (!data)
 		return -ENOMEM;
 
 	pdu->pdu.avtp_timestamp = ts;
 	pdu->pdu.tv = 1;
-	memcpy(pdu->payload, data, sz);
+	memcpy(pdu->payload, data, pdu->payload_size);
 	return 0;
 }
 

@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
 	uint64_t data = 0xdeadbeef;
 
 
-	pdu_update(pdu, 0, &data, sizeof(data));
-	pdu_update(pdu2, 0, &data, sizeof(data));
+	pdu_update(pdu, 0, &data);
+	pdu_update(pdu2, 0, &data);
 
 	printf("Data in payload: 0x%lx\n", *(uint64_t *)pdu_get_payload(pdu));
 

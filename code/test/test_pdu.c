@@ -48,15 +48,14 @@ static void test_pdu_create(void)
 
 static void test_pdu_update(void)
 {
-	TEST_ASSERT(pdu_update(NULL, 1, NULL, 7) == -ENOMEM);
+	TEST_ASSERT(pdu_update(NULL, 1, NULL) == -ENOMEM);
 
 	/* Test failed update of data and that other fields have not been altered*/
 	TEST_ASSERT(pdu42->pdu.stream_id == 42);
-	TEST_ASSERT(pdu_update(pdu42, 2, data42, DATA42SZ+1) == -EMSGSIZE);
 	TEST_ASSERT(pdu42->pdu.stream_id == 42);
 
-	TEST_ASSERT(pdu_update(pdu17, 3, NULL, DATA17SZ) == -ENOMEM);
-	TEST_ASSERT(pdu_update(pdu17, 4, data17, DATA17SZ) == 0);
+	TEST_ASSERT(pdu_update(pdu17, 3, NULL) == -ENOMEM);
+	TEST_ASSERT(pdu_update(pdu17, 4, data17) == 0);
 	TEST_ASSERT(pdu17->pdu.avtp_timestamp == 4);
 	TEST_ASSERT(pdu17->pdu.tv == 1);
 	TEST_ASSERT(pdu17->payload[0] == 0x17);
@@ -65,7 +64,7 @@ static void test_pdu_update(void)
 	/* Test payload */
 	TEST_ASSERT(pdu42->pdu.stream_id == 42);
 	uint64_t val = 0xdeadbeef;
-	TEST_ASSERT(pdu_update(pdu42, 5, &val, DATA42SZ) == 0);
+	TEST_ASSERT(pdu_update(pdu42, 5, &val) == 0);
 	TEST_ASSERT(pdu42->pdu.stream_id == 42);
 
 	TEST_ASSERT(pdu42->pdu.avtp_timestamp == 5);
@@ -79,7 +78,7 @@ static void test_pdu_update(void)
 static void test_pdu_get_payload(void)
 {
 	uint64_t val = 0xdeadbeef;
-	pdu_update(pdu42, 5, &val, DATA42SZ);
+	pdu_update(pdu42, 5, &val);
 	uint64_t *pl = pdu_get_payload(pdu42);
 	TEST_ASSERT(*pl == val);
 	TEST_ASSERT(pdu_get_payload(NULL) == NULL)
@@ -90,7 +89,7 @@ static void test_pdu_send(void)
 	TEST_ASSERT(pdu_send(NULL) == -ENOMEM);
 
 	uint64_t val = 0xdeadbeef;
-	pdu_update(pdu42, 5, &val, DATA42SZ);
+	pdu_update(pdu42, 5, &val);
 	TEST_ASSERT(pdu_send(pdu42) == -EINVAL);
 
 }

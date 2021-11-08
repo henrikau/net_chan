@@ -82,7 +82,7 @@ const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, 
  * @param nh nethandler container
  * @param dst destination address for this PDU
  * @param stream_id 64 bit unique value for the stream allotted to our channel.
- * @param sz: expexted size of data. Once set, larger datasets cannot be sent via this PDU (allthough smaller is possible)
+ * @param sz: size of data to transmit
  *
  * @returns the new PDU or NULL upon failure.
  */
@@ -132,14 +132,15 @@ void pdu_destroy(struct timedc_avtp **pdu);
 /**
  * pdu_update : take an existing PDU and update timestamp and data and make it ready for Tx
  *
+ * The function expects the size of data to be the same size as when it was created
+ *
  * @param pdu: pdu to update
  * @param ts: avtp timestamp (lower 32 bit of PTP timestamp)
- * @param data: data to copy into payload, max payload_size from pdu_create)
- * @param sz: size of payload to copy
+ * @param data: data to copy into payload (size is fixed from pdu_create())
  *
  * @returns 0 on success, errno on failure.
  */
-int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data, size_t sz);
+int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data);
 
 /**
  * pdu_send : send payload of TimedC data unit
