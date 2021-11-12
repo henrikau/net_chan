@@ -104,7 +104,7 @@ static void test_nh_feed_pdu(void)
 	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == 0);
 	TEST_ASSERT(cb_pdu == pdu42);
 	TEST_ASSERT(cb_data == cb_priv_data);
-	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == 42);
+	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == htobe64(42));
 
 	TEST_ASSERT(((unsigned char *)cb_data)[0] == 0xa0);
 	TEST_ASSERT(((unsigned char *)cb_data)[31] == 0xa0);
@@ -112,11 +112,11 @@ static void test_nh_feed_pdu(void)
 	/* verify that calling feed_pdu will call cb with correct data */
 	TEST_ASSERT(nh_reg_callback(nh, 17, cb_priv_data, nh_callback) == 0);
 	TEST_ASSERT(nh_feed_pdu(nh, pdu17) == 0);
-	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == 17);
+	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == htobe64(17));
 	int res = 0;
 	res = nh_feed_pdu(nh, pdu42);
 	TEST_ASSERT(res == 0);
-	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == 42);
+	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == htobe64(42));
 	free(cb_priv_data);
 }
 

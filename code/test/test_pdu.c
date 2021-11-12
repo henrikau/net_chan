@@ -43,7 +43,7 @@ static void test_pdu_create(void)
 	printf("%s(): start\n", __func__);
 	struct timedc_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 128);
 	TEST_ASSERT(pdu != NULL);
-	TEST_ASSERT(pdu->pdu.stream_id == 43);
+	TEST_ASSERT(pdu->pdu.stream_id == be64toh(43));
 	TEST_ASSERT(pdu->payload_size == 128);
 	pdu_destroy(&pdu);
 	TEST_ASSERT(pdu == NULL);
@@ -56,8 +56,8 @@ static void test_pdu_update(void)
 	TEST_ASSERT(pdu_update(NULL, 1, NULL) == -ENOMEM);
 
 	/* Test failed update of data and that other fields have not been altered*/
-	TEST_ASSERT(pdu42->pdu.stream_id == 42);
-	TEST_ASSERT(pdu42->pdu.stream_id == 42);
+	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
+	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 
 	TEST_ASSERT(pdu_update(pdu17, 3, NULL) == -ENOMEM);
 	TEST_ASSERT(pdu_update(pdu17, 4, data17) == 0);
@@ -67,10 +67,10 @@ static void test_pdu_update(void)
 	TEST_ASSERT(pdu17->payload[DATA17SZ-1] == 0x17);
 
 	/* Test payload */
-	TEST_ASSERT(pdu42->pdu.stream_id == 42);
+	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 	uint64_t val = 0xdeadbeef;
 	TEST_ASSERT(pdu_update(pdu42, 5, &val) == 0);
-	TEST_ASSERT(pdu42->pdu.stream_id == 42);
+	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 
 	TEST_ASSERT(pdu42->pdu.avtp_timestamp == 5);
 	uint64_t *pl = (uint64_t *)pdu42->payload;
@@ -119,7 +119,7 @@ static void test_create_standalone(void)
 	TEST_ASSERT(pdu != NULL);
 
 	/* Test pdu internals after macro creation */
-	TEST_ASSERT(pdu->pdu.stream_id == 42);
+	TEST_ASSERT(pdu->pdu.stream_id == be64toh(42));
 	for (int i = 0; i < ETH_ALEN; i++)
 		TEST_ASSERT(pdu->dst[i] == net_fifo_chans[0].mcast[i]);
 	TEST_ASSERT(pdu->nh == _nh);
@@ -162,8 +162,6 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_pdu_send);
 	RUN_TEST(test_create_standalone);
 	RUN_TEST(test_add_anon_pdu);
-
-	//RUN_TEST(test_pdu_macro_create);
 
 	return UNITY_END();
 }

@@ -229,7 +229,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 
 	memset(pdu, 0, sizeof(*pdu));
 	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
-	pdu->pdu.stream_id = stream_id;
+	pdu->pdu.stream_id = htobe64(stream_id);
 	pdu->payload_size = sz;
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
@@ -432,7 +432,7 @@ int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu)
 {
 	if (!nh || !pdu)
 		return -EINVAL;
-	int idx = get_hm_idx(nh, pdu->pdu.stream_id);
+	int idx = get_hm_idx(nh, be64toh(pdu->pdu.stream_id));
 	if (idx >= 0)
 		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, pdu);
 
