@@ -32,6 +32,10 @@ void tearDown(void)
 	pdu_destroy(&pdu17);
 	pdu_destroy(&pdu42);
 	nh_destroy(&nh);
+
+	/* remember to destroy _nh when using standalone */
+	if (_nh)
+		nh_destroy(&_nh);
 }
 
 static void test_pdu_create(void)
@@ -95,6 +99,60 @@ static void test_pdu_send(void)
 
 }
 
+static void test_create_standalone(void)
+{
+
+	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL) == NULL);
+	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL) == NULL);
+	TEST_ASSERT(NETFIFO_RX("missing", NULL) == NULL);
+
+	struct timedc_avtp *pdu;
+	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL);
+	TEST_ASSERT(pdu != NULL);
+	pdu_destroy(&pdu);
+
+	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL);
+	TEST_ASSERT(pdu != NULL);
+	pdu_destroy(&pdu);
+
+	pdu = NETFIFO_RX("test1", NULL);
+	TEST_ASSERT(pdu != NULL);
+
+	/* Test pdu internals after macro creation */
+	TEST_ASSERT(pdu->pdu.stream_id == 42);
+	for (int i = 0; i < ETH_ALEN; i++)
+		TEST_ASSERT(pdu->dst[i] == net_fifo_chans[0].mcast[i]);
+	TEST_ASSERT(pdu->nh == _nh);
+
+	pdu_destroy(&pdu);
+}
+
+static void test_add_anon_pdu(void)
+{
+	//struct timedc_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 128);
+	TEST_ASSERT(nh_get_num_tx(nh) == 0);
+	TEST_ASSERT_NULL(nh->du_tx_head);
+	struct timedc_avtp *du = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+	TEST_ASSERT_NOT_NULL(du);
+	TEST_ASSERT(nh_add_tx(NULL, du) == -EINVAL);
+	TEST_ASSERT(nh_add_tx(nh, NULL) == -EINVAL);
+	TEST_ASSERT(nh_add_tx(nh, du) == 0);
+	TEST_ASSERT_NOT_NULL(nh->du_tx_head);
+	TEST_ASSERT(nh->du_tx_head == du);
+	TEST_ASSERT(nh->du_tx_tail == du);
+	TEST_ASSERT(nh_get_num_tx(nh) == 1);
+
+	struct timedc_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:43", 43, 8);
+	TEST_ASSERT(nh_add_tx(nh, du2) == 0);
+	TEST_ASSERT(nh_get_num_tx(nh) == 2);
+	TEST_ASSERT(nh->du_tx_head == du);
+	TEST_ASSERT(nh->du_tx_tail == du2);
+	TEST_ASSERT_NULL(nh->du_tx_tail->next);
+
+	/* nh_destroy() will clean stored DUs, so no need to clean up
+	 * here (valgrind is happy) */
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -102,5 +160,10 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_pdu_update);
 	RUN_TEST(test_pdu_get_payload);
 	RUN_TEST(test_pdu_send);
+	RUN_TEST(test_create_standalone);
+	RUN_TEST(test_add_anon_pdu);
+
+	//RUN_TEST(test_pdu_macro_create);
+
 	return UNITY_END();
 }

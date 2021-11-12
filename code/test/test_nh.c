@@ -21,6 +21,8 @@ struct timedc_avtp *pdu42;
 
 struct nethandler *nh;
 
+/* PIPE callback */
+int pfd[2];
 void setUp(void)
 {
 	nh = nh_init((unsigned char *)"lo", 16);
@@ -28,6 +30,9 @@ void setUp(void)
 	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, DATA42SZ);
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
+
+	/* Use a pipe as fd to test callback */
+	pipe(pfd);
 }
 
 void tearDown(void)
@@ -35,6 +40,12 @@ void tearDown(void)
 	pdu_destroy(&pdu17);
 	pdu_destroy(&pdu42);
 	nh_destroy(&nh);
+	/* close pipes */
+	close(pfd[0]);
+	close(pfd[1]);
+
+	if (_nh)
+		nh_destroy(&_nh);
 }
 
 
@@ -109,11 +120,59 @@ static void test_nh_feed_pdu(void)
 	free(cb_priv_data);
 }
 
+static void test_create_cb(void)
+{
+	/* use pipe w to send data */
+	struct cb_priv cbp = { .fd = pfd[1], };
+
+	int (*cb)(void *priv_data, struct timedc_avtp *pdu) = nh_std_cb;
+	TEST_ASSERT(cb(NULL, NULL) == -EINVAL);
+	TEST_ASSERT(cb(&cbp, NULL) == -EINVAL);
+	TEST_ASSERT(cb(NULL, pdu42) == -EINVAL);
+
+
+	TEST_ASSERT(nh_reg_callback(nh, 42, &cbp, cb) == 0);
+
+	uint64_t val = 0xdeadbeef;
+	pdu_update(pdu42, 0, &val);
+	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == 0);
+
+	/* Verify that callback has written data into pipe */
+	uint64_t res = 0;
+	int rdsz = read(pfd[0], &res, sizeof(uint64_t));
+
+	TEST_ASSERT(rdsz == 8);
+	TEST_ASSERT(res == 0xdeadbeef);
+
+	val = 1;
+}
+
+static void test_create_tx_fifo(void)
+{
+	struct timedc_avtp *du = NETFIFO_TX("test1", pfd);
+	TEST_ASSERT_NOT_NULL_MESSAGE(du, "Missing DU, should have been created from valid name");
+	TEST_ASSERT(du->nh == _nh);
+	TEST_ASSERT_MESSAGE(strncmp(du->name, "test1", 5) == 0, "wrong net_fifo returned");
+	TEST_ASSERT(du->dst[0] == 0x01);
+	TEST_ASSERT(du->dst[1] == 0x00);
+	TEST_ASSERT(du->dst[2] == 0x5e);
+
+	uint64_t val = 32;
+	TEST_ASSERT(pdu_update(du, 0, &val) == 0);
+
+	/* Cleanup memory */
+	pdu_destroy(&du);
+}
+
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
 
 	RUN_TEST(test_nh_hashmap);
 	RUN_TEST(test_nh_feed_pdu);
+	RUN_TEST(test_create_cb);
+	RUN_TEST(test_create_tx_fifo);
+
 	return UNITY_END();
 }

@@ -58,34 +58,26 @@ static void test_arr_get_ref(void)
 	TEST_ASSERT_MESSAGE(nf->mcast[2] == 0x5e, "wrong net_fifo returned");
 }
 
-static void test_create_standalone(void)
+static void test_create_netfifo_tx(void)
 {
+	/* Create pipe, datasize 8, streamID 42, first multicast address */
+	int w = NETFIFO_TX_CREATE("missing");
+	TEST_ASSERT(w == -1);
 
-	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size) == NULL);
-	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size) == NULL);
-	TEST_ASSERT(NETFIFO_RX("missing") == NULL);
+	w = NETFIFO_TX_CREATE("test1");
+	TEST_ASSERT(w != -1);
+	uint64_t val = 0xaa00aa00;
+	usleep(1000);
 
-	struct timedc_avtp *pdu;
-	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size);
-	TEST_ASSERT(pdu != NULL);
-	pdu_destroy(&pdu);
+	write(w, &val, 8);
 
-	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size);
-	TEST_ASSERT(pdu != NULL);
-	pdu_destroy(&pdu);
+	/* Need a 10ms sleep at the end to let the worker thread grab the data */
+	usleep(10000);
+	TEST_ASSERT(_nh->du_tx_tail->payload_size == 8);
+	uint64_t *data = (uint64_t *)&(_nh->du_tx_tail->payload[0]);
+	TEST_ASSERT(*data == val);
 
-	pdu = NETFIFO_RX("test1");
-	TEST_ASSERT(pdu != NULL);
-
-	/* Test pdu internals after macro creation */
-	TEST_ASSERT(pdu->pdu.stream_id == 42);
-	for (int i = 0; i < ETH_ALEN; i++)
-		TEST_ASSERT(pdu->dst[i] == net_fifo_chans[0].mcast[i]);
-	TEST_ASSERT(pdu->nh == _nh);
-
-	pdu_destroy(&pdu);
-	nh_destroy(&_nh);	/* remember to destroy _nh when using standalone */
- }
+}
 
 int main(int argc, char *argv[])
 {
@@ -93,6 +85,8 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_arr_size);
 	RUN_TEST(test_arr_idx);
 	RUN_TEST(test_arr_get_ref);
-	RUN_TEST(test_create_standalone);
+
+	RUN_TEST(test_create_netfifo_tx);
+
 	return UNITY_END();
 }
