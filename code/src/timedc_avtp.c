@@ -9,6 +9,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <unistd.h>
 
 /* Rename experimental type to TimedC subtype for now */
 #define AVTP_SUBTYPE_TIMEDC 0x7F
@@ -48,6 +49,24 @@ struct avtpdu_cshdr {
 } __attribute__((packed));
 
 /**
+ * cb_priv: private data for callbacks
+ *
+ * Since we are using C, there's not partially evaluated functions
+ * (currying) or templating creating custom functions on the go. Instead
+ * we store per-callback related stuff in a standardized cb_priv struct
+ * and create this automatically when creating new fifos
+ *
+ * @param sz: size of data to read/write
+ * @param fd: filedescriptor to write to/read from
+ */
+struct cb_priv
+{
+	int sz;
+	/* FIFO FD */
+	int fd;
+};
+
+/**
  * timedc_avtp - Container for fifo/lvchan over TSN/AVB
  *
  * Internal bits including the payload itself that a channel will send
@@ -60,8 +79,16 @@ struct avtpdu_cshdr {
 struct timedc_avtp
 {
 	struct nethandler *nh;
+	struct timedc_avtp *next;
 
 	uint8_t dst[ETH_ALEN];
+	char name[32];
+
+	/* private area for callback, embed directly i not struct to
+	 * ease memory management. */
+	struct cb_priv cbp;
+	int fd_w;
+	int fd_r;
 
 	/* payload */
 	uint16_t payload_size;
@@ -70,6 +97,11 @@ struct timedc_avtp
 	unsigned char payload[0];
 } __attribute__((__packed__));
 
+/**
+ * cb_entity: container for callbacks
+ *
+ * This is used to find the correct callback to process incoming frames.
+ */
 struct cb_entity {
 	uint64_t stream_id;
 	void *priv_data;
@@ -77,6 +109,8 @@ struct cb_entity {
 };
 
 struct nethandler {
+	struct timedc_avtp *du_tx_head;
+	struct timedc_avtp *du_tx_tail;
 	/* receiver */
 	int tx_sock;
 	int rx_sock;
@@ -349,6 +383,30 @@ int nh_start_rx(struct nethandler *nh)
 */
 	pthread_create(&nh->tid, NULL, nh_runner, nh);
 
+	return 0;
+}
+int nh_get_num_tx(struct nethandler *nh)
+{
+	struct timedc_avtp *du = nh->du_tx_head;
+	int ctr = 0;
+	while (du) {
+		ctr++;
+		du = du->next;
+	}
+	return ctr;
+}
+
+int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du)
+{
+	if (!nh || !du)
+		return -EINVAL;
+	if (!nh->du_tx_head) {
+		nh->du_tx_head = du;
+		nh->du_tx_tail = du;
+	} else {
+		nh->du_tx_tail->next = du;
+		nh->du_tx_tail = du;
+	}
 	return 0;
 }
 
