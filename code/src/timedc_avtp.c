@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <signal.h>
 #include <unistd.h>
+#include <time.h>
 
 /* Rename experimental type to TimedC subtype for now */
 #define AVTP_SUBTYPE_TIMEDC 0x7F
@@ -81,6 +82,8 @@ struct timedc_avtp
 	struct nethandler *nh;
 	struct timedc_avtp *next;
 
+	pthread_t tx_tid;
+	bool running;
 	uint8_t dst[ETH_ALEN];
 	char name[32];
 
@@ -95,7 +98,7 @@ struct timedc_avtp
 
 	struct avtpdu_cshdr pdu;
 	unsigned char payload[0];
-} __attribute__((__packed__));
+};
 
 /**
  * cb_entity: container for callbacks
@@ -159,6 +162,62 @@ const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, 
 	return &arr[idx];
 }
 
+void * nf_tx_worker(void *data)
+{
+	struct timedc_avtp *du = (struct timedc_avtp *)data;
+	if (!du)
+		return NULL;
+
+	char *buf = malloc(du->payload_size);
+	if (!buf)
+		return NULL;
+	while (du->running) {
+		struct timespec tv;
+
+		int sz = read(du->fd_r, buf, du->payload_size);
+		int cres = clock_gettime(CLOCK_TAI, &tv);
+		if (!du->running)
+			continue;
+		if (sz == -1) {
+			perror("Failed reading data from pipe");
+			continue;
+		}
+		if (cres == -1) {
+			perror("failed reading clock");
+			continue;
+		}
+		uint32_t ts_ns = (uint32_t)(tv.tv_sec * 1e9 + tv.tv_nsec);
+		pdu_update(du, ts_ns, buf);
+		pdu_send(du);
+		printf("%s(): Read %d bytes from pipe, ready to tx to %s\n", __func__, sz, ether_ntoa((struct ether_addr *)du->dst));
+	}
+
+	free(buf);
+	return NULL;
+}
+
+int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz)
+{
+	int fd[2];
+	if (pipe(fd) == -1)
+		return -1;
+
+	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size, nic, hmap_sz, fd);
+	if (!du) {
+		close(fd[0]);
+		close(fd[1]);
+		return -1;
+	}
+	nh_add_tx(_nh, du);
+
+	/* start thread to block on fd_r, return fd_w */
+	du->running = true;
+	pthread_create(&du->tx_tid, NULL, nf_tx_worker, du);
+
+	return du->fd_w;
+}
+
+
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
@@ -175,6 +234,8 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
+	pdu->tx_tid = -1;
+	pdu->running = false;
 	return pdu;
 }
 
@@ -183,7 +244,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					struct net_fifo *arr,
 					int arr_size,
 					unsigned char *nic,
-					int hmap_size)
+					int hmap_size,
+					int pfd[2])
 {
 	if (!name || !arr || arr_size <= 0)
 		return NULL;
@@ -195,13 +257,44 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		if (!_nh)
 			return NULL;
 	}
-	return pdu_create(_nh, arr[idx].mcast, arr[idx].stream_id, arr[idx].size);
+	struct timedc_avtp * du = pdu_create(_nh, arr[idx].mcast, arr[idx].stream_id, arr[idx].size);
+
+	if (!du)
+		return NULL;
+
+	strncpy(du->name, name, 32);
+	if (pfd) {
+		du->fd_r = pfd[0];
+		du->fd_w = pfd[1];
+		du->cbp.fd = du->fd_w;
+		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
+	}
+
+	return du;
 }
 
 void pdu_destroy(struct timedc_avtp **pdu)
 {
 	if (!*pdu)
 		return;
+
+	/* close down tx-threads */
+	if ((*pdu)->tx_tid != -1) {
+		(*pdu)->running = false;
+		unsigned char *d = malloc((*pdu)->payload_size);
+		memset(d, 0, (*pdu)->payload_size);
+		write((*pdu)->fd_w, d, (*pdu)->payload_size);
+
+		usleep(1000);
+		pthread_join((*pdu)->tx_tid, NULL);
+		(*pdu)->tx_tid = -1;
+	}
+
+	if ((*pdu)->fd_r >= 0)
+		close((*pdu)->fd_r);
+	if ((*pdu)->fd_w >= 0)
+		close((*pdu)->fd_w);
+
 	free(*pdu);
 	*pdu = NULL;
 }
@@ -302,6 +395,23 @@ int nh_reg_callback(struct nethandler *nh,
 
 	return 0;
 }
+int nh_std_cb(void *priv, struct timedc_avtp *du)
+{
+	if (!priv || !du)
+		return -EINVAL;
+
+	struct cb_priv *cbp = (struct cb_priv *)priv;
+	if (cbp->fd <= 0)
+		return -EINVAL;
+	printf("payload: 0x%08lx\n", *(uint64_t *)&(du->payload));
+
+	int wsz = write(cbp->fd, du->payload, du->payload_size);
+	if (wsz == -1)
+		perror("Failed writing to fifo");
+	printf("Wrote %d bytes to fifo_w=%d\n", wsz, cbp->fd);
+	return 0;
+}
+
 
 static int get_hm_idx(struct nethandler *nh, uint64_t stream_id)
 {
@@ -422,6 +532,13 @@ void nh_destroy(struct nethandler **nh)
 		/* close down and exit safely */
 		if ((*nh)->hmap != NULL)
 			free((*nh)->hmap);
+
+		/* clean up TX PDUs */
+		while ((*nh)->du_tx_head) {
+			struct timedc_avtp *pdu = (*nh)->du_tx_head;
+			(*nh)->du_tx_head = (*nh)->du_tx_head->next;
+			pdu_destroy(&pdu);
+		}
 
 		/* Free memory */
 		free(*nh);

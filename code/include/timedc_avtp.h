@@ -47,8 +47,8 @@ struct timedc_avtp;
 struct nethandler;
 
 
-#define NETFIFO_RX(x) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size)
-#define NETFIFO_TX(x) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size)
+#define NETFIFO_RX(x, pfd) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size, pfd)
+#define NETFIFO_TX(x, pfd) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size, pfd)
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
@@ -59,6 +59,9 @@ int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
 
 struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_size);
 const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size);
+
+int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz);
+#define NETFIFO_TX_CREATE(x) nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size);
 
 #define NF_GET(x) (nf_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 #define NF_GET_REF(x) (nf_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
@@ -112,7 +115,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					struct net_fifo *arr,
 					int arr_size,
 					unsigned char *nic,
-					int hmap_size);
+					int hmap_size,
+					int pfd[2]);
 
 /**
  * pdu_get_payload
@@ -184,6 +188,20 @@ int nh_reg_callback(struct nethandler *nh,
 		void *priv_data,
 		int (*cb)(void *priv_data, struct timedc_avtp *pdu));
 
+
+/**
+ * nethandler standard callback
+ *
+ * This is the *standard* callback function. You can create your own if
+ * you like, but this is what the framework will use when creating new
+ * FIFOs, lvchans etc.
+ *
+ * @param data: private data field
+ * @param du: incoming data unit from the network layer.
+ *
+ * @returns: bytes written, negative code on error
+ */
+int nh_std_cb(void *data, struct timedc_avtp *du);
 
 /**
  * nh_feed_pdu - feed a pdu to nethandler which will be passed to relevant callback
