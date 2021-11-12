@@ -85,6 +85,8 @@ struct timedc_avtp
 	pthread_t tx_tid;
 	bool running;
 	uint8_t dst[ETH_ALEN];
+	int tx_sock;
+	struct sockaddr_ll sk_addr;
 	char name[32];
 
 	/* private area for callback, embed directly i not struct to
@@ -235,6 +237,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
 	pdu->tx_tid = -1;
+	pdu->tx_sock = -1;
 	pdu->running = false;
 	return pdu;
 }
@@ -270,6 +273,31 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
 	}
 
+	/* if tx, create socket  */
+	if (tx_update) {
+		du->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
+		if (du->tx_sock == -1) {
+			fprintf(stderr, "%s(): Failed creating tx-socket for PDU (%lu) - %s\n",
+				__func__, du->pdu.stream_id, strerror(errno));
+			pdu_destroy(&du);
+			return NULL;
+		}
+		struct ifreq req;
+		snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", nic);
+		int res = ioctl(du->tx_sock, SIOCGIFINDEX, &req);
+		if (res < 0) {
+			perror("Failed to get interface index");
+			pdu_destroy(&du);
+			return NULL;
+		}
+		struct sockaddr_ll *sk_addr = &du->sk_addr;
+		sk_addr->sll_family = AF_PACKET;
+		sk_addr->sll_protocol = htons(ETH_P_TSN);
+		sk_addr->sll_halen = ETH_ALEN;
+		sk_addr->sll_ifindex = req.ifr_ifindex;
+		memcpy(sk_addr->sll_addr, arr->mcast, ETH_ALEN);
+	}
+
 	return du;
 }
 
@@ -294,7 +322,10 @@ void pdu_destroy(struct timedc_avtp **pdu)
 		close((*pdu)->fd_r);
 	if ((*pdu)->fd_w >= 0)
 		close((*pdu)->fd_w);
-
+	if ((*pdu)->tx_sock >= 0) {
+		close((*pdu)->tx_sock);
+		(*pdu)->tx_sock = -1;
+	}
 	free(*pdu);
 	*pdu = NULL;
 }
@@ -313,11 +344,26 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
 	return 0;
 }
 
-int pdu_send(struct timedc_avtp *pdu)
+int pdu_send(struct timedc_avtp *du)
 {
-	if (!pdu)
+	if (!du)
 		return -ENOMEM;
-	return -EINVAL;		/* not implemented yet */
+	if (!du->nh)
+		return -EINVAL;
+	if (du->tx_sock == -1)
+		return -EINVAL;
+
+	int txsz = sendto(du->tx_sock,
+			&du->pdu,
+			sizeof(struct avtpdu_cshdr) + du->payload_size,
+			0,
+			(struct sockaddr *) &du->nh->sk_addr,
+			sizeof(du->nh->sk_addr));
+	if (txsz < 0)
+		perror("pdu_send()");
+	printf("%s(): sending data, shipped %d bytes (tx_sock=%d)\n", __func__, txsz, du->tx_sock);
+
+	return txsz;
 }
 
 void * pdu_get_payload(struct timedc_avtp *pdu)
@@ -328,7 +374,9 @@ void * pdu_get_payload(struct timedc_avtp *pdu)
 }
 
 
-static int _nh_socket_setup_common(struct nethandler *nh, const unsigned char *ifname)
+/* DEPRECATED, should not store this in nethandler */
+static int _nh_socket_setup_common(struct nethandler *nh,
+				const unsigned char *ifname)
 {
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
 	if (sock == -1) {
@@ -365,7 +413,6 @@ struct nethandler * nh_init(unsigned char *ifname,
 		return NULL;
 	}
 
-	nh->tx_sock = _nh_socket_setup_common(nh, ifname);
 	nh->rx_sock = _nh_socket_setup_common(nh, ifname);
 
 	return nh;
