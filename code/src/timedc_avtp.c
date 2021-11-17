@@ -191,7 +191,6 @@ void * nf_tx_worker(void *data)
 		uint32_t ts_ns = (uint32_t)(tv.tv_sec * 1e9 + tv.tv_nsec);
 		pdu_update(du, ts_ns, buf);
 		pdu_send(du);
-		printf("%s(): Read %d bytes from pipe, ready to tx to %s\n", __func__, sz, ether_ntoa((struct ether_addr *)du->dst));
 	}
 
 	free(buf);
@@ -278,7 +277,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		du->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
 		if (du->tx_sock == -1) {
 			fprintf(stderr, "%s(): Failed creating tx-socket for PDU (%lu) - %s\n",
-				__func__, du->pdu.stream_id, strerror(errno));
+				__func__, be64toh(du->pdu.stream_id), strerror(errno));
 			pdu_destroy(&du);
 			return NULL;
 		}
@@ -357,11 +356,10 @@ int pdu_send(struct timedc_avtp *du)
 			&du->pdu,
 			sizeof(struct avtpdu_cshdr) + du->payload_size,
 			0,
-			(struct sockaddr *) &du->nh->sk_addr,
-			sizeof(du->nh->sk_addr));
+			(struct sockaddr *) &du->sk_addr,
+			sizeof(du->sk_addr));
 	if (txsz < 0)
 		perror("pdu_send()");
-	printf("%s(): sending data, shipped %d bytes (tx_sock=%d)\n", __func__, txsz, du->tx_sock);
 
 	return txsz;
 }
@@ -450,12 +448,11 @@ int nh_std_cb(void *priv, struct timedc_avtp *du)
 	struct cb_priv *cbp = (struct cb_priv *)priv;
 	if (cbp->fd <= 0)
 		return -EINVAL;
-	printf("payload: 0x%08lx\n", *(uint64_t *)&(du->payload));
 
 	int wsz = write(cbp->fd, du->payload, du->payload_size);
 	if (wsz == -1)
 		perror("Failed writing to fifo");
-	printf("Wrote %d bytes to fifo_w=%d\n", wsz, cbp->fd);
+
 	return 0;
 }
 

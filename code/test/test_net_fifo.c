@@ -79,26 +79,26 @@ static void test_create_netfifo_tx(void)
 }
 
 struct tg_container {
+	bool received_ok;
+	uint64_t expected_sid;
 	int expected_datasize;
 	unsigned char *expected_data;
 	struct timedc_avtp *source_du;
+	char buffer[2048];
 };
+
 static bool tg_runner;
 static void * test_grabber(void *data)
 {
 	struct tg_container *tgc = (struct tg_container *)data;
 	if (!tgc)
 		return NULL;
-	char buffer[2048];
-	struct timedc_avtp *pdu = (struct timedc_avtp *)buffer;
-	if (!pdu)
-		return NULL;
 
 	/*
 	 * Create a listener socket (promiscous mode), spawn a listener
 	 * and verify that data is correctly sent
 	 */
-	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
+	int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_TSN));
 	if (sock < 0) {
 		perror("Failed opening TSN-socket\n");
 		return NULL;
@@ -122,21 +122,24 @@ static void * test_grabber(void *data)
 	tv.tv_usec = 0;
 	setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
+	/* Ready receive buffer */
+	struct ether_header *hdr = (struct ether_header *)tgc->buffer;
+	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)(&tgc->buffer[0] + sizeof(*hdr));
+
 	while (tg_runner) {
-		int r = recv(sock, &pdu->pdu, 1522, 0);
+		int r = recv(sock, hdr, 1522, 0);
 		if (r < 0) {
 			perror("Failed reading from socket");
 			tg_runner = false;
 			continue;
 		}
-
-		TEST_ASSERT(pdu->pdu.stream_id == be64toh(42));
-		TEST_ASSERT(pdu->payload_size == 8);
-
-		printf("%s(): Got %d bytes of data!\n", __func__, r);
-		tg_runner = false;
+		if (be64toh(cshdr->stream_id) == tgc->expected_sid) {
+			tgc->received_ok = true;
+			tg_runner = false;
+			continue;
+		}
 	}
-	printf("%s(): done, returning\n", __func__);
+
 	return NULL;
 }
 
@@ -145,22 +148,39 @@ static void test_create_netfifo_tx_send(void)
 	uint64_t data = 0xdeadbeef;
 	int w = NETFIFO_TX_CREATE("test1");
 	TEST_ASSERT(w != -1);
-
 	pthread_t tg_tid;
 	tg_runner = true;
 	struct tg_container tgc = {
+		.received_ok = false,
+		.expected_sid = net_fifo_chans[0].stream_id,
 		.expected_datasize = 8,
 		.expected_data = (unsigned char *)&data,
 		.source_du = _nh->du_tx_tail
 	};
+	memset(&tgc.buffer, 0, 2048);
+
 	pthread_create(&tg_tid, NULL, test_grabber, &tgc);
 	usleep(5000);
 
+	/* write to pipe, this should trigger data  */
 	write(w, &data, 8);
-
 	usleep(5000);
 	tg_runner = false;
 	pthread_join(tg_tid, NULL);
+
+	/* Verify received data */
+	TEST_ASSERT(tgc.received_ok);
+
+	struct ether_header *hdr = (struct ether_header *)tgc.buffer;
+	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)(&tgc.buffer[0] + sizeof(*hdr));
+	TEST_ASSERT(cshdr->subtype == AVTP_SUBTYPE_TIMEDC);
+	TEST_ASSERT(be64toh(cshdr->stream_id) == tgc.expected_sid);
+	TEST_ASSERT(hdr->ether_dhost[0] == net_fifo_chans[0].mcast[0]);
+	TEST_ASSERT(hdr->ether_dhost[1] == net_fifo_chans[0].mcast[1]);
+	TEST_ASSERT(hdr->ether_dhost[2] == net_fifo_chans[0].mcast[2]);
+	TEST_ASSERT(hdr->ether_dhost[3] == net_fifo_chans[0].mcast[3]);
+	TEST_ASSERT(hdr->ether_dhost[4] == net_fifo_chans[0].mcast[4]);
+	TEST_ASSERT(hdr->ether_dhost[5] == net_fifo_chans[0].mcast[5]);
 }
 
 int main(int argc, char *argv[])
