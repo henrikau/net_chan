@@ -185,13 +185,13 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *
 	return du->fd_w;
 }
 
-int nf_rx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic)
+int nf_rx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz)
 {
 	int fd[2];
 	if (pipe(fd) == -1)
 		return -1;
 
-	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size, nic, 0, fd);
+	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size, nic, hmap_sz, fd);
 	if (!du) {
 		close(fd[0]);
 		close(fd[1]);
