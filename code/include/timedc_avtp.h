@@ -43,6 +43,45 @@ struct net_fifo
 	char name[32];
 };
 
+/* Rename experimental type to TimedC subtype for now */
+#define AVTP_SUBTYPE_TIMEDC 0x7F
+
+/**
+ * AVB Transport Protocol Data Unit Common Header
+ */
+struct avtpdu_cshdr {
+	uint8_t subtype;
+
+	/* Network-order, bitfields reversed */
+	uint8_t tv:1;		/* timestamp valid, 4.4.4. */
+	uint8_t fsd:2;		/* format specific data */
+	uint8_t mr:1;		/* medica clock restart */
+	uint8_t version:3;	/* version, 4.4.3.4*/
+	uint8_t sv:1;		/* stream_id valid, 4.4.4.2 */
+
+	/* 4.4.4.6, inc. for each msg in stream, wrap from 0xff to 0x00,
+	 * start at arbitrary position.
+	 */
+	uint8_t seqnr;
+
+	/* Network-order, bitfields reversed */
+	uint8_t tu:1;		/* timestamp uncertain, 4.4.4.7 */
+	uint8_t fsd_1:7;
+
+	/* EUI-48 MAC address + 16 bit unique ID
+	 * 1722-2016, 4.4.4.8, 802.1Q-2014, 35.2.2.8(.2)
+	 */
+	uint64_t stream_id;
+
+	/* gPTP timestamp, in ns, derived from gPTP, lower 32 bit,
+	 * approx 4.29 timespan */
+	uint32_t avtp_timestamp;
+	uint32_t fsd_2;
+
+	uint16_t sdl;		/* stream data length (octets/bytes) */
+	uint16_t fsd_3;
+} __attribute__((packed));
+
 struct timedc_avtp;
 struct nethandler;
 
@@ -189,7 +228,7 @@ struct nethandler * nh_init(unsigned char *ifname, size_t hmap_size);
 int nh_reg_callback(struct nethandler *nh,
 		uint64_t stream_id,
 		void *priv_data,
-		int (*cb)(void *priv_data, struct timedc_avtp *pdu));
+		int (*cb)(void *priv_data, struct avtpdu_cshdr *du));
 
 
 /**
@@ -204,21 +243,21 @@ int nh_reg_callback(struct nethandler *nh,
  *
  * @returns: bytes written, negative code on error
  */
-int nh_std_cb(void *data, struct timedc_avtp *du);
+int nh_std_cb(void *data, struct avtpdu_cshdr *du);
 
 /**
- * nh_feed_pdu - feed a pdu to nethandler which will be passed to relevant callback
+ * nh_feed_pdu - feed a avtpdu to nethandler which will be passed to relevant callback
  *
  * note: current implementation only supports one callback per StreamID,
  * if multiple callbacks are required for a streamid, then the callback
  * registred with nethandler must implement the multiplexing.
  *
  * @param nh: nethandler container
- * @param pdu: received pdu
+ * @param avtp_du: received pdu
  *
  * @returns
  */
-int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu);
+int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *du);
 
 /**
  * nh_start_rx - start receiver thread

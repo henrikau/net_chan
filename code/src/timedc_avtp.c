@@ -12,43 +12,6 @@
 #include <unistd.h>
 #include <time.h>
 
-/* Rename experimental type to TimedC subtype for now */
-#define AVTP_SUBTYPE_TIMEDC 0x7F
-
-
-struct avtpdu_cshdr {
-	uint8_t subtype;
-
-	/* Network-order, bitfields reversed */
-	uint8_t tv:1;		/* timestamp valid, 4.4.4. */
-	uint8_t fsd:2;		/* format specific data */
-	uint8_t mr:1;		/* medica clock restart */
-	uint8_t version:3;	/* version, 4.4.3.4*/
-	uint8_t sv:1;		/* stream_id valid, 4.4.4.2 */
-
-	/* 4.4.4.6, inc. for each msg in stream, wrap from 0xff to 0x00,
-	 * start at arbitrary position.
-	 */
-	uint8_t seqnr;
-
-	/* Network-order, bitfields reversed */
-	uint8_t tu:1;		/* timestamp uncertain, 4.4.4.7 */
-	uint8_t fsd_1:7;
-
-	/* EUI-48 MAC address + 16 bit unique ID
-	 * 1722-2016, 4.4.4.8, 802.1Q-2014, 35.2.2.8(.2)
-	 */
-	uint64_t stream_id;
-
-	/* gPTP timestamp, in ns, derived from gPTP, lower 32 bit,
-	 * approx 4.29 timespan */
-	uint32_t avtp_timestamp;
-	uint32_t fsd_2;
-
-	uint16_t sdl;		/* stream data length (octets/bytes) */
-	uint16_t fsd_3;
-} __attribute__((packed));
-
 /**
  * cb_priv: private data for callbacks
  *
@@ -110,7 +73,7 @@ struct timedc_avtp
 struct cb_entity {
 	uint64_t stream_id;
 	void *priv_data;
-	int (*cb)(void *priv_data, struct timedc_avtp *pdu);
+	int (*cb)(void *priv_data, struct avtpdu_cshdr *du);
 };
 
 struct nethandler {
@@ -289,6 +252,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		du->fd_r = pfd[0];
 		du->fd_w = pfd[1];
 		du->cbp.fd = du->fd_w;
+		du->cbp.sz = du->payload_size;
 		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
 	}
 
@@ -423,7 +387,7 @@ struct nethandler * nh_init(unsigned char *ifname,
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
 		return NULL;
-
+	nh->tid = 0;
 	nh->hmap_sz = hmap_size;
 	nh->hmap = calloc(sizeof(struct cb_entity), nh->hmap_sz);
 	if (!nh->hmap) {
@@ -432,6 +396,8 @@ struct nethandler * nh_init(unsigned char *ifname,
 	}
 
 	nh->rx_sock = _nh_socket_setup_common(nh, ifname);
+	if (nh->tid == 0)
+		nh_start_rx(nh);
 
 	return nh;
 }
@@ -439,7 +405,7 @@ struct nethandler * nh_init(unsigned char *ifname,
 int nh_reg_callback(struct nethandler *nh,
 		uint64_t stream_id,
 		void *priv_data,
-		int (*cb)(void *priv_data, struct timedc_avtp *pdu))
+		int (*cb)(void *priv_data, struct avtpdu_cshdr *du))
 {
 	if (!nh || !nh->hmap_sz || !cb)
 		return -EINVAL;
@@ -492,15 +458,17 @@ static int get_hm_idx(struct nethandler *nh, uint64_t stream_id)
 	return -1;
 }
 
-int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu)
+int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *cshdr)
 {
-	if (!nh || !pdu)
+	if (!nh || !cshdr)
 		return -EINVAL;
-	int idx = get_hm_idx(nh, be64toh(pdu->pdu.stream_id));
-	if (idx >= 0)
-		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, pdu);
+	int idx = get_hm_idx(nh, be64toh(cshdr->stream_id));
 
-	/* no callback registred, though not exactly an FD-error< */
+	/* printf("%s(): new incoming frame, idx=%d, stream_id=%ld\n", __func__, idx, be64toh(cshdr->stream_id)); */
+	if (idx >= 0)
+		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, cshdr);
+
+	/* no callback registred, though not exactly an FD-error */
 	return -EBADFD;
 }
 
@@ -510,21 +478,30 @@ static void * nh_runner(void *data)
 		return NULL;
 
 	struct nethandler *nh = (struct nethandler *)data;
-	if (nh->rx_sock == -1)
+	if (nh->rx_sock <= 0)
 		return NULL;
 
+	/* set timeout (250ms) on socket in case we block and nothing arrives
+	 * and we want to close down
+	 */
+	struct timeval tv;
+	tv.tv_sec = 0;
+	tv.tv_usec = 250000;
+	if (setsockopt(nh->rx_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
+		printf("%s(): Could not set timeout on socket (%d): %s\n",
+			__func__, nh->rx_sock, strerror(errno));
+	}
 	unsigned char buffer[1522] = {0};
-	nh->running = true;
-	while (nh->running) {
+	bool running = true;
+	while (running) {
 		int n = recv(nh->rx_sock, buffer, 1522, 0);
+		running = nh->running;
 		if (n > 0) {
-			struct timedc_avtp *pdu = (struct timedc_avtp *)buffer;
-			nh_feed_pdu(nh, pdu);
-			printf("Got packet with stream_id %lu\n", pdu->pdu.stream_id);
+			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
+			/* printf("%s() got data (stream_id=%ld, size=%d), feeding pdu to callback\n", */
+			/* 	__func__, be64toh(du->stream_id), n); */
+			nh_feed_pdu(nh, du);
 		}
-
-		printf("\n\nrecv() returned with %d\n\n", n);
-		nh->running = false;
 	}
 	return NULL;
 }

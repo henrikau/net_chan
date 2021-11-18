@@ -51,10 +51,11 @@ void tearDown(void)
 
 static void *cb_data = NULL;
 static void *cb_pdu = NULL;
-int nh_callback(void *data, struct timedc_avtp *pdu)
+
+int nh_callback(void *data, struct avtpdu_cshdr *du)
 {
 	cb_data = data;
-	cb_pdu = pdu;
+	cb_pdu = du;
 	return 0;
 }
 
@@ -93,54 +94,56 @@ static void test_nh_feed_pdu(void)
 	memset(cb_priv_data, 0xa0, 32);
 
 	TEST_ASSERT(nh_feed_pdu(NULL, NULL) == -EINVAL);
-	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == -EBADFD);
+	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == -EBADFD);
 
 	TEST_ASSERT(nh_reg_callback(nh, 16, cb_priv_data, nh_callback) == 0);
-	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == -EBADFD);
+	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == -EBADFD);
 
 	TEST_ASSERT(nh_reg_callback(nh, 42, cb_priv_data, nh_callback) == 0);
 	TEST_ASSERT(cb_pdu == NULL);
 	TEST_ASSERT(cb_data == NULL);
-	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == 0);
-	TEST_ASSERT(cb_pdu == pdu42);
+
+	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == 0);
+	TEST_ASSERT(cb_pdu == &pdu42->pdu);
 	TEST_ASSERT(cb_data == cb_priv_data);
-	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == htobe64(42));
+	TEST_ASSERT(((struct avtpdu_cshdr *)cb_pdu)->stream_id == htobe64(42));
 
 	TEST_ASSERT(((unsigned char *)cb_data)[0] == 0xa0);
 	TEST_ASSERT(((unsigned char *)cb_data)[31] == 0xa0);
 
 	/* verify that calling feed_pdu will call cb with correct data */
 	TEST_ASSERT(nh_reg_callback(nh, 17, cb_priv_data, nh_callback) == 0);
-	TEST_ASSERT(nh_feed_pdu(nh, pdu17) == 0);
-	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == htobe64(17));
+	TEST_ASSERT(nh_feed_pdu(nh, &pdu17->pdu) == 0);
+	TEST_ASSERT(((struct avtpdu_cshdr *)cb_pdu)->stream_id == htobe64(17));
 	int res = 0;
-	res = nh_feed_pdu(nh, pdu42);
+	res = nh_feed_pdu(nh, &pdu42->pdu);
 	TEST_ASSERT(res == 0);
-	TEST_ASSERT(((struct timedc_avtp *)cb_pdu)->pdu.stream_id == htobe64(42));
+	TEST_ASSERT(((struct avtpdu_cshdr *)cb_pdu)->stream_id == htobe64(42));
 	free(cb_priv_data);
 }
 
 static void test_create_cb(void)
 {
 	/* use pipe w to send data */
-	struct cb_priv cbp = { .fd = pfd[1], };
+	struct cb_priv cbp = {
+		.sz = sizeof(uint64_t),
+		.fd = pfd[1], };
 
-	int (*cb)(void *priv_data, struct timedc_avtp *pdu) = nh_std_cb;
+	int (*cb)(void *priv_data, struct avtpdu_cshdr *du) = nh_std_cb;
 	TEST_ASSERT(cb(NULL, NULL) == -EINVAL);
 	TEST_ASSERT(cb(&cbp, NULL) == -EINVAL);
-	TEST_ASSERT(cb(NULL, pdu42) == -EINVAL);
+	TEST_ASSERT(cb(NULL, &pdu42->pdu) == -EINVAL);
 
 
 	TEST_ASSERT(nh_reg_callback(nh, 42, &cbp, cb) == 0);
 
 	uint64_t val = 0xdeadbeef;
 	pdu_update(pdu42, 0, &val);
-	TEST_ASSERT(nh_feed_pdu(nh, pdu42) == 0);
+	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == 0);
 
 	/* Verify that callback has written data into pipe */
 	uint64_t res = 0;
 	int rdsz = read(pfd[0], &res, sizeof(uint64_t));
-
 	TEST_ASSERT(rdsz == 8);
 	TEST_ASSERT(res == 0xdeadbeef);
 
@@ -150,7 +153,7 @@ static void test_create_cb(void)
 static void test_nh_add_cb_overflow(void)
 {
 	struct cb_priv cbp = { .fd = pfd[1], };
-	int (*cb)(void *priv_data, struct timedc_avtp *pdu) = nh_std_cb;
+	int (*cb)(void *priv_data, struct avtpdu_cshdr *du) = nh_std_cb;
 	struct nethandler *nh_small = nh_init((unsigned char *)"lo", 4);
 
 	TEST_ASSERT(nh_reg_callback(nh_small, 1, &cbp, cb) == 0);
