@@ -218,7 +218,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
-	pdu->tx_tid = -1;
+	pdu->tx_tid = 0;
 	pdu->tx_sock = -1;
 	pdu->running = false;
 	return pdu;
@@ -251,9 +251,6 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 	if (pfd) {
 		du->fd_r = pfd[0];
 		du->fd_w = pfd[1];
-		du->cbp.fd = du->fd_w;
-		du->cbp.sz = du->payload_size;
-		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
 	}
 
 	/* if tx, create socket  */
@@ -265,6 +262,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			pdu_destroy(&du);
 			return NULL;
 		}
+
+		/* Set destination address for outgoing traffic t this DU */
 		struct ifreq req;
 		snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", nic);
 		int res = ioctl(du->tx_sock, SIOCGIFINDEX, &req);
@@ -279,6 +278,13 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		sk_addr->sll_halen = ETH_ALEN;
 		sk_addr->sll_ifindex = req.ifr_ifindex;
 		memcpy(sk_addr->sll_addr, arr->mcast, ETH_ALEN);
+	} else {
+		/* trigger on incoming DUs and attach a generic callback
+		 * and write data into correct pipe
+		 */
+		du->cbp.fd = du->fd_w;
+		du->cbp.sz = du->payload_size;
+		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
 	}
 
 	return du;
@@ -290,7 +296,7 @@ void pdu_destroy(struct timedc_avtp **pdu)
 		return;
 
 	/* close down tx-threads */
-	if ((*pdu)->tx_tid != -1) {
+	if ((*pdu)->tx_tid > 0) {
 		(*pdu)->running = false;
 		unsigned char *d = malloc((*pdu)->payload_size);
 		memset(d, 0, (*pdu)->payload_size);
@@ -298,7 +304,8 @@ void pdu_destroy(struct timedc_avtp **pdu)
 
 		usleep(1000);
 		pthread_join((*pdu)->tx_tid, NULL);
-		(*pdu)->tx_tid = -1;
+		(*pdu)->tx_tid = 0;
+		free(d);
 	}
 
 	if ((*pdu)->fd_r >= 0)
@@ -372,12 +379,35 @@ static int _nh_socket_setup_common(struct nethandler *nh,
 		perror("Could not get interface index");
 		return -1;
 	}
-
 	nh->sk_addr.sll_family = AF_PACKET;
 	nh->sk_addr.sll_protocol = htons(ETH_P_TSN);
 	nh->sk_addr.sll_halen = ETH_ALEN;
 	nh->sk_addr.sll_ifindex = req.ifr_ifindex;
 
+	/*
+	 * Special case: "lo"
+	 *
+	 * The network-layer will drop incoming frames that originates
+	 * from here meaning if we send a frame to ourselves, it will be
+	 * dropped. Normally this makes sense, but in a testing-scenario
+	 * we may want to feed the system artificial frames to verify
+	 * response.
+	 *
+	 * if nic is indeed 'lo', assume that we are testing, so place
+	 * it in promiscous mode.
+	 */
+	if (strncmp((const char *)ifname, "lo", 2) == 0) {
+		if (ioctl(sock, SIOCGIFFLAGS, &req) == -1) {
+			perror("Failed retrieveing flags for lo");
+			return -1;
+		}
+		req.ifr_flags |= IFF_PROMISC;
+		if (ioctl(sock, SIOCSIFFLAGS, &req) == -1) {
+			perror("Failed placing lo in promiscous mode, will not receive incoming data (tests may fail)");
+			return -1;
+		}
+		/* printf("%s(): 'lo' placed in promiscuous mode (assume testing)\n", __func__); */
+	}
 	return sock;
 }
 
@@ -416,28 +446,36 @@ int nh_reg_callback(struct nethandler *nh,
 		idx = (idx + 1) % nh->hmap_sz;
 
 	if (nh->hmap[idx].cb) {
-		printf("Found no available slots (stream_id=%lu, idx=%d -> %p)\n", stream_id, idx, nh->hmap[idx].cb);
+		/* printf("Found no available slots (stream_id=%lu, idx=%d -> %p)\n", stream_id, idx, nh->hmap[idx].cb); */
 		return -1;
 	}
-	/* printf("Availalbe idx for %lu at %d\n", stream_id, idx); */
+	/* printf("%s(): registred new callback (idx=%d, stream_id=%ld)\n", __func__, idx, stream_id); */
 	nh->hmap[idx].stream_id = stream_id;
 	nh->hmap[idx].priv_data = priv_data;
 	nh->hmap[idx].cb = cb;
-
 	return 0;
 }
-int nh_std_cb(void *priv, struct timedc_avtp *du)
+
+int nh_std_cb(void *priv, struct avtpdu_cshdr *du)
 {
-	if (!priv || !du)
+	if (!priv || !du) {
+		/* printf("%s(): callback, but priv or du was NULL\n", __func__); */
 		return -EINVAL;
+	}
 
 	struct cb_priv *cbp = (struct cb_priv *)priv;
-	if (cbp->fd <= 0)
+	if (cbp->fd <= 0) {
+		/* printf("%s(): got priv and du, but no fd (pipe) set\n", __func__); */
 		return -EINVAL;
+	}
 
-	int wsz = write(cbp->fd, du->payload, du->payload_size);
-	if (wsz == -1)
+	void *payload = (void *)du + sizeof(*du);
+	int wsz = write(cbp->fd, payload, cbp->sz);
+
+	if (wsz == -1) {
 		perror("Failed writing to fifo");
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -512,30 +550,25 @@ int nh_start_rx(struct nethandler *nh)
 		return -1;
 	if (nh->rx_sock == -1)
 		return -1;
-
-	/* FIXME: must be done on each pdu */
-/*
-	if (nh->dst_mac[0] == 0x01 &&
-		nh->dst_mac[1] == 0x00 &&
-		nh->dst_mac[2] == 0x5e) {
-		struct packet_mreq mreq;
-		mreq.mr_ifindex = nh->sk_addr.sll_ifindex;
-		mreq.mr_type = PACKET_MR_MULTICAST;
-		mreq.mr_alen = ETH_ALEN;
-		memcpy(&mreq.mr_address, nh->dst_mac, ETH_ALEN);
-
-		if (setsockopt(nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
-				&mreq, sizeof(struct packet_mreq)) < 0) {
-			perror("Couldn't set PACKET_ADD_MEMBERSHIP");
-			nh->running = false;
-			return -1;
-		}
-	}
-*/
+	nh->running = true;
 	pthread_create(&nh->tid, NULL, nh_runner, nh);
 
 	return 0;
 }
+
+void nf_stop_rx(struct nethandler *nh)
+{
+	if (nh && nh->running) {
+		nh->running = false;
+		if (nh->tid > 0) {
+			/* once timeout expires, join */
+			pthread_join(nh->tid, NULL);
+			nh->tid = 0;
+			nh->rx_sock = -1;
+		}
+	}
+}
+
 int _nh_get_len(struct timedc_avtp *head)
 {
 	if (!head)
@@ -589,12 +622,8 @@ int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du)
 void nh_destroy(struct nethandler **nh)
 {
 	if (*nh) {
-		(*nh)->running = false;
-		if ((*nh)->tid > 0) {
-			/* This will abort the entire thread, should rather send a frame to self to wake recv() */
-			pthread_kill((*nh)->tid, SIGINT);
-			pthread_join((*nh)->tid, NULL);
-		}
+		nf_stop_rx(*nh);
+
 		/* close down and exit safely */
 		if ((*nh)->hmap != NULL)
 			free((*nh)->hmap);

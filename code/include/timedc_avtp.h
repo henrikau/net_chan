@@ -270,6 +270,7 @@ int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *du);
  * @returns 0 on success, negative on error
  */
 int nh_start_rx(struct nethandler *nh);
+void nf_stop_rx(struct nethandler *nh);
 
 /**
  * nh_get_num_(tx|rx) : get the number of Tx or Rx pipes registred
