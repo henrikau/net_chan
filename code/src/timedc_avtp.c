@@ -222,6 +222,22 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *
 	return du->fd_w;
 }
 
+int nf_rx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic)
+{
+	int fd[2];
+	if (pipe(fd) == -1)
+		return -1;
+
+	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size, nic, 0, fd);
+	if (!du) {
+		close(fd[0]);
+		close(fd[1]);
+		return -1;
+	}
+	nh_add_rx(_nh, du);
+
+	return du->fd_r;
+}
 
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
