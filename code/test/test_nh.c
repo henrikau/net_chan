@@ -147,6 +147,22 @@ static void test_create_cb(void)
 	val = 1;
 }
 
+static void test_nh_add_cb_overflow(void)
+{
+	struct cb_priv cbp = { .fd = pfd[1], };
+	int (*cb)(void *priv_data, struct timedc_avtp *pdu) = nh_std_cb;
+	struct nethandler *nh_small = nh_init((unsigned char *)"lo", 4);
+
+	TEST_ASSERT(nh_reg_callback(nh_small, 1, &cbp, cb) == 0);
+	TEST_ASSERT(nh_reg_callback(nh_small, 2, &cbp, cb) == 0);
+	TEST_ASSERT(nh_reg_callback(nh_small, 3, &cbp, cb) == 0);
+	TEST_ASSERT(nh_reg_callback(nh_small, 4, &cbp, cb) == 0);
+	TEST_ASSERT(nh_reg_callback(nh_small, 5, &cbp, cb) == -1);
+
+	nh_destroy(&nh_small);
+}
+
+
 static void test_create_tx_fifo(void)
 {
 	struct timedc_avtp *du = NETFIFO_TX("test1", pfd);
@@ -172,6 +188,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_nh_hashmap);
 	RUN_TEST(test_nh_feed_pdu);
 	RUN_TEST(test_create_cb);
+	RUN_TEST(test_nh_add_cb_overflow);
 	RUN_TEST(test_create_tx_fifo);
 
 	return UNITY_END();
