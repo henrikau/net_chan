@@ -31,7 +31,7 @@ static inline int helper_create_socket(int nfc_idx, struct sockaddr_ll *sk_addr)
 
 static inline int helper_send_8byte(int nfc_idx, uint64_t data)
 {
-	struct sockaddr_ll sk_addr;
+	struct sockaddr_ll sk_addr = {0};
 	int sock = helper_create_socket(nfc_idx, &sk_addr);
 
 	char buffer[1500] = {0};
