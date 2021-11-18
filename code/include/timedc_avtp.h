@@ -230,15 +230,19 @@ int nh_feed_pdu(struct nethandler *nh, struct timedc_avtp *pdu);
 int nh_start_rx(struct nethandler *nh);
 
 /**
- * nh_get_num_tx : get the number of Tx pipes registred
+ * nh_get_num_(tx|rx) : get the number of Tx or Rx pipes registred
  *
  * @param: nh nethandler container
- * @returns: number of registred outging channels
+ * @returns: number of registered channels
  */
 int nh_get_num_tx(struct nethandler *nh);
+int nh_get_num_rx(struct nethandler *nh);
 
 /**
- * nh_add_tx - add a new outgoing channel
+ * nh_add_(tx|rx) - add a new outgoing or incoming channel
+ *
+ * nh_add_tx: channels that send data *from* this node
+ * nh_add_rx: channels that receive data from outside and return to a task *in* this node.
  *
  * Note: this is expected to be static, so we don't have the option to
  * remove single items, only when completely destroying the handler.
@@ -247,6 +251,7 @@ int nh_get_num_tx(struct nethandler *nh);
  * @param: du: new TimedC Data-unit
  */
 int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du);
+int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du);
 
 /**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.

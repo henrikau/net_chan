@@ -116,6 +116,10 @@ struct cb_entity {
 struct nethandler {
 	struct timedc_avtp *du_tx_head;
 	struct timedc_avtp *du_tx_tail;
+
+	struct timedc_avtp *du_rx_head;
+	struct timedc_avtp *du_rx_tail;
+
 	/* receiver */
 	int tx_sock;
 	int rx_sock;
@@ -539,15 +543,25 @@ int nh_start_rx(struct nethandler *nh)
 
 	return 0;
 }
+int _nh_get_len(struct timedc_avtp *head)
+{
+	if (!head)
+		return 0;
+	int len = 0;
+	do {
+		head = head->next;
+		len++;
+	} while (head);
+	return len;
+}
 int nh_get_num_tx(struct nethandler *nh)
 {
-	struct timedc_avtp *du = nh->du_tx_head;
-	int ctr = 0;
-	while (du) {
-		ctr++;
-		du = du->next;
-	}
-	return ctr;
+	return _nh_get_len(nh->du_tx_head);
+}
+
+int nh_get_num_rx(struct nethandler *nh)
+{
+	return _nh_get_len(nh->du_rx_head);
 }
 
 int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du)
@@ -560,6 +574,21 @@ int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du)
 	} else {
 		nh->du_tx_tail->next = du;
 		nh->du_tx_tail = du;
+	}
+	return 0;
+}
+
+int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du)
+{
+	if (!nh || !du)
+		return -EINVAL;
+
+	if (!nh->du_rx_head) {
+		nh->du_rx_head = du;
+		nh->du_rx_tail = du;
+	} else {
+		nh->du_rx_tail->next = du;
+		nh->du_rx_tail = du;
 	}
 	return 0;
 }
@@ -581,6 +610,13 @@ void nh_destroy(struct nethandler **nh)
 		while ((*nh)->du_tx_head) {
 			struct timedc_avtp *pdu = (*nh)->du_tx_head;
 			(*nh)->du_tx_head = (*nh)->du_tx_head->next;
+			pdu_destroy(&pdu);
+		}
+
+		/* clean up Rx PDUs */
+		while ((*nh)->du_rx_head) {
+			struct timedc_avtp *pdu = (*nh)->du_rx_head;
+			(*nh)->du_rx_head = (*nh)->du_rx_head->next;
 			pdu_destroy(&pdu);
 		}
 
