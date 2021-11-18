@@ -153,6 +153,30 @@ static void test_add_anon_pdu(void)
 	 * here (valgrind is happy) */
 }
 
+static void test_add_anon_rx_pdu(void)
+{
+	struct timedc_avtp *du1 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+	struct timedc_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+	struct timedc_avtp *du3 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+	struct timedc_avtp *du4 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+
+	TEST_ASSERT(nh_get_num_rx(nh) == 0);
+	TEST_ASSERT(nh_add_rx(NULL, du1) == -EINVAL);
+	TEST_ASSERT(nh_add_rx(nh, du1) == 0);
+	TEST_ASSERT(nh_get_num_rx(nh) == 1);
+	TEST_ASSERT(nh_add_rx(nh, du2) == 0);
+	TEST_ASSERT(nh->du_rx_tail == du2);
+	TEST_ASSERT(nh_add_rx(nh, du3) == 0);
+	TEST_ASSERT(nh->du_rx_tail == du3);
+	TEST_ASSERT(nh_add_rx(nh, du4) == 0);
+	TEST_ASSERT(nh_get_num_rx(nh) == 4);
+	TEST_ASSERT(nh->du_rx_head == du1);
+	TEST_ASSERT(nh->du_rx_tail == du4);
+
+	/* nh_destroy() will clean stored DUs, so no need to clean up
+	 * here (valgrind is happy) */
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -162,6 +186,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_pdu_send);
 	RUN_TEST(test_create_standalone);
 	RUN_TEST(test_add_anon_pdu);
+	RUN_TEST(test_add_anon_rx_pdu);
 
 	return UNITY_END();
 }
