@@ -213,7 +213,23 @@ static void test_create_netfifo_rx_send_ok(void)
 
 	uint64_t received = 0;
 	read(r, &received, 8);
-	TEST_ASSERT(received == *data);
+	TEST_ASSERT(received == data);
+}
+
+static void test_create_netfifo_rx_recv(void)
+{
+	int wrong = NETFIFO_RX_CREATE("missing");
+	TEST_ASSERT(wrong==-1);
+	int rxchan = NETFIFO_RX_CREATE("test2");
+	TEST_ASSERT(rxchan != -1);
+
+	uint64_t data = 0x0a0a0a0a;
+	int txsz = helper_send_8byte(1, data);
+	TEST_ASSERT(txsz == 8);
+	uint64_t r = 0;
+	int rsz = read(rxchan, &r, 8);
+	TEST_ASSERT(rsz == 8);
+	TEST_ASSERT(r == data);
 }
 
 int main(int argc, char *argv[])
@@ -227,6 +243,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_create_netfifo_tx_send);
 	RUN_TEST(test_create_netfifo_rx_pipe_ok);
 	RUN_TEST(test_create_netfifo_rx_send_ok);
+	RUN_TEST(test_create_netfifo_rx_recv);
 
 	return UNITY_END();
 }
