@@ -180,6 +180,7 @@ static void test_add_anon_rx_pdu(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
+
 	RUN_TEST(test_pdu_create);
 	RUN_TEST(test_pdu_update);
 	RUN_TEST(test_pdu_get_payload);

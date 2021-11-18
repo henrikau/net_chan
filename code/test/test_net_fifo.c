@@ -8,15 +8,16 @@
  * internals (and we want to produce a single file for ktc later)
  */
 #include "../src/timedc_avtp.c"
+
 void tearDown(void)
 {
-	nh_destroy(&_nh);
+	if (_nh)
+		nh_destroy(&_nh);
 }
 
 static void test_arr_size(void)
 {
 	TEST_ASSERT(ARRAY_SIZE(net_fifo_chans) == 2);
-	//TEST_ASSERT(ARRAY_SIZE(NULL) == -1);
 }
 
 static void test_arr_idx(void)
@@ -150,6 +151,7 @@ static void test_create_netfifo_tx_send(void)
 	TEST_ASSERT(w != -1);
 	pthread_t tg_tid;
 	tg_runner = true;
+
 	struct tg_container tgc = {
 		.received_ok = false,
 		.expected_sid = net_fifo_chans[0].stream_id,
@@ -183,14 +185,77 @@ static void test_create_netfifo_tx_send(void)
 	TEST_ASSERT(hdr->ether_dhost[5] == net_fifo_chans[0].mcast[5]);
 }
 
+static void test_create_netfifo_rx_pipe_ok(void)
+{
+	/* NETFIFO_RX() tested in test_pdu */
+	int r = nf_rx_create("missing", net_fifo_chans, 2, nf_nic, 17);
+	TEST_ASSERT(r==-1);
+	r = nf_rx_create("test1", net_fifo_chans, 2, nf_nic, 17);
+	TEST_ASSERT(r>=0);
+
+	uint64_t data = 0xdeadbeef;
+	write(_nh->du_rx_tail->fd_w, &data, 8);
+
+	uint64_t res = 0;
+	read(_nh->du_rx_tail->fd_r, &res, 8);
+	TEST_ASSERT(data == res);
+}
+
+static void test_create_netfifo_rx_send_ok(void)
+{
+	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
+
+	/* Get nic idx */
+	struct ifreq ifr;
+	snprintf(ifr.ifr_name, IFNAMSIZ, "%s", nf_nic);
+	ioctl(sock, SIOCGIFINDEX, &ifr);
+
+	/* Set target address */
+	struct sockaddr_ll sk_addr;
+	sk_addr.sll_family = AF_PACKET;
+	sk_addr.sll_protocol = htons(ETH_P_TSN);
+	sk_addr.sll_halen = ETH_ALEN;
+	sk_addr.sll_ifindex = ifr.ifr_ifindex;
+	memcpy(&sk_addr.sll_addr, net_fifo_chans[0].mcast, ETH_ALEN);
+
+	/* construct outgoing test-message */
+	char buffer[1500] = {0};
+	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)buffer;
+	uint64_t *data = (uint64_t *)(buffer + sizeof(*cshdr));
+
+	cshdr->subtype = AVTP_SUBTYPE_TIMEDC;
+	cshdr->stream_id = htobe64(net_fifo_chans[0].stream_id);
+	*data = 0xdeadbeef;
+
+	/* Create listening socket and pipe-pair */
+	int r = nf_rx_create("test1", net_fifo_chans, 2, nf_nic, 17);
+
+	TEST_ASSERT(r > 0);
+
+	/*  */
+	int txsz = sendto(sock, buffer,
+			sizeof(*cshdr) + sizeof(uint64_t), 0,
+			(struct sockaddr *) &sk_addr,
+			sizeof(sk_addr));
+
+	TEST_ASSERT(txsz > 0);
+
+	uint64_t received = 0;
+	read(r, &received, 8);
+	TEST_ASSERT(received == *data);
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
+
 	RUN_TEST(test_arr_size);
 	RUN_TEST(test_arr_idx);
 	RUN_TEST(test_arr_get_ref);
-
 	RUN_TEST(test_create_netfifo_tx);
 	RUN_TEST(test_create_netfifo_tx_send);
+	RUN_TEST(test_create_netfifo_rx_pipe_ok);
+	RUN_TEST(test_create_netfifo_rx_send_ok);
+
 	return UNITY_END();
 }
