@@ -180,6 +180,7 @@ static void test_add_anon_rx_pdu(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
+	nf_set_nic("lo");
 
 	RUN_TEST(test_pdu_create);
 	RUN_TEST(test_pdu_update);

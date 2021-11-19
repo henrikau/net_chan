@@ -4,15 +4,22 @@
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
-
+#include <argp.h>
+#include <linux/if.h>
 #include <linux/if_ether.h>
 
+/*  */
+static unsigned char nf_nic[IFNAMSIZ+1] = {0};
+/* rest is further down */
+#define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
+
+/* --------------------------
+ * Main TimedC values
+ */
 #define NETFIFO_TX_CREATE(x)						\
 	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size);
 #define NETFIFO_RX_CREATE(x)						\
 	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size);
-
-#define DEFAULT_NIC "eth0"
 
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
@@ -89,6 +96,25 @@ struct avtpdu_cshdr {
 
 struct timedc_avtp;
 struct nethandler;
+
+int nf_set_nic(const char *nic);
+
+static struct argp_option options[] = {
+       {"nic" , 'i', "NIC" , 0, "Network Interface" },
+       { 0 }
+};
+
+static error_t parser(int key, char *arg, struct argp_state *state)
+{
+      switch (key) {
+      case 'i':
+               strncpy((char *)nf_nic, arg, sizeof(nf_nic) - 1);
+               break;
+       }
+
+       return 0;
+}
+static struct argp argp = { options, parser };
 
 
 #define NETFIFO_RX(x, pfd) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size, pfd)

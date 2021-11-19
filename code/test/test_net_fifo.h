@@ -17,7 +17,6 @@ struct net_fifo net_fifo_chans[] = {
 		"test2"
 	},
 };
-unsigned char nf_nic[] = "lo";
 int nf_hmap_size = 41;
 
 int nfc_sz = ARRAY_SIZE(net_fifo_chans);

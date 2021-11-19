@@ -96,6 +96,15 @@ struct nethandler {
 };
 static struct nethandler *_nh;
 
+int nf_set_nic(const char *nic)
+{
+	if (strlen(nic) > IFNAMSIZ)
+		return -1;
+	strncpy((char *)nf_nic, nic, IFNAMSIZ);
+	return 0;
+}
+
+
 int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 {
 	for (int i = 0; i < arr_size; i++) {

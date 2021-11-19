@@ -235,6 +235,7 @@ static void test_create_netfifo_rx_recv(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
+	nf_set_nic("lo");
 
 	RUN_TEST(test_arr_size);
 	RUN_TEST(test_arr_idx);

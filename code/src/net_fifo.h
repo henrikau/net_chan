@@ -1,7 +1,7 @@
 #pragma once
 #include <timedc_avtp.h>
+
 /* nethandler stuff */
-char nf_nic[] = "eth0";
 int nf_hmap_size = 42;
 
 /* channels */

@@ -187,6 +187,7 @@ static void test_create_tx_fifo(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
+	nf_set_nic("lo");
 
 	RUN_TEST(test_nh_hashmap);
 	RUN_TEST(test_nh_feed_pdu);
