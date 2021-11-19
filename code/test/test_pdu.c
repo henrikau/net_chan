@@ -121,7 +121,7 @@ static void test_create_standalone(void)
 	/* Test pdu internals after macro creation */
 	TEST_ASSERT(pdu->pdu.stream_id == be64toh(42));
 	for (int i = 0; i < ETH_ALEN; i++)
-		TEST_ASSERT(pdu->dst[i] == net_fifo_chans[0].mcast[i]);
+		TEST_ASSERT(pdu->dst[i] == net_fifo_chans[0].dst[i]);
 	TEST_ASSERT(pdu->nh == _nh);
 
 	pdu_destroy(&pdu);

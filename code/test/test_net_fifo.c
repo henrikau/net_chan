@@ -38,7 +38,7 @@ static void test_arr_idx(void)
 	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->size == 8, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->freq == 50, "wrong net_fifo returned");
-	TEST_ASSERT_MESSAGE(nf->mcast[2] == 0x5e, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->dst[2] == 0x5e, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf != &(net_fifo_chans[0]), "Expected copy to be returned, not ref");
 	if (nf)
 		free(nf);
@@ -56,7 +56,7 @@ static void test_arr_get_ref(void)
 	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->size == 8, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->freq == 50, "wrong net_fifo returned");
-	TEST_ASSERT_MESSAGE(nf->mcast[2] == 0x5e, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->dst[2] == 0x5e, "wrong net_fifo returned");
 }
 
 static void test_create_netfifo_tx(void)
@@ -177,12 +177,12 @@ static void test_create_netfifo_tx_send(void)
 	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)(&tgc.buffer[0] + sizeof(*hdr));
 	TEST_ASSERT(cshdr->subtype == AVTP_SUBTYPE_TIMEDC);
 	TEST_ASSERT(be64toh(cshdr->stream_id) == tgc.expected_sid);
-	TEST_ASSERT(hdr->ether_dhost[0] == net_fifo_chans[0].mcast[0]);
-	TEST_ASSERT(hdr->ether_dhost[1] == net_fifo_chans[0].mcast[1]);
-	TEST_ASSERT(hdr->ether_dhost[2] == net_fifo_chans[0].mcast[2]);
-	TEST_ASSERT(hdr->ether_dhost[3] == net_fifo_chans[0].mcast[3]);
-	TEST_ASSERT(hdr->ether_dhost[4] == net_fifo_chans[0].mcast[4]);
-	TEST_ASSERT(hdr->ether_dhost[5] == net_fifo_chans[0].mcast[5]);
+	TEST_ASSERT(hdr->ether_dhost[0] == net_fifo_chans[0].dst[0]);
+	TEST_ASSERT(hdr->ether_dhost[1] == net_fifo_chans[0].dst[1]);
+	TEST_ASSERT(hdr->ether_dhost[2] == net_fifo_chans[0].dst[2]);
+	TEST_ASSERT(hdr->ether_dhost[3] == net_fifo_chans[0].dst[3]);
+	TEST_ASSERT(hdr->ether_dhost[4] == net_fifo_chans[0].dst[4]);
+	TEST_ASSERT(hdr->ether_dhost[5] == net_fifo_chans[0].dst[5]);
 }
 
 static void test_create_netfifo_rx_pipe_ok(void)

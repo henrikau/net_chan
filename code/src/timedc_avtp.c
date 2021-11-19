@@ -251,7 +251,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		if (!_nh)
 			return NULL;
 	}
-	struct timedc_avtp * du = pdu_create(_nh, arr[idx].mcast, arr[idx].stream_id, arr[idx].size);
+	printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa(arr[idx].dst));
+	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].size);
 
 	if (!du)
 		return NULL;
@@ -286,7 +287,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		sk_addr->sll_protocol = htons(ETH_P_TSN);
 		sk_addr->sll_halen = ETH_ALEN;
 		sk_addr->sll_ifindex = req.ifr_ifindex;
-		memcpy(sk_addr->sll_addr, arr->mcast, ETH_ALEN);
+		memcpy(sk_addr->sll_addr, du->dst, ETH_ALEN);
+		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
 	} else {
 		/* trigger on incoming DUs and attach a generic callback
 		 * and write data into correct pipe

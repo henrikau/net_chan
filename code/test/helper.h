@@ -24,7 +24,7 @@ static inline int helper_create_socket(int nfc_idx, struct sockaddr_ll *sk_addr)
 	sk_addr->sll_protocol = htons(ETH_P_TSN);
 	sk_addr->sll_halen = ETH_ALEN;
 	sk_addr->sll_ifindex = ifr.ifr_ifindex;
-	memcpy(&sk_addr->sll_addr, net_fifo_chans[nfc_idx].mcast, ETH_ALEN);
+	memcpy(&sk_addr->sll_addr, net_fifo_chans[nfc_idx].dst, ETH_ALEN);
 
 	return sock;
 }

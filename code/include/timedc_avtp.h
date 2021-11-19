@@ -24,7 +24,7 @@ static unsigned char nf_nic[IFNAMSIZ+1] = {0};
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
  */
-#define DEFAULT_MAC {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
+#define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
 
 /**
  * struct net_fifo
@@ -37,10 +37,14 @@ static unsigned char nf_nic[IFNAMSIZ+1] = {0};
  */
 struct net_fifo
 {
-	/* mcast: address of multicast group the talker will publish
-	 * to
+	/* dst: address to which the talker will publish
+	 *
+	 * This can be any valid MAC-address:
+	 * - unicast
+	 * - multicast (starts with 01:00:5e)
+	 * - broadcast (ff:ff:ff:ff:ff:ff)
 	 */
-	uint8_t mcast[ETH_ALEN];
+	uint8_t dst[ETH_ALEN];
 	uint64_t stream_id;
 
 	/* Size of payload, 0..1500 bytes */
