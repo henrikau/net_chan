@@ -25,6 +25,9 @@ static int nf_hmap_size __attribute__((unused)) = 42;
 #define NETFIFO_RX_CREATE(x)						\
 	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
 
+#define NETFIFO_RX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
+#define NETFIFO_TX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
+
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
  */
@@ -131,9 +134,6 @@ static struct argp argp __attribute__((unused)) = {
 	.options = options,
 	.parser = parser};
 #define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
-
-#define NETFIFO_RX(x) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
-#define NETFIFO_TX(x) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 

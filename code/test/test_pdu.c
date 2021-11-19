@@ -104,7 +104,8 @@ static void test_create_standalone(void)
 
 	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz) == NULL);
 	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz) == NULL);
-	TEST_ASSERT(NETFIFO_RX("missing") == NULL);
+	NETFIFO_RX(missing);
+	TEST_ASSERT(missing_du == NULL);
 
 	struct timedc_avtp *pdu;
 	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz);
@@ -115,16 +116,16 @@ static void test_create_standalone(void)
 	TEST_ASSERT(pdu != NULL);
 	pdu_destroy(&pdu);
 
-	pdu = NETFIFO_RX("test1");
-	TEST_ASSERT(pdu != NULL);
+	NETFIFO_RX(test1);
+	TEST_ASSERT(test1_du != NULL);
 
 	/* Test pdu internals after macro creation */
-	TEST_ASSERT(pdu->pdu.stream_id == be64toh(42));
+	TEST_ASSERT(test1_du->pdu.stream_id == be64toh(42));
 	for (int i = 0; i < ETH_ALEN; i++)
-		TEST_ASSERT(pdu->dst[i] == net_fifo_chans[0].dst[i]);
-	TEST_ASSERT(pdu->nh == _nh);
+		TEST_ASSERT(test1_du->dst[i] == net_fifo_chans[0].dst[i]);
+	TEST_ASSERT(test1_du->nh == _nh);
 
-	pdu_destroy(&pdu);
+	pdu_destroy(&test1_du);
 }
 
 static void test_add_anon_pdu(void)
