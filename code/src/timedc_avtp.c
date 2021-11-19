@@ -83,27 +83,19 @@ struct nethandler {
 	struct timedc_avtp *du_rx_head;
 	struct timedc_avtp *du_rx_tail;
 
-	/* receiver */
+	/* network */
 	int tx_sock;
 	int rx_sock;
+	struct sockaddr_ll sk_addr;
+	char ifname[IFNAMSIZ];
 	bool running;
 	pthread_t tid;
-	struct sockaddr_ll sk_addr;
 
 	/* hashmap, chan_id -> cb_entity  */
 	size_t hmap_sz;
 	struct cb_entity *hmap;
 };
 static struct nethandler *_nh;
-
-int nf_set_nic(const char *nic)
-{
-	if (strlen(nic) > IFNAMSIZ)
-		return -1;
-	strncpy((char *)nf_nic, nic, IFNAMSIZ);
-	return 0;
-}
-
 
 int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 {
@@ -173,13 +165,14 @@ void * nf_tx_worker(void *data)
 	return NULL;
 }
 
-int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz)
+int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 {
+	printf("%s(): starting netfifo Tx end\n", __func__);
 	int fd[2];
 	if (pipe(fd) == -1)
 		return -1;
 
-	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size, nic, hmap_sz, fd);
+	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size, fd);
 	if (!du) {
 		close(fd[0]);
 		close(fd[1]);
@@ -190,17 +183,17 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *
 	/* start thread to block on fd_r, return fd_w */
 	du->running = true;
 	pthread_create(&du->tx_tid, NULL, nf_tx_worker, du);
-
+	printf("%s(): thread spawned (tid=%ld), ready to send data\n", __func__, du->tx_tid);
 	return du->fd_w;
 }
 
-int nf_rx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz)
+int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
 	int fd[2];
 	if (pipe(fd) == -1)
 		return -1;
 
-	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size, nic, hmap_sz, fd);
+	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size, fd);
 	if (!du) {
 		close(fd[0]);
 		close(fd[1]);
@@ -233,25 +226,32 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	return pdu;
 }
 
+int nf_set_nic(char *nic)
+{
+	strncpy(nf_nic, nic, IFNAMSIZ-1);
+	printf("%s(): set nic to %s\n", __func__, nf_nic);
+	return 0;
+}
+
 struct timedc_avtp *pdu_create_standalone(char *name,
 					bool tx_update,
 					struct net_fifo *arr,
 					int arr_size,
-					unsigned char *nic,
-					int hmap_size,
 					int pfd[2])
 {
 	if (!name || !arr || arr_size <= 0)
 		return NULL;
+	printf("%s(): nic: %s\n", __func__, nf_nic);
+
 	int idx = nf_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
 		return NULL;
 	if (!_nh) {
-		_nh = nh_init(nic, hmap_size);
+		_nh = nh_init(nf_nic, nf_hmap_size);
 		if (!_nh)
 			return NULL;
 	}
-	printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa(arr[idx].dst));
+	printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
 	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].size);
 
 	if (!du)
@@ -275,7 +275,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 
 		/* Set destination address for outgoing traffic t this DU */
 		struct ifreq req;
-		snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", nic);
+		snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", _nh->ifname);
 		int res = ioctl(du->tx_sock, SIOCGIFINDEX, &req);
 		if (res < 0) {
 			perror("Failed to get interface index");
@@ -375,8 +375,7 @@ void * pdu_get_payload(struct timedc_avtp *pdu)
 
 
 /* DEPRECATED, should not store this in nethandler */
-static int _nh_socket_setup_common(struct nethandler *nh,
-				const unsigned char *ifname)
+static int _nh_socket_setup_common(struct nethandler *nh)
 {
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
 	if (sock == -1) {
@@ -385,9 +384,9 @@ static int _nh_socket_setup_common(struct nethandler *nh,
 	}
 
 	struct ifreq req;
-	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", ifname);
+	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", nh->ifname);
 	if (ioctl(sock, SIOCGIFINDEX, &req) == -1) {
-		perror("Could not get interface index");
+		printf("%s(): Could not get interface index for %s: %s\n", __func__, nh->ifname, strerror(errno));
 		return -1;
 	}
 	nh->sk_addr.sll_family = AF_PACKET;
@@ -405,25 +404,23 @@ static int _nh_socket_setup_common(struct nethandler *nh,
 	 * response.
 	 *
 	 * if nic is indeed 'lo', assume that we are testing, so place
-	 * it in promiscous mode.
+	 * it in promiscuous mode.
 	 */
-	if (strncmp((const char *)ifname, "lo", 2) == 0) {
+	if (strncmp(nh->ifname, "lo", 2) == 0) {
 		if (ioctl(sock, SIOCGIFFLAGS, &req) == -1) {
 			perror("Failed retrieveing flags for lo");
 			return -1;
 		}
 		req.ifr_flags |= IFF_PROMISC;
 		if (ioctl(sock, SIOCSIFFLAGS, &req) == -1) {
-			perror("Failed placing lo in promiscous mode, will not receive incoming data (tests may fail)");
+			perror("Failed placing lo in promiscuous mode, will not receive incoming data (tests may fail)");
 			return -1;
 		}
-		/* printf("%s(): 'lo' placed in promiscuous mode (assume testing)\n", __func__); */
 	}
 	return sock;
 }
 
-struct nethandler * nh_init(unsigned char *ifname,
-			size_t hmap_size)
+struct nethandler * nh_init(char *ifname, size_t hmap_size)
 {
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
@@ -435,8 +432,9 @@ struct nethandler * nh_init(unsigned char *ifname,
 		free(nh);
 		return NULL;
 	}
+	strncpy((char *)nh->ifname, ifname, IFNAMSIZ-1);
 
-	nh->rx_sock = _nh_socket_setup_common(nh, ifname);
+	nh->rx_sock = _nh_socket_setup_common(nh);
 	if (nh->tid == 0)
 		nh_start_rx(nh);
 
@@ -456,11 +454,9 @@ int nh_reg_callback(struct nethandler *nh,
 	for (int i = 0; i < nh->hmap_sz && nh->hmap[idx].cb; i++)
 		idx = (idx + 1) % nh->hmap_sz;
 
-	if (nh->hmap[idx].cb) {
-		/* printf("Found no available slots (stream_id=%lu, idx=%d -> %p)\n", stream_id, idx, nh->hmap[idx].cb); */
+	if (nh->hmap[idx].cb)
 		return -1;
-	}
-	/* printf("%s(): registred new callback (idx=%d, stream_id=%ld)\n", __func__, idx, stream_id); */
+
 	nh->hmap[idx].stream_id = stream_id;
 	nh->hmap[idx].priv_data = priv_data;
 	nh->hmap[idx].cb = cb;
@@ -513,7 +509,6 @@ int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *cshdr)
 		return -EINVAL;
 	int idx = get_hm_idx(nh, be64toh(cshdr->stream_id));
 
-	/* printf("%s(): new incoming frame, idx=%d, stream_id=%ld\n", __func__, idx, be64toh(cshdr->stream_id)); */
 	if (idx >= 0)
 		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, cshdr);
 

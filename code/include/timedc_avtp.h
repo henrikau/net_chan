@@ -8,18 +8,22 @@
 #include <linux/if.h>
 #include <linux/if_ether.h>
 
-/*  */
-static unsigned char nf_nic[IFNAMSIZ+1] = {0};
-/* rest is further down */
-#define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
+/* These are used, but GCC has trouble seeing that they are (static
+ * variables in a header is not the hallmark of great quality after
+ * all).
+ *
+ * Mark as unused to suppress -Wunused-variable.
+ */
+static char nf_nic[IFNAMSIZ] __attribute__((unused)) = {0};
+static int nf_hmap_size __attribute__((unused)) = 42;
 
 /* --------------------------
  * Main TimedC values
  */
 #define NETFIFO_TX_CREATE(x)						\
-	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size);
+	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
 #define NETFIFO_RX_CREATE(x)						\
-	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size);
+	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
 
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
@@ -101,10 +105,11 @@ struct avtpdu_cshdr {
 struct timedc_avtp;
 struct nethandler;
 
-int nf_set_nic(const char *nic);
+int nf_set_nic(char *nic);
 
 static struct argp_option options[] = {
        {"nic" , 'i', "NIC" , 0, "Network Interface" },
+       {"hmap_sz", 's', "HMAP_SZ", 0, "Size of hash-map for Rx callbacks"},
        { 0 }
 };
 
@@ -112,17 +117,23 @@ static error_t parser(int key, char *arg, struct argp_state *state)
 {
       switch (key) {
       case 'i':
-               strncpy((char *)nf_nic, arg, sizeof(nf_nic) - 1);
-               break;
+	      nf_set_nic(arg);
+	      break;
+      case 's':
+	      nf_hmap_size = atoi(arg);
+	      break;
        }
 
        return 0;
 }
-static struct argp argp = { options, parser };
 
+static struct argp argp __attribute__((unused)) = {
+	.options = options,
+	.parser = parser};
+#define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
 
-#define NETFIFO_RX(x, pfd) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size, pfd)
-#define NETFIFO_TX(x, pfd) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), (unsigned char *)nf_nic, nf_hmap_size, pfd)
+#define NETFIFO_RX(x, pfd) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), pfd)
+#define NETFIFO_TX(x, pfd) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), pfd)
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
@@ -134,9 +145,8 @@ int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
 struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_size);
 const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size);
 
-int nf_tx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz);
-
-int nf_rx_create(char *name, struct net_fifo *arr, int arr_size, unsigned char *nic, size_t hmap_sz);
+int nf_tx_create(char *name, struct net_fifo *arr, int arr_size);
+int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
 
 #define NF_GET(x) (nf_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 #define NF_GET_REF(x) (nf_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
@@ -180,8 +190,6 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
  * @param tx : tx or rx end of net_fifo
  * @param arr : net_fifo array of values
  * @param arr_size : size of net_fifo array
- * @param nic : NIC we are bound to (if nethandler must be created)
- * @param hmap_size : size of hmap in nethandler
  *
  * @returns new pdu, NULL on error
  */
@@ -189,8 +197,6 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					bool tx,
 					struct net_fifo *arr,
 					int arr_size,
-					unsigned char *nic,
-					int hmap_size,
 					int pfd[2]);
 
 /**
@@ -240,7 +246,7 @@ int pdu_send(struct timedc_avtp *pdu);
  *
  * @returns struct nethandler on success, NULL on error
  */
-struct nethandler * nh_init(unsigned char *ifname, size_t hmap_size);
+struct nethandler * nh_init(char *ifname, size_t hmap_size);
 
 /**
  * nh_reg_callback - Register a callback for a given stream_id

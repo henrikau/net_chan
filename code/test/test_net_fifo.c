@@ -106,7 +106,7 @@ static void * test_grabber(void *data)
 	}
 
 	struct ifreq ifr;
-	snprintf(ifr.ifr_name, IFNAMSIZ, "%s", nf_nic);
+	snprintf(ifr.ifr_name, strlen(ifr.ifr_name)-1, "%s", nf_nic);
 
 	int res = ioctl(sock, SIOCGIFINDEX, &ifr);
 	TEST_ASSERT(res >= 0);
@@ -188,9 +188,9 @@ static void test_create_netfifo_tx_send(void)
 static void test_create_netfifo_rx_pipe_ok(void)
 {
 	/* NETFIFO_RX() tested in test_pdu */
-	int r = nf_rx_create("missing", net_fifo_chans, 2, nf_nic, 17);
+	int r = nf_rx_create("missing", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(r==-1);
-	r = nf_rx_create("test1", net_fifo_chans, 2, nf_nic, 17);
+	r = nf_rx_create("test1", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(r>=0);
 
 	uint64_t data = 0xdeadbeef;
@@ -204,7 +204,7 @@ static void test_create_netfifo_rx_pipe_ok(void)
 static void test_create_netfifo_rx_send_ok(void)
 {
 	/* Create listening socket and pipe-pair */
-	int r = nf_rx_create("test1", net_fifo_chans, 2, nf_nic, 17);
+	int r = nf_rx_create("test1", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(r > 0);
 
 	uint64_t data = 0xdeadbeef;

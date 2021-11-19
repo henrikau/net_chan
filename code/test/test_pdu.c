@@ -20,7 +20,7 @@ struct nethandler *nh;
 
 void setUp(void)
 {
-	nh = nh_init((unsigned char *)"lo", 16);
+	nh = nh_init("lo", 16);
 	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, DATA17SZ);
 	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, DATA42SZ);
 	memset(data42, 0x42, DATA42SZ);
@@ -102,16 +102,16 @@ static void test_pdu_send(void)
 static void test_create_standalone(void)
 {
 
-	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL) == NULL);
-	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL) == NULL);
+	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz, NULL) == NULL);
+	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz, NULL) == NULL);
 	TEST_ASSERT(NETFIFO_RX("missing", NULL) == NULL);
 
 	struct timedc_avtp *pdu;
-	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL);
+	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz, NULL);
 	TEST_ASSERT(pdu != NULL);
 	pdu_destroy(&pdu);
 
-	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz, nf_nic, nf_hmap_size, NULL);
+	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz, NULL);
 	TEST_ASSERT(pdu != NULL);
 	pdu_destroy(&pdu);
 

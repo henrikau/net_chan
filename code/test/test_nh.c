@@ -25,7 +25,7 @@ struct nethandler *nh;
 int pfd[2];
 void setUp(void)
 {
-	nh = nh_init((unsigned char *)"lo", 16);
+	nh = nh_init("lo", 16);
 	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, DATA17SZ);
 	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, DATA42SZ);
 	memset(data42, 0x42, DATA42SZ);
@@ -154,7 +154,7 @@ static void test_nh_add_cb_overflow(void)
 {
 	struct cb_priv cbp = { .fd = pfd[1], };
 	int (*cb)(void *priv_data, struct avtpdu_cshdr *du) = nh_std_cb;
-	struct nethandler *nh_small = nh_init((unsigned char *)"lo", 4);
+	struct nethandler *nh_small = nh_init("lo", 4);
 
 	TEST_ASSERT(nh_reg_callback(nh_small, 1, &cbp, cb) == 0);
 	TEST_ASSERT(nh_reg_callback(nh_small, 2, &cbp, cb) == 0);

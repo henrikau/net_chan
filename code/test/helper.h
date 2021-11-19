@@ -16,7 +16,7 @@ static inline int helper_create_socket(int nfc_idx, struct sockaddr_ll *sk_addr)
 
 	/* Get nic idx */
 	struct ifreq ifr;
-	snprintf(ifr.ifr_name, IFNAMSIZ, "%s", nf_nic);
+	snprintf(ifr.ifr_name, strlen(ifr.ifr_name)-1, "%s", nf_nic);
 	ioctl(sock, SIOCGIFINDEX, &ifr);
 
 	/* Set target address */
