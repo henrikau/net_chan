@@ -14,8 +14,8 @@ timedc_avtp = static_library('timedc_avtp',
 		       )
 
 executable(
-   'client',
-   'src/client.c',
+   'talker',
+   'src/talker.c',
    include_directories: include_directories('include'),
    build_by_default: true,
    link_with : timedc_avtp)
