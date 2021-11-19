@@ -151,8 +151,6 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
 #define NF_GET(x) (nf_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 #define NF_GET_REF(x) (nf_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
-#define FREQ_TO_MS(x) (1000 / x)
-
 /**
  * pdu_create - create and initialize a new PDU.
  *
