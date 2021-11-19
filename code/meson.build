@@ -51,6 +51,16 @@ t_net_fifo = executable('testnetfifo',
 	       dependencies: deps
 	      )
 
+t_nf_macro = executable('testnfmacro',
+	       'test/test_macro_write.c',
+	       'test/unity.c',
+	       include_directories: include_directories('include'),
+	       build_by_default: true,
+	       dependencies: deps,
+	       link_with : timedc_avtp
+		       )
+
 test('pdu test', t_pdu)
 test('nh test', t_nh)
 test('nh net fifo', t_net_fifo)
+test('nh macro', t_nf_macro)
