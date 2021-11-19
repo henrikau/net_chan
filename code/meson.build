@@ -20,6 +20,13 @@ executable(
    build_by_default: true,
    link_with : timedc_avtp)
 
+executable(
+   'listener',
+   'src/listener.c',
+   include_directories: include_directories('include'),
+   build_by_default: true,
+   link_with : timedc_avtp)
+
 t_pdu = executable('testpdu',
 	       'test/test_pdu.c',
 	       'test/unity.c',

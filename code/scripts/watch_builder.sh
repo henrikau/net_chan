@@ -23,7 +23,8 @@ while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
     sudo setcap cap_net_raw,cap_net_admin=eip build/testnetfifo
     sudo setcap cap_net_raw,cap_net_admin=eip build/testpdu
     sudo setcap cap_net_raw,cap_net_admin=eip build/testprog
-    sudo setcap cap_net_raw,cap_net_admin=eip build/client
+    sudo setcap cap_net_raw,cap_net_admin=eip build/talker
+    sudo setcap cap_net_raw,cap_net_admin=eip build/listener
     pushd build > /dev/null
     meson test -v
     popd > /dev/null
