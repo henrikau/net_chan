@@ -169,6 +169,8 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 {
 	printf("%s(): starting netfifo Tx end\n", __func__);
 	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size);
+	if (!du)
+		return -1;
 
 	nh_add_tx(_nh, du);
 
