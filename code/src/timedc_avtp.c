@@ -216,6 +216,8 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	memset(pdu, 0, sizeof(*pdu));
 	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
 	pdu->pdu.stream_id = htobe64(stream_id);
+	pdu->pdu.sv = 1;
+	pdu->pdu.seqnr = 0xff;
 	pdu->payload_size = sz;
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
@@ -338,7 +340,7 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
 
 	if (!data)
 		return -ENOMEM;
-
+	pdu->pdu.seqnr++;
 	pdu->pdu.avtp_timestamp = ts;
 	pdu->pdu.tv = 1;
 	memcpy(pdu->payload, data, pdu->payload_size);
