@@ -168,16 +168,8 @@ void * nf_tx_worker(void *data)
 int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 {
 	printf("%s(): starting netfifo Tx end\n", __func__);
-	int fd[2];
-	if (pipe(fd) == -1)
-		return -1;
+	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size);
 
-	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size, fd);
-	if (!du) {
-		close(fd[0]);
-		close(fd[1]);
-		return -1;
-	}
 	nh_add_tx(_nh, du);
 
 	/* start thread to block on fd_r, return fd_w */
@@ -189,16 +181,10 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 
 int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
-	int fd[2];
-	if (pipe(fd) == -1)
+	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size);
+	if (!du)
 		return -1;
 
-	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size, fd);
-	if (!du) {
-		close(fd[0]);
-		close(fd[1]);
-		return -1;
-	}
 	nh_add_rx(_nh, du);
 
 	return du->fd_r;
@@ -238,8 +224,7 @@ int nf_set_nic(char *nic)
 struct timedc_avtp *pdu_create_standalone(char *name,
 					bool tx_update,
 					struct net_fifo *arr,
-					int arr_size,
-					int pfd[2])
+					int arr_size)
 {
 	if (!name || !arr || arr_size <= 0)
 		return NULL;
@@ -260,10 +245,14 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		return NULL;
 
 	strncpy(du->name, name, 32);
-	if (pfd) {
-		du->fd_r = pfd[0];
-		du->fd_w = pfd[1];
+
+	int pfd[2];
+	if (pipe(pfd) == -1) {
+		pdu_destroy(&du);
+		return NULL;
 	}
+	du->fd_r = pfd[0];
+	du->fd_w = pfd[1];
 
 	/* if tx, create socket  */
 	if (tx_update) {

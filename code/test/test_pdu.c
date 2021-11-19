@@ -102,20 +102,20 @@ static void test_pdu_send(void)
 static void test_create_standalone(void)
 {
 
-	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz, NULL) == NULL);
-	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz, NULL) == NULL);
-	TEST_ASSERT(NETFIFO_RX("missing", NULL) == NULL);
+	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz) == NULL);
+	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz) == NULL);
+	TEST_ASSERT(NETFIFO_RX("missing") == NULL);
 
 	struct timedc_avtp *pdu;
-	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz, NULL);
+	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
 	pdu_destroy(&pdu);
 
-	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz, NULL);
+	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
 	pdu_destroy(&pdu);
 
-	pdu = NETFIFO_RX("test1", NULL);
+	pdu = NETFIFO_RX("test1");
 	TEST_ASSERT(pdu != NULL);
 
 	/* Test pdu internals after macro creation */

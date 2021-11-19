@@ -168,7 +168,7 @@ static void test_nh_add_cb_overflow(void)
 
 static void test_create_tx_fifo(void)
 {
-	struct timedc_avtp *du = NETFIFO_TX("test1", pfd);
+	struct timedc_avtp *du = NETFIFO_TX("test1");
 	TEST_ASSERT_NOT_NULL_MESSAGE(du, "Missing DU, should have been created from valid name");
 	TEST_ASSERT(du->nh == _nh);
 	TEST_ASSERT_MESSAGE(strncmp(du->name, "test1", 5) == 0, "wrong net_fifo returned");

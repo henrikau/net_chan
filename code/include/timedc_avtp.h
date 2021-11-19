@@ -132,8 +132,8 @@ static struct argp argp __attribute__((unused)) = {
 	.parser = parser};
 #define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
 
-#define NETFIFO_RX(x, pfd) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), pfd)
-#define NETFIFO_TX(x, pfd) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans), pfd)
+#define NETFIFO_RX(x) pdu_create_standalone(x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
+#define NETFIFO_TX(x) pdu_create_standalone(x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
@@ -194,8 +194,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 struct timedc_avtp *pdu_create_standalone(char *name,
 					bool tx,
 					struct net_fifo *arr,
-					int arr_size,
-					int pfd[2]);
+					int arr_size);
 
 /**
  * pdu_get_payload
