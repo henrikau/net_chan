@@ -81,8 +81,7 @@ static void test_create_netfifo_tx(void)
 
 struct tg_container {
 	bool received_ok;
-	uint64_t expected_sid;
-	int expected_datasize;
+	int nf_idx;
 	unsigned char *expected_data;
 	struct timedc_avtp *source_du;
 	char buffer[2048];
@@ -134,7 +133,7 @@ static void * test_grabber(void *data)
 			tg_runner = false;
 			continue;
 		}
-		if (be64toh(cshdr->stream_id) == tgc->expected_sid) {
+		if (be64toh(cshdr->stream_id) == net_fifo_chans[tgc->nf_idx].stream_id) {
 			tgc->received_ok = true;
 			tg_runner = false;
 			continue;
@@ -154,8 +153,7 @@ static void test_create_netfifo_tx_send(void)
 
 	struct tg_container tgc = {
 		.received_ok = false,
-		.expected_sid = net_fifo_chans[0].stream_id,
-		.expected_datasize = 8,
+		.nf_idx = 0,
 		.expected_data = (unsigned char *)&data,
 		.source_du = _nh->du_tx_tail
 	};
@@ -176,7 +174,7 @@ static void test_create_netfifo_tx_send(void)
 	struct ether_header *hdr = (struct ether_header *)tgc.buffer;
 	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)(&tgc.buffer[0] + sizeof(*hdr));
 	TEST_ASSERT(cshdr->subtype == AVTP_SUBTYPE_TIMEDC);
-	TEST_ASSERT(be64toh(cshdr->stream_id) == tgc.expected_sid);
+	TEST_ASSERT(be64toh(cshdr->stream_id) == 42);
 	TEST_ASSERT(hdr->ether_dhost[0] == net_fifo_chans[0].dst[0]);
 	TEST_ASSERT(hdr->ether_dhost[1] == net_fifo_chans[0].dst[1]);
 	TEST_ASSERT(hdr->ether_dhost[2] == net_fifo_chans[0].dst[2]);
