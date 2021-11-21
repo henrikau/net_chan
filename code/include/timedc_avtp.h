@@ -246,6 +246,22 @@ int pdu_send(struct timedc_avtp *pdu);
 struct nethandler * nh_init(char *ifname, size_t hmap_size);
 
 /**
+ * nh_init_standalone - create a standalone instance of nethandler
+ *
+ * This creates a 'hidden' nethandler instance kept by the library. It
+ * is intended to be used alongside the various macros (in particular
+ * NETFIFO_(T|R)X_CREATE()) to hide away resource management etc.
+ *
+ * It will use the values stored in nf_nic (see nf_set_nic) and
+ * nf_hmap_size. Both can be supplied at startup when using GET_ARGS()
+ *
+ * @params : void
+ * @returns: 0 on success, -1 on error
+ */
+int nh_init_standalone(void);
+
+
+/**
  * nh_reg_callback - Register a callback for a given stream_id
  *
  * Whenever a new frame arrives with the registred streamID, the
@@ -338,3 +354,11 @@ int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du);
  * @param nh: indirect ref to nh pointer (caller's ref will be NULL'd)
  */
 void nh_destroy(struct nethandler **nh);
+
+/**
+ * nh_destroy_standalone: destroy singular nethandler created by nh_init_standalone()
+ *
+ * @param void
+ * @return: void
+ */
+void nh_destroy_standalone();

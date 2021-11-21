@@ -235,11 +235,11 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 	int idx = nf_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
 		return NULL;
-	if (!_nh) {
-		_nh = nh_init(nf_nic, nf_hmap_size);
-		if (!_nh)
-			return NULL;
-	}
+
+	nh_init_standalone();
+	if (!_nh)
+		return NULL;
+
 	printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
 	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].size);
 
@@ -433,6 +433,18 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size)
 
 	return nh;
 }
+
+int nh_init_standalone(void)
+{
+	/* avoid double-create */
+	if (_nh != NULL)
+		return -1;
+	_nh = nh_init(nf_nic, nf_hmap_size);
+	if (_nh)
+		return 0;
+	return -1;
+}
+
 
 int nh_reg_callback(struct nethandler *nh,
 		uint64_t stream_id,
@@ -645,4 +657,10 @@ void nh_destroy(struct nethandler **nh)
 		free(*nh);
 	}
 	*nh = NULL;
+}
+
+void nh_destroy_standalone()
+{
+	if (_nh)
+		nh_destroy(&_nh);
 }

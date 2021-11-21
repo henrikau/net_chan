@@ -183,6 +183,21 @@ static void test_create_tx_fifo(void)
 	pdu_destroy(&test1_du);
 }
 
+static void test_nh_standalone_create(void)
+{
+	TEST_ASSERT_NULL(_nh);
+	TEST_ASSERT(nh_init_standalone() == 0);
+	TEST_ASSERT_NOT_NULL(_nh);
+	TEST_ASSERT(nh_init_standalone() == -1);
+}
+
+static void test_nh_standalone_destroy(void)
+{
+	TEST_ASSERT_NULL(_nh);
+	TEST_ASSERT(nh_init_standalone() == 0);
+	nh_destroy_standalone();
+	TEST_ASSERT_NULL(_nh);
+}
 
 int main(int argc, char *argv[])
 {
@@ -194,6 +209,8 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_create_cb);
 	RUN_TEST(test_nh_add_cb_overflow);
 	RUN_TEST(test_create_tx_fifo);
+	RUN_TEST(test_nh_standalone_create);
+	RUN_TEST(test_nh_standalone_destroy);
 
 	return UNITY_END();
 }
