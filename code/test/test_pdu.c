@@ -178,6 +178,30 @@ static void test_add_anon_rx_pdu(void)
 	 * here (valgrind is happy) */
 }
 
+static void test_pdu_send_now(void)
+{
+	uint64_t data = 0xa0a0a0a0;
+	struct timespec tv_bf, tv_after;
+	NETFIFO_TX(test1);
+	TEST_ASSERT(test1_du->pdu.seqnr == 0xff);
+	TEST_ASSERT(test1_du->pdu.avtp_timestamp == 0);
+
+	clock_gettime(CLOCK_TAI, &tv_bf);
+	uint32_t ts_bf_ns = (uint32_t)(tv_bf.tv_sec * 1e9 + tv_bf.tv_nsec);
+
+	int res = pdu_send_now(test1_du, &data);
+	TEST_ASSERT(test1_du > 0);
+	TEST_ASSERT(test1_du->pdu.seqnr == 0);
+
+	clock_gettime(CLOCK_TAI, &tv_after);
+	uint32_t ts_af_ns = (uint32_t)(tv_after.tv_sec * 1e9 + tv_after.tv_nsec);
+	TEST_ASSERT(ts_af_ns > ts_bf_ns);
+
+	TEST_ASSERT(test1_du->pdu.avtp_timestamp >= ts_bf_ns);
+	TEST_ASSERT(test1_du->pdu.avtp_timestamp <= ts_af_ns);
+}
+
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -190,6 +214,6 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_create_standalone);
 	RUN_TEST(test_add_anon_pdu);
 	RUN_TEST(test_add_anon_rx_pdu);
-
+	RUN_TEST(test_pdu_send_now);
 	return UNITY_END();
 }

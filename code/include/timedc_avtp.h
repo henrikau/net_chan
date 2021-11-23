@@ -236,6 +236,19 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data);
 int pdu_send(struct timedc_avtp *pdu);
 
 /**
+ * pdu_send_now: update and send pdu *now*
+ *
+ * This helper function will take a DU, increment seqnr, set timestamp
+ * to time *now* and send it.
+ *
+ * @param pdu: data container to send
+ * @param data: new data to copy into field and send.
+ *
+ * @return 0 on success, negative on error
+ */
+int pdu_send_now(struct timedc_avtp *du, void *data);
+
+/**
  * nh_init - initialize nethandler
  *
  * @param ifname: NIC to attach to

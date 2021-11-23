@@ -142,23 +142,14 @@ void * nf_tx_worker(void *data)
 	if (!buf)
 		return NULL;
 	while (du->running) {
-		struct timespec tv;
 
 		int sz = read(du->fd_r, buf, du->payload_size);
-		int cres = clock_gettime(CLOCK_TAI, &tv);
-		if (!du->running)
-			continue;
 		if (sz == -1) {
 			perror("Failed reading data from pipe");
 			continue;
 		}
-		if (cres == -1) {
-			perror("failed reading clock");
-			continue;
-		}
-		uint32_t ts_ns = (uint32_t)(tv.tv_sec * 1e9 + tv.tv_nsec);
-		pdu_update(du, ts_ns, buf);
-		pdu_send(du);
+		if (pdu_send_now(du, buf) == -1)
+			perror("failed sending data!");
 	}
 
 	free(buf);
@@ -357,6 +348,24 @@ int pdu_send(struct timedc_avtp *du)
 		perror("pdu_send()");
 
 	return txsz;
+}
+
+int pdu_send_now(struct timedc_avtp *du, void *data)
+{
+		struct timespec tv;
+		int cres = clock_gettime(CLOCK_TAI, &tv);
+		if (cres == -1) {
+			perror("failed reading clock");
+			return -1;
+		}
+
+		uint32_t ts_ns = (uint32_t)(tv.tv_sec * 1e9 + tv.tv_nsec);
+		if (pdu_update(du, ts_ns, data)) {
+			printf("%s(): pdu_update failed\n", __func__);
+			return -1;
+		}
+
+		return pdu_send(du);
 }
 
 void * pdu_get_payload(struct timedc_avtp *pdu)
