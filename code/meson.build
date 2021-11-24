@@ -15,14 +15,14 @@ timedc_avtp = static_library('timedc_avtp',
 
 executable(
    'talker',
-   'src/talker.c',
+   'examples/talker.c',
    include_directories: include_directories('include'),
    build_by_default: true,
    link_with : timedc_avtp)
 
 executable(
    'listener',
-   'src/listener.c',
+   'examples/listener.c',
    include_directories: include_directories('include'),
    build_by_default: true,
    link_with : timedc_avtp)
