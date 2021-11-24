@@ -383,6 +383,12 @@ int pdu_send_now(struct timedc_avtp *du, void *data)
 		return pdu_send(du);
 }
 
+int pdu_read(struct timedc_avtp *du, void *data)
+{
+	return read(du->fd_r, data, du->payload_size);
+}
+
+
 void * pdu_get_payload(struct timedc_avtp *pdu)
 {
 	if (!pdu)

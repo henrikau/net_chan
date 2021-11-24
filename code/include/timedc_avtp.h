@@ -28,6 +28,9 @@ static int nf_hmap_size __attribute__((unused)) = 42;
 #define NETFIFO_RX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 #define NETFIFO_TX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 
+#define WRITE(x,v) pdu_send_now(x ## _du, v)
+#define READ(x,v) pdu_read(x ## _du, v)
+
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
  */
@@ -247,6 +250,16 @@ int pdu_send(struct timedc_avtp *pdu);
  * @return 0 on success, negative on error
  */
 int pdu_send_now(struct timedc_avtp *du, void *data);
+
+/**
+ * pdu_read : read data from incoming pipe attached to DU
+ *
+ * @param du: data container
+ * @param data: memory to store received data to
+ *
+ * @return bytes received or -1 on error
+ */
+int pdu_read(struct timedc_avtp *du, void *data);
 
 /**
  * nh_init - initialize nethandler
