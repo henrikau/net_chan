@@ -243,6 +243,15 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 	du->fd_r = pfd[0];
 	du->fd_w = pfd[1];
 
+	struct ifreq req;
+	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", _nh->ifname);
+	int res = ioctl(du->nh->rx_sock, SIOCGIFINDEX, &req);
+	if (res < 0) {
+		perror("Failed to get interface index");
+		pdu_destroy(&du);
+		return NULL;
+	}
+
 	/* if tx, create socket  */
 	if (tx_update) {
 		du->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
@@ -253,15 +262,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			return NULL;
 		}
 
-		/* Set destination address for outgoing traffic t this DU */
-		struct ifreq req;
-		snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", _nh->ifname);
-		int res = ioctl(du->tx_sock, SIOCGIFINDEX, &req);
-		if (res < 0) {
-			perror("Failed to get interface index");
-			pdu_destroy(&du);
-			return NULL;
-		}
+		/* Set destination address for outgoing traffict this DU */
 		struct sockaddr_ll *sk_addr = &du->sk_addr;
 		sk_addr->sll_family = AF_PACKET;
 		sk_addr->sll_protocol = htons(ETH_P_TSN);
