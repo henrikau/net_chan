@@ -398,7 +398,6 @@ void * pdu_get_payload(struct timedc_avtp *pdu)
 }
 
 
-/* DEPRECATED, should not store this in nethandler */
 static int _nh_socket_setup_common(struct nethandler *nh)
 {
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));

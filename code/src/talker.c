@@ -10,12 +10,14 @@ int main(int argc, char *argv[])
 	GET_ARGS();
 
 	struct timeval tv;
-	int c = NETFIFO_TX_CREATE("bcast");
+
+	NETFIFO_TX(mcast42);
+
 	for (int i = 0; i < 10; i++) {
 		gettimeofday(&tv, NULL);
 		uint64_t ts = tv.tv_sec * 1e6 + tv.tv_usec;
 
-		write(c, &ts, 8);
+		WRITE(mcast42, &ts);
 		printf("%d: written\n", i);
 		usleep(100000);
 	}
