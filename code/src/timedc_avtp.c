@@ -163,8 +163,6 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 	if (!du)
 		return -1;
 
-	nh_add_tx(_nh, du);
-
 	/* start thread to block on fd_r, return fd_w */
 	du->running = true;
 	pthread_create(&du->tx_tid, NULL, nf_tx_worker, du);
@@ -177,8 +175,6 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size);
 	if (!du)
 		return -1;
-
-	nh_add_rx(_nh, du);
 
 	return du->fd_r;
 }
@@ -273,6 +269,10 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		sk_addr->sll_ifindex = req.ifr_ifindex;
 		memcpy(sk_addr->sll_addr, du->dst, ETH_ALEN);
 		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
+
+		/* Add ref to internal list for memory mgmt */
+		nh_add_tx(du->nh, du);
+
 	} else {
 		/* trigger on incoming DUs and attach a generic callback
 		 * and write data into correct pipe
@@ -280,6 +280,21 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		du->cbp.fd = du->fd_w;
 		du->cbp.sz = du->payload_size;
 		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
+
+		/* if dst is multicast, add membership */
+		if (du->dst[0] == 0x01 && du->dst[1] == 0x00 && du->dst[2] == 0x5E) {
+			struct packet_mreq mr;
+			memset(&mr, 0, sizeof(mr));
+			mr.mr_ifindex = req.ifr_ifindex;
+			mr.mr_type = PACKET_MR_PROMISC;
+			if (setsockopt(du->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
+				printf("%s(): failed setting multicast membership, may not receive frames! => %s\n",
+					__func__, strerror(errno));
+			}
+		}
+
+		/* Add ref to internal list for memory mgmt */
+		nh_add_rx(du->nh, du);
 	}
 
 	return du;

@@ -110,11 +110,9 @@ static void test_create_standalone(void)
 	struct timedc_avtp *pdu;
 	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
-	pdu_destroy(&pdu);
 
 	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
-	pdu_destroy(&pdu);
 
 	NETFIFO_RX(test1);
 	TEST_ASSERT(test1_du != NULL);
@@ -125,7 +123,6 @@ static void test_create_standalone(void)
 		TEST_ASSERT(test1_du->dst[i] == net_fifo_chans[0].dst[i]);
 	TEST_ASSERT(test1_du->nh == _nh);
 
-	pdu_destroy(&test1_du);
 }
 
 static void test_add_anon_pdu(void)
@@ -189,7 +186,7 @@ static void test_pdu_send_now(void)
 	clock_gettime(CLOCK_TAI, &tv_bf);
 	uint32_t ts_bf_ns = (uint32_t)(tv_bf.tv_sec * 1e9 + tv_bf.tv_nsec);
 
-	int res = pdu_send_now(test1_du, &data);
+	pdu_send_now(test1_du, &data);
 	TEST_ASSERT(test1_du > 0);
 	TEST_ASSERT(test1_du->pdu.seqnr == 0);
 

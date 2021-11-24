@@ -44,8 +44,7 @@ void tearDown(void)
 	close(pfd[0]);
 	close(pfd[1]);
 
-	if (_nh)
-		nh_destroy(&_nh);
+	nh_destroy_standalone();
 }
 
 
@@ -179,8 +178,7 @@ static void test_create_tx_fifo(void)
 	uint64_t val = 32;
 	TEST_ASSERT(pdu_update(test1_du, 0, &val) == 0);
 
-	/* Cleanup memory */
-	pdu_destroy(&test1_du);
+	/* Cleanup memory not needed, injected in standalone, nh_destroy will free*/
 }
 
 static void test_nh_standalone_create(void)
