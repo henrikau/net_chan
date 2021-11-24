@@ -52,7 +52,7 @@ t_net_fifo = executable('testnetfifo',
 	      )
 
 t_nf_macro = executable('testnfmacro',
-	       'test/test_macro_write.c',
+	       'test/test_macro.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,

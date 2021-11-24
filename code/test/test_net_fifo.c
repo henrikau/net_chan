@@ -104,8 +104,8 @@ static void * test_grabber(void *data)
 		return NULL;
 	}
 
-	struct ifreq ifr;
-	snprintf(ifr.ifr_name, strlen(ifr.ifr_name)-1, "%s", nf_nic);
+	struct ifreq ifr = {0};
+	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", nf_nic);
 
 	int res = ioctl(sock, SIOCGIFINDEX, &ifr);
 	TEST_ASSERT(res >= 0);
