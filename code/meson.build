@@ -18,6 +18,7 @@ executable(
    'examples/talker.c',
    include_directories: include_directories('include'),
    build_by_default: true,
+	dependencies: deps,
    link_with : timedc_avtp)
 
 executable(
@@ -25,6 +26,7 @@ executable(
    'examples/listener.c',
    include_directories: include_directories('include'),
    build_by_default: true,
+	dependencies: deps,
    link_with : timedc_avtp)
 
 t_pdu = executable('testpdu',
