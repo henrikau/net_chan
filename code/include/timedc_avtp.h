@@ -8,15 +8,6 @@
 #include <linux/if.h>
 #include <linux/if_ether.h>
 
-/* These are used, but GCC has trouble seeing that they are (static
- * variables in a header is not the hallmark of great quality after
- * all).
- *
- * Mark as unused to suppress -Wunused-variable.
- */
-static char nf_nic[IFNAMSIZ] __attribute__((unused)) = {0};
-static int nf_hmap_size __attribute__((unused)) = 42;
-
 /* --------------------------
  * Main TimedC values
  */
@@ -120,26 +111,16 @@ int nf_set_nic(char *nic);
 static struct argp_option options[] = {
        {"nic" , 'i', "NIC" , 0, "Network Interface" },
        {"hmap_sz", 's', "HMAP_SZ", 0, "Size of hash-map for Rx callbacks"},
+       {"srp", 'S', NULL, 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
        { 0 }
 };
 
-static error_t parser(int key, char *arg, struct argp_state *state)
-{
-      switch (key) {
-      case 'i':
-	      nf_set_nic(arg);
-	      break;
-      case 's':
-	      nf_hmap_size = atoi(arg);
-	      break;
-       }
-
-       return 0;
-}
+error_t parser(int key, char *arg, struct argp_state *state);
 
 static struct argp argp __attribute__((unused)) = {
 	.options = options,
 	.parser = parser};
+
 #define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
