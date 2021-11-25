@@ -13,13 +13,20 @@ timedc_avtp = static_library('timedc_avtp',
 			dependencies: deps
 		       )
 
+mrplib = static_library('mrp',
+			'src/talker_mrp_client.c',
+			'src/listener_mrp_client.c',
+			include_directories: include_directories('include'),
+			dependencies: deps
+		       )
+
 executable(
    'talker',
    'examples/talker.c',
    include_directories: include_directories('include'),
    build_by_default: true,
 	dependencies: deps,
-   link_with : timedc_avtp)
+   link_with : [timedc_avtp, mrplib])
 
 executable(
    'listener',
