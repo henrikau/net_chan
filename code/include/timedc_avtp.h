@@ -20,16 +20,20 @@ static int nf_hmap_size __attribute__((unused)) = 42;
 /* --------------------------
  * Main TimedC values
  */
-#define NETFIFO_TX_CREATE(x)						\
-	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
-#define NETFIFO_RX_CREATE(x)						\
-	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
-
 #define NETFIFO_RX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 #define NETFIFO_TX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 
 #define WRITE(x,v) pdu_send_now(x ## _du, v)
 #define READ(x,v) pdu_read(x ## _du, v)
+
+/* Deprecated
+ *    - Use NETFIFO_(R|T)X instad
+ */
+#define NETFIFO_TX_CREATE(x)						\
+	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
+#define NETFIFO_RX_CREATE(x)						\
+	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
+
 
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
