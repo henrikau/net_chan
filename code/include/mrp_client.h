@@ -51,6 +51,7 @@ struct mrp_talker_ctx
 	int domain_class_b_id;
 	int domain_class_b_priority;
 	u_int16_t domain_class_b_vid;
+
 	unsigned char monitor_stream_id[8];
 	volatile int listeners;
 };
@@ -58,9 +59,6 @@ struct mrp_talker_ctx
 struct mrp_listener_ctx
 {
 	int control_socket;
-	volatile int talker;
-	unsigned char stream_id[8];
-	unsigned char dst_mac[6];
 	volatile int halt_tx;
 	volatile int domain_a_valid;
 	int domain_class_a_id;
@@ -70,6 +68,10 @@ struct mrp_listener_ctx
 	int domain_class_b_id;
 	int domain_class_b_priority;
 	u_int16_t domain_class_b_vid;
+
+	volatile int talker;
+	unsigned char stream_id[8];
+	unsigned char dst_mac[6];
 };
 
 struct mrp_domain_attr
