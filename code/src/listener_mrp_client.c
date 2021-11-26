@@ -34,7 +34,7 @@ pthread_attr_t monitor_attr;
  * private
  */
 
-int mrp_listener_client_init(struct mrp_listener_ctx *ctx)
+int mrp_listener_client_init(struct mrp_ctx *ctx)
 {
 	int i;
 	ctx->control_socket=-1;
@@ -59,7 +59,7 @@ int mrp_listener_client_init(struct mrp_listener_ctx *ctx)
 	return 0;
 }
 
-int msg_process(char *buf, int buflen, struct mrp_listener_ctx *ctx)
+int msg_process(char *buf, int buflen, struct mrp_ctx *ctx)
 {
 	uint32_t id;
 	int j, l=0;
@@ -122,7 +122,7 @@ int msg_process(char *buf, int buflen, struct mrp_listener_ctx *ctx)
  * public
  */
 
-int create_socket(struct mrp_listener_ctx *ctx) // TODO FIX! =:-|
+int create_socket(struct mrp_ctx *ctx) // TODO FIX! =:-|
 {
 	struct sockaddr_in addr;
 	ctx->control_socket = socket(AF_INET, SOCK_DGRAM, 0);
@@ -157,7 +157,7 @@ void *mrp_monitor_thread(void *arg)
 	int bytes = 0;
 	struct pollfd fds;
 	int rc;
-	struct mrp_listener_ctx *ctx = (struct mrp_listener_ctx*) arg;
+	struct mrp_ctx *ctx = (struct mrp_ctx*) arg;
 
 	msgbuf = (char *)malloc(MAX_MRPD_CMDSZ);
 	if (NULL == msgbuf)
@@ -196,7 +196,7 @@ void *mrp_monitor_thread(void *arg)
 }
 
 
-int mrp_listener_monitor(struct mrp_listener_ctx *ctx)
+int mrp_listener_monitor(struct mrp_ctx *ctx)
 {
 	int rc;
 	rc = pthread_attr_init(&monitor_attr);
@@ -204,7 +204,7 @@ int mrp_listener_monitor(struct mrp_listener_ctx *ctx)
 	return rc;
 }
 
-int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_listener_ctx *ctx)
+int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 {
 	char* msgbuf;
 	int rc;
@@ -223,7 +223,7 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_listener_ct
 		return 0;
 }
 
-int mrp_get_domain(struct mrp_listener_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b)
+int mrp_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b)
 {
 	char *msgbuf;
 	int ret;
@@ -261,7 +261,7 @@ int mrp_get_domain(struct mrp_listener_ctx *ctx, struct mrp_domain_attr *class_a
 	return 0;
 }
 
-int join_vlan(struct mrp_domain_attr *class_a, struct mrp_listener_ctx *ctx)
+int join_vlan(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 {
 	char *msgbuf;
 	int rc;
@@ -281,14 +281,14 @@ int join_vlan(struct mrp_domain_attr *class_a, struct mrp_listener_ctx *ctx)
 		return 0;
 }
 
-int await_talker(struct mrp_listener_ctx *ctx)
+int await_talker(struct mrp_ctx *ctx)
 {
 	while (0 == ctx->talker)
 		;
 	return 0;
 }
 
-int send_ready(struct mrp_listener_ctx *ctx)
+int send_ready(struct mrp_ctx *ctx)
 {
 	char *databuf;
 	int rc;
@@ -311,7 +311,7 @@ int send_ready(struct mrp_listener_ctx *ctx)
 		return 0;
 }
 
-int send_leave(struct mrp_listener_ctx *ctx)
+int send_leave(struct mrp_ctx *ctx)
 {
 	char *databuf;
 	int rc;
@@ -334,7 +334,7 @@ int send_leave(struct mrp_listener_ctx *ctx)
 		return 0;
 }
 
-int mrp_listener_disconnect(struct mrp_listener_ctx *ctx)
+int mrp_listener_disconnect(struct mrp_ctx *ctx)
 {
 	int rc;
 	char *msgbuf = malloc(1500);

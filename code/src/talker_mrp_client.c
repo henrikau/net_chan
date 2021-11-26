@@ -46,7 +46,7 @@ pthread_attr_t monitor_attr;
  * private
  */
 
-int mrp_talker_client_init(struct mrp_talker_ctx *ctx)
+int mrp_talker_client_init(struct mrp_ctx *ctx)
 {
 	int i;
 	ctx->control_socket = -1;
@@ -67,7 +67,7 @@ int mrp_talker_client_init(struct mrp_talker_ctx *ctx)
 	return 0;
 }
 
-int process_mrp_msg(char *buf, int buflen, struct mrp_talker_ctx *ctx)
+int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 {
 
 	/*
@@ -286,7 +286,7 @@ void *mrp_monitor_thread(void *arg)
 	int bytes = 0;
 	struct pollfd fds;
 	int rc;
-	struct mrp_talker_ctx *ctx = (struct mrp_talker_ctx*) arg;
+	struct mrp_ctx *ctx = (struct mrp_ctx*) arg;
 
 	msgbuf = (char *)malloc(MAX_MRPD_CMDSZ);
 	if (NULL == msgbuf)
@@ -328,7 +328,7 @@ void *mrp_monitor_thread(void *arg)
  * public
  */
 
-int mrp_connect(struct mrp_talker_ctx *ctx)
+int mrp_connect(struct mrp_ctx *ctx)
 {
 	struct sockaddr_in addr;
 	int sock_fd = -1;
@@ -352,24 +352,10 @@ int mrp_connect(struct mrp_talker_ctx *ctx)
 	return -1;
 }
 
-int mrp_disconnect(struct mrp_talker_ctx *ctx)
+int mrp_disconnect(struct mrp_ctx *ctx)
 {
-	char *msgbuf;
-	int rc;
-
-	msgbuf = malloc(1500);
-	if (NULL == msgbuf)
-		return -1;
-	memset(msgbuf, 0, 64);
-	sprintf(msgbuf, "BYE");
-	mrp_okay = 0;
-	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	free(msgbuf);
-
-	if (rc != 1500)
-		return -1;
-	else
-		return 0;
+	char msgbuf[] = "BYE";
+	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
 }
 
 int mrp_monitor(void)
@@ -380,32 +366,19 @@ int mrp_monitor(void)
 	return rc;
 }
 
-int mrp_register_domain(struct mrp_domain_attr *reg_class, struct mrp_talker_ctx *ctx)
+int mrp_register_domain(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx)
 {
-	char *msgbuf;
-	int rc;
-
-	msgbuf = malloc(1500);
-	if (NULL == msgbuf)
-		return -1;
-	memset(msgbuf, 0, 1500);
-
+	char msgbuf[64] = {0};
 	sprintf(msgbuf, "S+D:C=%d,P=%d,V=%04x", reg_class->id, reg_class->priority, reg_class->vid);
 	mrp_okay = 0;
-	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	free(msgbuf);
-
-	if (rc != 1500)
-		return -1;
-	else
-		return 0;
+	return mrp_send_msg(msgbuf, strlen(msgbuf)+1, ctx->control_socket);
 }
 
 
 int
 mrp_advertise_stream(uint8_t * streamid,
 		     uint8_t * destaddr,
-		     int pktsz, int interval, int latency, struct mrp_talker_ctx *ctx)
+		     int pktsz, int interval, int latency, struct mrp_ctx *ctx)
 {
 	char *msgbuf;
 	int rc;
@@ -439,7 +412,7 @@ mrp_advertise_stream(uint8_t * streamid,
 int
 mrp_unadvertise_stream(uint8_t * streamid,
 		       uint8_t * destaddr,
-		       int pktsz, int interval, int latency, struct mrp_talker_ctx *ctx)
+		       int pktsz, int interval, int latency, struct mrp_ctx *ctx)
 {
 	char *msgbuf;
 	int rc;
@@ -469,7 +442,7 @@ mrp_unadvertise_stream(uint8_t * streamid,
 }
 
 
-int mrp_await_listener(unsigned char *streamid, struct mrp_talker_ctx *ctx)
+int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx)
 {
 	char *msgbuf;
 	int rc;
@@ -496,7 +469,7 @@ int mrp_await_listener(unsigned char *streamid, struct mrp_talker_ctx *ctx)
  * actually not used
  */
 
-int mrp_talker_get_domain(struct mrp_talker_ctx *ctx,struct mrp_domain_attr *class_a,struct mrp_domain_attr *class_b)
+int mrp_talker_get_domain(struct mrp_ctx *ctx,struct mrp_domain_attr *class_a,struct mrp_domain_attr *class_b)
 {
 	char *msgbuf;
 	int ret;
@@ -538,23 +511,11 @@ int mrp_talker_get_domain(struct mrp_talker_ctx *ctx,struct mrp_domain_attr *cla
 	return 0;
 }
 
-int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_talker_ctx *ctx)
+int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx)
 {
-	char *msgbuf;
-	int rc;
-
-	msgbuf = malloc(1500);
-	if (NULL == msgbuf)
-		return -1;
-	memset(msgbuf, 0, 1500);
+	char msgbuf[32] = {0};
 	sprintf(msgbuf, "V++:I=%04x\n",reg_class->vid);
-	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	free(msgbuf);
-
-	if (rc != 1500)
-		return -1;
-	else
-		return 0;
+	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
 }
 
 
