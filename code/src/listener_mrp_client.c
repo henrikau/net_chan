@@ -214,7 +214,7 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_listener_ct
 		return -1;
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S+D:C=%d,P=%d,V=%04x", class_a->id, class_a->priority, class_a->vid);
-	rc = send_msg(msgbuf, 1500, ctx->control_socket);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -236,7 +236,7 @@ int mrp_get_domain(struct mrp_listener_ctx *ctx, struct mrp_domain_attr *class_a
 		return -1;
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S??");
-	ret = send_msg(msgbuf, 1500, ctx->control_socket);
+	ret = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 	if (ret != 1500)
 		return -1;
@@ -272,7 +272,7 @@ int join_vlan(struct mrp_domain_attr *class_a, struct mrp_listener_ctx *ctx)
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "V++:I=%04x\n",class_a->vid);
 	printf("Joing VLAN %s\n",msgbuf);
-	rc = send_msg(msgbuf, 1500, ctx->control_socket);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -302,7 +302,7 @@ int send_ready(struct mrp_listener_ctx *ctx)
 		     ctx->stream_id[2], ctx->stream_id[3],
 		     ctx->stream_id[4], ctx->stream_id[5],
 		     ctx->stream_id[6], ctx->stream_id[7]);
-	rc = send_msg(databuf, 1500, ctx->control_socket);
+	rc = mrp_send_msg(databuf, 1500, ctx->control_socket);
 	free(databuf);
 
 	if (rc != 1500)
@@ -325,7 +325,7 @@ int send_leave(struct mrp_listener_ctx *ctx)
 		     ctx->stream_id[2], ctx->stream_id[3],
 		     ctx->stream_id[4], ctx->stream_id[5],
 		     ctx->stream_id[6], ctx->stream_id[7]);
-	rc = send_msg(databuf, 1500, ctx->control_socket);
+	rc = mrp_send_msg(databuf, 1500, ctx->control_socket);
 	free(databuf);
 
 	if (rc != 1500)
@@ -344,7 +344,7 @@ int mrp_listener_disconnect(struct mrp_listener_ctx *ctx)
 	memset(msgbuf, 0, 1500);
 
 	sprintf(msgbuf, "BYE");
-	rc = send_msg(msgbuf, 1500, ctx->control_socket);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)

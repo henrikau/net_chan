@@ -67,26 +67,6 @@ int mrp_talker_client_init(struct mrp_talker_ctx *ctx)
 	return 0;
 }
 
-int send_mrp_msg(char *notify_data, int notify_len, struct mrp_talker_ctx *ctx)
-{
-	struct sockaddr_in addr;
-	socklen_t addr_len;
-
-	if (ctx->control_socket == -1)
-		return -1;
-	if (notify_data == NULL)
-		return -1;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(MRPD_PORT_DEFAULT);
-	inet_aton("127.0.0.1", &addr.sin_addr);
-	addr_len = sizeof(addr);
-	printf("%s(): %s\n", __func__, notify_data);
-	return sendto(ctx->control_socket, notify_data, notify_len, 0,
-			 (struct sockaddr *)&addr, addr_len);
-}
-
 int process_mrp_msg(char *buf, int buflen, struct mrp_talker_ctx *ctx)
 {
 
@@ -383,7 +363,7 @@ int mrp_disconnect(struct mrp_talker_ctx *ctx)
 	memset(msgbuf, 0, 64);
 	sprintf(msgbuf, "BYE");
 	mrp_okay = 0;
-	rc = send_mrp_msg(msgbuf, 1500, ctx);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -412,7 +392,7 @@ int mrp_register_domain(struct mrp_domain_attr *reg_class, struct mrp_talker_ctx
 
 	sprintf(msgbuf, "S+D:C=%d,P=%d,V=%04x", reg_class->id, reg_class->priority, reg_class->vid);
 	mrp_okay = 0;
-	rc = send_mrp_msg(msgbuf, 1500, ctx);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -447,7 +427,7 @@ mrp_advertise_stream(uint8_t * streamid,
 		destaddr[3], destaddr[4], destaddr[5], ctx->domain_class_a_vid, pktsz,
 		interval, ctx->domain_class_a_priority << 5, latency);
 	mrp_okay = 0;
-	rc = send_mrp_msg(msgbuf, 1500, ctx);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -479,7 +459,7 @@ mrp_unadvertise_stream(uint8_t * streamid,
 		destaddr[3], destaddr[4], destaddr[5], ctx->domain_class_a_vid, pktsz,
 		interval, ctx->domain_class_a_priority << 5, latency);
 	mrp_okay = 0;
-	rc = send_mrp_msg(msgbuf, 1500, ctx);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -500,7 +480,7 @@ int mrp_await_listener(unsigned char *streamid, struct mrp_talker_ctx *ctx)
 		return -1;
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S??");
-	rc = send_mrp_msg(msgbuf, 1500, ctx);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 	if (rc != 1500)
 		return -1;
@@ -530,7 +510,7 @@ int mrp_talker_get_domain(struct mrp_talker_ctx *ctx,struct mrp_domain_attr *cla
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S??");
 	printf("%s(): msgbuf=%s\n", __func__, msgbuf);
-	ret = send_mrp_msg(msgbuf, 1500, ctx);
+	ret = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 	if (ret != 1500)
 		return -1;
@@ -568,7 +548,7 @@ int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_talker_ctx *ctx)
 		return -1;
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "V++:I=%04x\n",reg_class->vid);
-	rc = send_mrp_msg(msgbuf, 1500, ctx);
+	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
 	free(msgbuf);
 
 	if (rc != 1500)

@@ -1,6 +1,6 @@
 #include <mrp_client.h>
 
-int send_msg(char *data, int len, int control_socket)
+int mrp_send_msg(char *data, int len, int control_socket)
 {
 	struct sockaddr_in addr;
 	if (control_socket == -1 || data == NULL)
@@ -11,6 +11,6 @@ int send_msg(char *data, int len, int control_socket)
 	addr.sin_port = htons(MRPD_PORT_DEFAULT);
 	addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	inet_aton("127.0.0.1", &addr.sin_addr);
-	return sendto(control_socket, data, data_len, 0,
+	return sendto(control_socket, data, len, 0,
 		(struct sockaddr*)&addr, (socklen_t)sizeof(addr));
 }
