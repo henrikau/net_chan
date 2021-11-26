@@ -24,6 +24,7 @@ while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
     sudo setcap cap_net_raw,cap_net_admin=eip build/testpdu
     sudo setcap cap_net_raw,cap_net_admin=eip build/testprog
     sudo setcap cap_net_raw,cap_net_admin=eip build/testnfmacro
+    sudo setcap cap_net_raw,cap_net_admin,cap_sys_nice=eip build/testmrp
     sudo setcap cap_net_raw,cap_net_admin=eip build/talker
     sudo setcap cap_net_raw,cap_net_admin=eip build/listener
     pushd build > /dev/null
