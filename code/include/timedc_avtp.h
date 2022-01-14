@@ -111,9 +111,10 @@ struct nethandler;
 int nf_set_nic(char *nic);
 
 static struct argp_option options[] = {
-       {"nic" , 'i', "NIC" , 0, "Network Interface" },
+       {"nic"    , 'i', "NIC"    , 0, "Network Interface" },
        {"hmap_sz", 's', "HMAP_SZ", 0, "Size of hash-map for Rx callbacks"},
-       {"srp", 'S', NULL, 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
+       {"srp"    , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
+       {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
        { 0 }
 };
 

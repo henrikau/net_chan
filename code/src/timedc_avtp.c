@@ -98,6 +98,7 @@ struct nethandler {
 static struct nethandler *_nh;
 
 static bool do_srp = false;
+static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
 static int nf_hmap_size = 42;
 
@@ -112,6 +113,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
 	      break;
       case 'S':
 	      do_srp = true;
+	      break;
+      case 'v':
+	      verbose = true;
 	      break;
        }
 
@@ -179,7 +183,8 @@ void * nf_tx_worker(void *data)
 
 int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 {
-	printf("%s(): starting netfifo Tx end\n", __func__);
+	if (verbose)
+		printf("%s(): starting netfifo Tx end\n", __func__);
 	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size);
 	if (!du)
 		return -1;
@@ -187,7 +192,8 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 	/* start thread to block on fd_r, return fd_w */
 	du->running = true;
 	pthread_create(&du->tx_tid, NULL, nf_tx_worker, du);
-	printf("%s(): thread spawned (tid=%ld), ready to send data\n", __func__, du->tx_tid);
+	if (verbose)
+		printf("%s(): thread spawned (tid=%ld), ready to send data\n", __func__, du->tx_tid);
 	return du->fd_w;
 }
 
@@ -227,7 +233,8 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 int nf_set_nic(char *nic)
 {
 	strncpy(nf_nic, nic, IFNAMSIZ-1);
-	printf("%s(): set nic to %s\n", __func__, nf_nic);
+	if (verbose)
+		printf("%s(): set nic to %s\n", __func__, nf_nic);
 	return 0;
 }
 
@@ -238,7 +245,11 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 {
 	if (!name || !arr || arr_size <= 0)
 		return NULL;
-	printf("%s(): nic: %s\n", __func__, nf_nic);
+	if (verbose)
+		printf("%s(): nic: %s\n", __func__, nf_nic);
+	if (do_srp) {
+		printf("%s(): run with SRP enabled\n", __func__);
+	}
 
 	int idx = nf_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
@@ -248,7 +259,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 	if (!_nh)
 		return NULL;
 
-	printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
+	if (verbose)
+		printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
 	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].size);
 
 	if (!du)
@@ -290,7 +302,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		sk_addr->sll_halen = ETH_ALEN;
 		sk_addr->sll_ifindex = req.ifr_ifindex;
 		memcpy(sk_addr->sll_addr, du->dst, ETH_ALEN);
-		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
+		if (verbose)
+			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
 
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(du->nh, du);
@@ -310,7 +323,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			mr.mr_ifindex = req.ifr_ifindex;
 			mr.mr_type = PACKET_MR_PROMISC;
 			if (setsockopt(du->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
-				printf("%s(): failed setting multicast membership, may not receive frames! => %s\n",
+				fprintf(stderr, "%s(): failed setting multicast membership, may not receive frames! => %s\n",
 					__func__, strerror(errno));
 			}
 		}
@@ -398,7 +411,7 @@ int pdu_send_now(struct timedc_avtp *du, void *data)
 
 		uint32_t ts_ns = (uint32_t)(tv.tv_sec * 1e9 + tv.tv_nsec);
 		if (pdu_update(du, ts_ns, data)) {
-			printf("%s(): pdu_update failed\n", __func__);
+			fprintf(stderr, "%s(): pdu_update failed\n", __func__);
 			return -1;
 		}
 
@@ -430,7 +443,7 @@ static int _nh_socket_setup_common(struct nethandler *nh)
 	struct ifreq req;
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", nh->ifname);
 	if (ioctl(sock, SIOCGIFINDEX, &req) == -1) {
-		printf("%s(): Could not get interface index for %s: %s\n", __func__, nh->ifname, strerror(errno));
+		fprintf(stderr, "%s(): Could not get interface index for %s: %s\n", __func__, nh->ifname, strerror(errno));
 		return -1;
 	}
 	nh->sk_addr.sll_family = AF_PACKET;
