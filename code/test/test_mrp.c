@@ -13,7 +13,9 @@
 struct mrp_ctx txctx;
 bool rx_running = false;
 char *rx_buffer = NULL;
+char *rx_mrpd_payload = NULL;
 char *rx_payload = NULL;
+#define BUFFER_SIZE 1522
 pthread_t tid   = -1;
 
 /* Receiver helper. Used to track the messages mrp_client sends to mrpd
@@ -32,9 +34,11 @@ pthread_t tid   = -1;
  */
 void * receiver(void *data)
 {
-	if (!rx_buffer || !rx_running)
+	if (!rx_buffer || !rx_running || !rx_payload || !rx_mrpd_payload)
 		return NULL;
-	memset(rx_buffer, 0, 1522);
+	memset(rx_buffer, 0, BUFFER_SIZE);
+	memset(rx_payload, 0, BUFFER_SIZE);
+	memset(rx_mrpd_payload, 0, BUFFER_SIZE);
 
 	/* Open  */
 	int sock = -1;
@@ -69,7 +73,7 @@ void * receiver(void *data)
 	}
 
 	for (int retries = 5; rx_running && retries > 0; retries--) {
-		int rxsz = recv(sock, rx_buffer, 1522, 0);
+		int rxsz = recv(sock, rx_buffer, BUFFER_SIZE, 0);
 		if (rxsz == -1) {
 			if (errno == 11) {
 				printf("%s() timeout\n", __func__);
@@ -80,15 +84,18 @@ void * receiver(void *data)
 			return NULL;
 		}
 		struct ether_header *hdr  = (struct ether_header *)rx_buffer;
-		struct iphdr *iphdr = (struct ip_header *)((void *)hdr + sizeof(*hdr));
+		struct iphdr *iphdr = (struct iphdr *)((void *)hdr + sizeof(*hdr));
 		struct udphdr *udphdr = (struct udphdr *)((void *)iphdr + sizeof(*iphdr));
 		if (rxsz < (sizeof(*hdr) + sizeof(*iphdr) + sizeof(*udphdr)))
 			continue;
 
-		/* Got correct port, update rx_payload */
+
 		if (ntohs(udphdr->dest) == MRPD_PORT_DEFAULT) {
-			rx_payload = (char *)udphdr + sizeof(*udphdr);
-			rx_running = false;
+			/* outgoing msg to mrpd, grab a copy */
+			memcpy(rx_payload, (char *)udphdr + sizeof(*udphdr), BUFFER_SIZE);
+		} else if (ntohs(udphdr->source) == MRPD_PORT_DEFAULT) {
+			/* reply from mrpd, grab to use when testing mrpd response */
+			memcpy(rx_mrpd_payload, (char *)udphdr + sizeof(*udphdr), BUFFER_SIZE);
 		}
 	}
 
@@ -127,16 +134,17 @@ int start_rx(void)
 void setUp(void)
 {
 	tid = -1;
-	rx_buffer = malloc(1522);
-	rx_payload = NULL;
-	if (rx_buffer) {
+	rx_buffer = malloc(BUFFER_SIZE);
+	rx_payload = malloc(BUFFER_SIZE);
+	rx_mrpd_payload = malloc(BUFFER_SIZE);
+	if (rx_buffer && rx_payload && rx_mrpd_payload) {
 		rx_running = true;
 		start_rx();
 	}
 	mrp_talker_client_init(&txctx);
 	mrp_connect(&txctx);
-
 }
+
 void tearDown(void)
 {
 	if (rx_running) {
@@ -147,8 +155,18 @@ void tearDown(void)
 		}
 	}
 	txctx.halt_tx = 1;
-	if (rx_buffer)
+	if (rx_buffer) {
 		free(rx_buffer);
+		rx_buffer = NULL;
+	}
+	if (rx_payload) {
+		free(rx_payload);
+		rx_payload = NULL;
+	}
+	if (rx_mrpd_payload) {
+		free(rx_mrpd_payload);
+		rx_mrpd_payload = NULL;
+	}
 }
 
 
