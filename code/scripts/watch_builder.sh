@@ -19,17 +19,19 @@ echo ${dirs}
 # them.
 while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
     test -d build/ || { mkdir build; meson build; }
-    ninja -C build/
-    sudo setcap cap_net_raw,cap_net_admin=eip build/testnetfifo
-    sudo setcap cap_net_raw,cap_net_admin=eip build/testpdu
-    sudo setcap cap_net_raw,cap_net_admin=eip build/testprog
-    sudo setcap cap_net_raw,cap_net_admin=eip build/testnfmacro
-    sudo setcap cap_net_raw,cap_net_admin,cap_sys_nice=eip build/testmrp
-    sudo setcap cap_net_raw,cap_net_admin=eip build/talker
-    sudo setcap cap_net_raw,cap_net_admin=eip build/listener
-    pushd build > /dev/null
-    meson test -v
-    popd > /dev/null
+    ninja -C build/ && {
+	# only run tests if build was ok
+	sudo setcap cap_net_raw,cap_net_admin=eip build/testnetfifo
+	sudo setcap cap_net_raw,cap_net_admin=eip build/testpdu
+	sudo setcap cap_net_raw,cap_net_admin=eip build/testprog
+	sudo setcap cap_net_raw,cap_net_admin=eip build/testnfmacro
+	sudo setcap cap_net_raw,cap_net_admin,cap_sys_nice=eip build/testmrp
+	sudo setcap cap_net_raw,cap_net_admin=eip build/talker
+	sudo setcap cap_net_raw,cap_net_admin=eip build/listener
+	pushd build > /dev/null
+	meson test || { echo "Test failed, dumping complete log"; cat meson-logs/testlog.txt; }
+	popd > /dev/null
+    }
 
     dirs=$(for f in $(find . -name "*.[c|h]" -o -name "meson.build"); do dirname ${f}; done|grep -v build|sort|uniq)
 done
