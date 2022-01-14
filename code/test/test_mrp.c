@@ -187,18 +187,82 @@ static void test_mrp_connect(void)
 	ctx.halt_tx = 1;
 }
 
+/* Do explicit setup for each test */
 static void test_mrp_send_msg(void)
 {
-	char msg[] = "FOOBAR";
-	int res = mrp_send_msg(msg, strlen(msg)+1, txctx.control_socket);
+	struct mrp_ctx ctx;
+	mrp_talker_client_init(&ctx);
+	mrp_connect(&ctx);
+
+	TEST_ASSERT(ctx.halt_tx == 0);
+
+	char msg[] = "FOOBAR                               ";
+	int res = mrp_send_msg(msg, strlen(msg)+1, ctx.control_socket);
 	TEST_ASSERT(res == strlen(msg)+1);
 
 	/* wait for thread to return, payload should be updated. If not,
 	 * it will time out and test will fail.
 	 */
+	usleep(1000);
+	rx_running = false;
 	pthread_join(tid, NULL);
+
 	TEST_ASSERT_NOT_NULL(rx_payload);
-	TEST_ASSERT_EQUAL_STRING_MESSAGE(msg, rx_payload, "Expected incoming message to pass outging");
+	TEST_ASSERT_NOT_NULL(rx_mrpd_payload);
+
+	/* Verify that expected message was sent and unknown command
+	 * returned from mrpd
+	 */
+	TEST_ASSERT_EQUAL_STRING_MESSAGE(msg, rx_payload, "Unknown outgoing message, did send_msg send multiple?");
+	TEST_ASSERT_EQUAL_STRING_MESSAGE("ERC MR", rx_mrpd_payload, "Unexpected reply (is mrpd running?)");
+}
+
+static void test_mrp_reg_domain(void)
+{
+	struct mrp_domain_attr class_a = {
+		.priority = 3,
+		.vid = 2,
+		.id = 1337,
+	};
+
+	TEST_ASSERT(mrp_register_domain(&class_a, &txctx) > 0);
+	usleep(5000);
+	TEST_ASSERT(strlen(rx_payload) > 10);
+
+	/* S+D: join domain
+	 * C: stream id
+	 * P: Priority
+	 * V: Vlan ID
+	 */
+	TEST_ASSERT_EQUAL_STRING_MESSAGE("S+D:C=1337,P=3,V=0002", rx_payload, "Unexpected outgoing payload");
+
+	/* D:C=57 is found experimentally, msrp.c from OpenAvnu.git can
+	 * make grown men weep
+	 */
+	TEST_ASSERT_EQUAL_STRING_MESSAGE("SJO D:C=57,P=3,V=0002,N=3 R=000000000000 QA/IN\n",
+					rx_mrpd_payload,
+					"Unexpected reply (is mrpd running?), Note: this test can be unstable.");
+}
+
+static void test_mrp_join_vlan(void)
+{
+	struct mrp_domain_attr class_a = {
+		.priority = 3,
+		.vid = 2,
+		.id = 1337,
+	};
+	TEST_ASSERT(mrp_register_domain(&class_a, &txctx) > 0);
+	usleep(5000);
+	TEST_ASSERT(mrp_join_vlan(&class_a, &txctx) > 0);
+	usleep(5000);
+	TEST_ASSERT_EQUAL_STRING_MESSAGE("V++:I=0002\n", rx_payload, "Unexpected outgoing payload");
+	TEST_ASSERT_EQUAL_STRING_MESSAGE("VNE 0002 R=000000000000 VN/MT\n",
+					rx_mrpd_payload, "Unexpected mrp reply (is mrpd running?)");
+}
+
+static void test_mrp_advertise_stream(void)
+{
+
 }
 
 int main(int argc, char *argv[])
@@ -207,5 +271,8 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_mrp_init);
 	RUN_TEST(test_mrp_connect);
 	RUN_TEST(test_mrp_send_msg);
+	RUN_TEST(test_mrp_reg_domain);
+	RUN_TEST(test_mrp_join_vlan);
+	RUN_TEST(test_mrp_advertise_stream);
 	return UNITY_END();
 }
