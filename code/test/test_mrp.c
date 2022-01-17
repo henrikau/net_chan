@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include "unity.h"
 
-#include <mrp_client.h>
+#include <srp/mrp_client.h>
+
 #include <stdbool.h>
 #include <errno.h>
 #include <sys/ioctl.h>

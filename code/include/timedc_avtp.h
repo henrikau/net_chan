@@ -8,7 +8,7 @@
 #include <linux/if.h>
 #include <linux/if_ether.h>
 
-#include <mrp_client.h>
+#include <srp/mrp_client.h>
 
 /* --------------------------
  * Main TimedC values

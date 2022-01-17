@@ -57,11 +57,11 @@
 #include <sys/un.h>
 #include <sys/eventfd.h>
 
-#include "mrpd.h"
-#include "mrp.h"
-#include "mvrp.h"
-#include "msrp.h"
-#include "mmrp.h"
+#include <srp/mrpd.h>
+#include <srp/mrp.h>
+#include <srp/mvrp.h>
+#include <srp/msrp.h>
+#include <srp/mmrp.h>
 
 static void mrpd_log_timer_event(char *src, int event);
 

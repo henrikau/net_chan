@@ -35,9 +35,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <pthread.h>
 #include <poll.h>
 
-#include <mrpd.h>
-#include <mrp.h>
-#include <msrp.h>
+#include <srp/mrpd.h>
+#include <srp/mrp.h>
+#include <srp/msrp.h>
 
 struct mrp_ctx
 {

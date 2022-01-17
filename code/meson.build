@@ -14,9 +14,9 @@ timedc_avtp = static_library('timedc_avtp',
 		       )
 
 mrplib = static_library('mrp',
-			'src/mrp_client.c',
-			'src/talker_mrp_client.c',
-			'src/listener_mrp_client.c',
+			'srp/mrp_client.c',
+			'srp/talker_mrp_client.c',
+			'srp/listener_mrp_client.c',
 			include_directories: include_directories('include'),
 			dependencies: deps
 		       )

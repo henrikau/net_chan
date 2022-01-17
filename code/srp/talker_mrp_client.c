@@ -32,7 +32,7 @@
 
 ******************************************************************************/
 
-#include "mrp_client.h"
+#include <srp/mrp_client.h>
 
 /* global variables */
 

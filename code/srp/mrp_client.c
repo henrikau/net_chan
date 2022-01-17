@@ -1,4 +1,4 @@
-#include <mrp_client.h>
+#include <srp/mrp_client.h>
 
 int mrp_send_msg(char *data, int len, int control_socket)
 {
