@@ -10,7 +10,8 @@ deps = dependency('threads')
 timedc_avtp = static_library('timedc_avtp',
 			'src/timedc_avtp.c',
 			include_directories: include_directories('include'),
-			dependencies: deps
+			dependencies: deps,
+			install: true
 		       )
 
 mrplib = static_library('mrp',
@@ -18,8 +19,11 @@ mrplib = static_library('mrp',
 			'srp/talker_mrp_client.c',
 			'srp/listener_mrp_client.c',
 			include_directories: include_directories('include'),
-			dependencies: deps
+			dependencies: deps,
+			install: true
 		       )
+install_headers('include/timedc_avtp.h')
+install_subdir('include/srp', install_dir: 'include/')
 
 executable(
    'talker',
