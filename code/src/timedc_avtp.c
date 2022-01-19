@@ -274,7 +274,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", _nh->ifname);
 	int res = ioctl(du->nh->rx_sock, SIOCGIFINDEX, &req);
 	if (res < 0) {
-		perror("Failed to get interface index");
+		fprintf(stderr, "%s(): Failed to get interface index for socket %d, %s\n",
+			__func__, du->nh->rx_sock, strerror(errno));
 		pdu_destroy(&du);
 		return NULL;
 	}
@@ -464,8 +465,9 @@ static int _nh_socket_setup_common(struct nethandler *nh)
 		}
 		req.ifr_flags |= IFF_PROMISC;
 		if (ioctl(sock, SIOCSIFFLAGS, &req) == -1) {
-			perror("Failed placing lo in promiscuous mode, will not receive incoming data (tests may fail)");
-			return -1;
+			fprintf(stderr, "%s(): Failed placing lo in promiscuous "\
+				"mode, may not receive incoming data (tests may "\
+				"fail)", __func__);
 		}
 	}
 	return sock;
