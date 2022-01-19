@@ -102,25 +102,19 @@ static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
 static int nf_hmap_size = 42;
 
-error_t parser(int key, char *arg, struct argp_state *state)
+void nf_set_hmap_size(int sz)
 {
-      switch (key) {
-      case 'i':
-	      nf_set_nic(arg);
-	      break;
-      case 's':
-	      nf_hmap_size = atoi(arg);
-	      break;
-      case 'S':
-	      do_srp = true;
-	      break;
-      case 'v':
-	      verbose = true;
-	      break;
-       }
-
-       return 0;
+	nf_hmap_size = sz;
 }
+void nf_use_srp(void)
+{
+	do_srp = true;
+}
+void nf_verbose(void)
+{
+	verbose = true;
+}
+
 
 int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 {

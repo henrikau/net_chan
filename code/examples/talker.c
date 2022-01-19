@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
-
 #include <timedc_avtp.h>
+#include <timedc_args.h>
+
 #include "net_fifo.h"
 
 int main(int argc, char *argv[])

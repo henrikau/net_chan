@@ -4,8 +4,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <argp.h>
-#include <linux/if.h>
 #include <linux/if_ether.h>
 
 #include <srp/mrp_client.h>
@@ -109,22 +107,9 @@ struct timedc_avtp;
 struct nethandler;
 
 int nf_set_nic(char *nic);
-
-static struct argp_option options[] = {
-       {"nic"    , 'i', "NIC"    , 0, "Network Interface" },
-       {"hmap_sz", 's', "HMAP_SZ", 0, "Size of hash-map for Rx callbacks"},
-       {"srp"    , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
-       {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
-       { 0 }
-};
-
-error_t parser(int key, char *arg, struct argp_state *state);
-
-static struct argp argp __attribute__((unused)) = {
-	.options = options,
-	.parser = parser};
-
-#define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
+void nf_set_hmap_size(int sz);
+void nf_use_srp(void);
+void nf_verbose(void);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
@@ -267,7 +252,7 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size);
  * NETFIFO_(T|R)X_CREATE()) to hide away resource management etc.
  *
  * It will use the values stored in nf_nic (see nf_set_nic) and
- * nf_hmap_size. Both can be supplied at startup when using GET_ARGS()
+ * nf_hmap_size.
  *
  * @params : void
  * @returns: 0 on success, -1 on error
