@@ -7,13 +7,6 @@ project(
 
 deps = dependency('threads')
 
-timedc_avtp = static_library('timedc_avtp',
-			'src/timedc_avtp.c',
-			include_directories: include_directories('include'),
-			dependencies: deps,
-			install: true
-		       )
-
 mrplib = static_library('mrp',
 			'srp/mrp_client.c',
 			'srp/talker_mrp_client.c',
@@ -22,6 +15,15 @@ mrplib = static_library('mrp',
 			dependencies: deps,
 			install: true
 		       )
+
+timedc_avtp = static_library('timedc_avtp',
+			'src/timedc_avtp.c',
+			include_directories: include_directories('include'),
+			dependencies: deps,
+			link_with: mrplib,
+			install: true
+		       )
+
 install_headers('include/timedc_avtp.h')
 install_subdir('include/srp', install_dir: 'include/')
 
@@ -43,27 +45,33 @@ executable(
 	dependencies: deps,
    link_with : timedc_avtp)
 
+# includes timedc_avtp.c directly to test internals
 t_pdu = executable('testpdu',
 	       'test/test_pdu.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
+	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
+# includes timedc_avtp.c directly to test internals
 t_nh = executable('testprog',
 	       'test/test_nh.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
+	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
+# includes timedc_avtp.c directly to test internals
 t_net_fifo = executable('testnetfifo',
 	       'test/test_net_fifo.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
+	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
