@@ -14,5 +14,6 @@ int main(int argc, char *argv[])
 		printf("Counter received! -> %lu\n", d);
 	}
 
+	CLEANUP();
 	return 0;
 }

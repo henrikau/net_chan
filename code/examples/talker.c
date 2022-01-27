@@ -17,5 +17,7 @@ int main(int argc, char *argv[])
 		printf("%lu: written\n", i);
 		usleep(100000);
 	}
+
+	CLEANUP();
 	return 0;
 }

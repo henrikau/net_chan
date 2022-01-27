@@ -17,6 +17,7 @@
 #define WRITE(x,v) pdu_send_now(x ## _du, v)
 #define READ(x,v) pdu_read(x ## _du, v)
 
+#define CLEANUP() nh_destroy_standalone()
 /* Deprecated
  *    - Use NETFIFO_(R|T)X instad
  */
