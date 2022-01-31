@@ -24,11 +24,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srp/mrp_client.h>
 
-/* global variables */
-
-//struct listener_context global_struct_listener;
-pthread_t monitor_thread;
-pthread_attr_t monitor_attr;
 
 /*
  * private
@@ -148,7 +143,7 @@ int create_socket(struct mrp_ctx *ctx) // TODO FIX! =:-|
 	return 0;
 }
 
-void *mrp_monitor_thread(void *arg)
+void *mrp_listener_monitor_thread(void *arg)
 {
 	char *msgbuf;
 	struct sockaddr_in client_addr;
@@ -199,8 +194,8 @@ void *mrp_monitor_thread(void *arg)
 int mrp_listener_monitor(struct mrp_ctx *ctx)
 {
 	int rc;
-	rc = pthread_attr_init(&monitor_attr);
-	rc |= pthread_create(&monitor_thread, NULL, mrp_monitor_thread, ctx);
+	rc = pthread_attr_init(&ctx->rx_monitor_attr);
+	rc |= pthread_create(&ctx->rx_monitor_thread, &ctx->rx_monitor_attr, mrp_listener_monitor_thread, ctx);
 	return rc;
 }
 
@@ -223,7 +218,7 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 		return 0;
 }
 
-int mrp_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b)
+int mrp_listener_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b)
 {
 	char *msgbuf;
 	int ret;

@@ -60,6 +60,10 @@ struct mrp_ctx
 	volatile int talker;
 	unsigned char stream_id[8];
 	unsigned char dst_mac[6];
+
+	pthread_t rx_monitor_thread;
+	pthread_attr_t rx_monitor_attr;
+
 };
 
 struct mrp_domain_attr
