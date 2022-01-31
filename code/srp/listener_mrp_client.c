@@ -328,22 +328,3 @@ int send_leave(struct mrp_ctx *ctx)
 	else
 		return 0;
 }
-
-int mrp_listener_disconnect(struct mrp_ctx *ctx)
-{
-	int rc;
-	char *msgbuf = malloc(1500);
-
-	if (NULL == msgbuf)
-		return -1;
-	memset(msgbuf, 0, 1500);
-
-	sprintf(msgbuf, "BYE");
-	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	free(msgbuf);
-
-	if (rc != 1500)
-		return -1;
-	else
-		return 0;
-}

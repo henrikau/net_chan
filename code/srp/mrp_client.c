@@ -14,3 +14,10 @@ int mrp_send_msg(char *data, int len, int control_socket)
 	return sendto(control_socket, data, len, 0,
 		(struct sockaddr*)&addr, (socklen_t)sizeof(addr));
 }
+
+int mrp_disconnect(struct mrp_ctx *ctx)
+{
+	char msgbuf[] = "BYE";
+	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
+}
+

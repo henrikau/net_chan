@@ -352,12 +352,6 @@ int mrp_connect(struct mrp_ctx *ctx)
 	return -1;
 }
 
-int mrp_disconnect(struct mrp_ctx *ctx)
-{
-	char msgbuf[] = "BYE";
-	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
-}
-
 int mrp_monitor(void)
 {
 	int rc;
