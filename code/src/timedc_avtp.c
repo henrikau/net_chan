@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <srp/mrp_client.h>
-
+#include <ptp_getclock.h>
 /**
  * cb_priv: private data for callbacks
  *
@@ -132,6 +132,19 @@ struct nethandler {
 	char ifname[IFNAMSIZ];
 	bool running;
 	pthread_t tid;
+
+	/*
+	 * fd for PTP device to retrieve timestamp.
+	 *
+	 * We expect ptp daemon to run and sync the clock on the NIC
+	 * with the network. We do not assume that the network time is
+	 * synched to CLOCK_REALTIME.
+	 *
+	 * To avoid opening and closing the device multiple times, keep
+	 * a ref here.
+	 */
+	int ptp_fd;
+
 
 	/* hashmap, chan_id -> cb_entity  */
 	size_t hmap_sz;
@@ -531,20 +544,14 @@ int pdu_send(struct timedc_avtp *du)
 
 int pdu_send_now(struct timedc_avtp *du, void *data)
 {
-		struct timespec tv;
-		int cres = clock_gettime(CLOCK_TAI, &tv);
-		if (cres == -1) {
-			perror("failed reading clock");
-			return -1;
-		}
+	uint64_t ts_ns = get_ptp_ts_ns(du->nh->ptp_fd);
 
-		uint32_t ts_ns = (uint32_t)(tv.tv_sec * 1e9 + tv.tv_nsec);
-		if (pdu_update(du, ts_ns, data)) {
-			fprintf(stderr, "%s(): pdu_update failed\n", __func__);
-			return -1;
-		}
+	if (pdu_update(du, tai_to_avtp_ns(ts_ns), data)) {
+		fprintf(stderr, "%s(): pdu_update failed\n", __func__);
+		return -1;
+	}
 
-		return pdu_send(du);
+	return pdu_send(du);
 }
 
 int pdu_read(struct timedc_avtp *du, void *data)
@@ -624,6 +631,15 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size)
 	nh->rx_sock = _nh_socket_setup_common(nh);
 	if (nh->tid == 0)
 		nh_start_rx(nh);
+
+	/* get PTP fd for timekeeping
+	 *
+	 * FIXME: properly handle error when opening (assume caller
+	 * knows their hardware?)
+	 */
+	nh->ptp_fd = get_ptp_fd(ifname);
+	if (nh->ptp_fd < 0)
+		fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
 
 	return nh;
 }
@@ -738,11 +754,17 @@ static void * nh_runner(void *data)
 	bool running = true;
 	while (running) {
 		int n = recv(nh->rx_sock, buffer, 1522, 0);
+		uint32_t ts_ns = tai_to_avtp_ns(get_ptp_ts_ns(nh->ptp_fd));
+
 		running = nh->running;
 		if (n > 0) {
+
 			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
-			/* printf("%s() got data (stream_id=%ld, size=%d), feeding pdu to callback\n", */
-			/* 	__func__, be64toh(du->stream_id), n); */
+			int64_t diff_ns = ts_ns - du->avtp_timestamp;
+
+			printf("%s() got data (stream_id=%ld, size=%d, txdiff: %ld), feeding pdu to callback\n",
+				__func__, be64toh(du->stream_id), n, diff_ns);
+
 			nh_feed_pdu(nh, du);
 		}
 	}

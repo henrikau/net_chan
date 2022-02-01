@@ -17,7 +17,8 @@ mrplib = static_library('mrp',
 		       )
 
 timedc_avtp = static_library('timedc_avtp',
-			'src/timedc_avtp.c',
+			     'src/timedc_avtp.c',
+			     'src/ptp_getclock.c',
 			include_directories: include_directories('include'),
 			dependencies: deps,
 			link_with: mrplib,
@@ -48,6 +49,7 @@ executable(
 # includes timedc_avtp.c directly to test internals
 t_pdu = executable('testpdu',
 	       'test/test_pdu.c',
+	       'src/ptp_getclock.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
@@ -58,6 +60,7 @@ t_pdu = executable('testpdu',
 # includes timedc_avtp.c directly to test internals
 t_nh = executable('testprog',
 	       'test/test_nh.c',
+	       'src/ptp_getclock.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
@@ -68,6 +71,7 @@ t_nh = executable('testprog',
 # includes timedc_avtp.c directly to test internals
 t_net_fifo = executable('testnetfifo',
 	       'test/test_net_fifo.c',
+	       'src/ptp_getclock.c',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
