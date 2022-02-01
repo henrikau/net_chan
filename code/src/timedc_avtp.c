@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <time.h>
+#include <srp/mrp_client.h>
 
 /**
  * cb_priv: private data for callbacks
@@ -30,6 +31,12 @@ struct cb_priv
 	int fd;
 };
 
+/* StreamID u64 to bytearray wrapper */
+union stream_id_wrapper {
+	uint64_t s64;
+	uint8_t s8[8];
+};
+
 /**
  * timedc_avtp - Container for fifo/lvchan over TSN/AVB
  *
@@ -45,12 +52,44 @@ struct timedc_avtp
 	struct nethandler *nh;
 	struct timedc_avtp *next;
 
-	pthread_t tx_tid;
+
 	bool running;
-	uint8_t dst[ETH_ALEN];
-	int tx_sock;
+
 	struct sockaddr_ll sk_addr;
+	uint8_t dst[ETH_ALEN];
+
+	/* iface name */
 	char name[32];
+
+
+	/*
+	 * Each outgoing stream has its own socket, with corresponding
+	 * SRP attributes etc.
+	 *
+	 * This is managed by a seperate thread that blocks on a pipe
+	 * that the task thread is writing into when sending the data.
+	 */
+	int tx_sock;
+	pthread_t tx_tid;
+
+	/*
+	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need
+	 * it as a byte array for mrp, so keep an easy ref to it here
+	 */
+	union stream_id_wrapper sidw;
+
+	/*
+	 * Each outgoing stream is mapped ot its own socket, so it makes
+	 * sense to keep track of this here. Similarly, each incoming
+	 * stream has to keep track of which talker to subscribe to, so
+	 * keep context for this here..
+	 *
+	 * MRP client has its own section for talker and listener, with
+	 * dedicated fields for strem_id, mac etc.
+	 */
+	struct mrp_ctx *ctx;
+	struct mrp_domain_attr *class_a;
+	struct mrp_domain_attr *class_b;
 
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
@@ -83,9 +122,12 @@ struct nethandler {
 	struct timedc_avtp *du_rx_head;
 	struct timedc_avtp *du_rx_tail;
 
-	/* network */
-	int tx_sock;
+	/*
+	 * We have one Rx socket, but each datastream will have its own
+	 * SRP context, look to timedc_avtp for SRP related fields.
+	 */
 	int rx_sock;
+
 	struct sockaddr_ll sk_addr;
 	char ifname[IFNAMSIZ];
 	bool running;
@@ -237,13 +279,13 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					struct net_fifo *arr,
 					int arr_size)
 {
-	if (!name || !arr || arr_size <= 0)
+	if (!name || !arr || arr_size <= 0) {
+		fprintf(stderr, "%s() no name, arr or arr_size sub-zero, aborting\n", __func__);
 		return NULL;
+	}
+
 	if (verbose)
 		printf("%s(): nic: %s\n", __func__, nf_nic);
-	if (do_srp) {
-		printf("%s(): run with SRP enabled\n", __func__);
-	}
 
 	int idx = nf_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
@@ -280,6 +322,18 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		return NULL;
 	}
 
+	/* SRP common setup */
+	if (do_srp) {
+		du->ctx = malloc(sizeof(*du->ctx));
+		du->class_a = malloc(sizeof(*du->class_a));
+		du->class_b = malloc(sizeof(*du->class_b));
+		if (!du->ctx || !du->class_a || !du->class_b) {
+			fprintf(stderr, "%s(): memory allocation for SRP structs failed\n", __func__);
+			pdu_destroy(&du);
+			return NULL;
+		}
+	}
+
 	/* if tx, create socket  */
 	if (tx_update) {
 		du->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
@@ -300,19 +354,46 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		if (verbose)
 			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
 
+		/* FIXME: Set tx-prio for socket */
+
+		if (do_srp) {
+			/* common setup  */
+			du->sidw.s64 = du->pdu.stream_id;
+
+			/* FIXME: check return from mrp */
+			mrp_ctx_init(du->ctx);
+			mrp_connect(du->ctx);
+			mrp_get_domain(du->ctx, du->class_a, du->class_b);
+			mrp_register_domain(du->class_a, du->ctx);
+			mrp_join_vlan(du->class_a, du->ctx);
+
+			/* FIXME: find correct values for the stream and
+			 * send to MRP here
+			 *
+			 * This yields a 5376kbit/sec BW
+			 *
+			 * tsn2.sumad.sintef.no#show avb stream
+			 *    Stream ID:        0000.0000.0000:42    Incoming Interface:   Gi1/0/12
+			 *    Destination  : 0100.5E00.0000
+			 *    Class        : A
+			 *    Rank         : 0
+			 *    Bandwidth    : 5376 Kbit/s
+			 */
+			mrp_advertise_stream(du->sidw.s8, du->dst,
+					84,
+					125000 / 125000,
+					3900, du->ctx);
+		}
+
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(du->nh, du);
-
 	} else {
-		/* trigger on incoming DUs and attach a generic callback
-		 * and write data into correct pipe
-		 */
-		du->cbp.fd = du->fd_w;
-		du->cbp.sz = du->payload_size;
-		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
 
 		/* if dst is multicast, add membership */
 		if (du->dst[0] == 0x01 && du->dst[1] == 0x00 && du->dst[2] == 0x5E) {
+			if (verbose)
+				printf("%s() receive data on a multicast group, adding membership\n", __func__);
+
 			struct packet_mreq mr;
 			memset(&mr, 0, sizeof(mr));
 			mr.mr_ifindex = req.ifr_ifindex;
@@ -322,9 +403,40 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					__func__, strerror(errno));
 			}
 		}
+		/* Rx SRP subscribe */
+		if (do_srp) {
+			if (verbose)
+				printf("%s() first Rx SRP setup\n", __func__);
+
+			/* FIXME: check return from mrp */
+			mrp_ctx_init(du->ctx);
+			create_socket(du->ctx);
+			mrp_listener_monitor(du->ctx);
+			mrp_get_domain(du->ctx, du->class_a, du->class_b);
+			report_domain_status(du->class_a, du->ctx);
+			mrp_join_vlan(du->class_a, du->ctx);
+			if (verbose)
+				printf("%s() Rx first SRP setup done\n", __func__);
+		}
 
 		/* Add ref to internal list for memory mgmt */
 		nh_add_rx(du->nh, du);
+
+		/* trigger on incoming DUs and attach a generic callback
+		 * and write data into correct pipe
+		 */
+		du->cbp.fd = du->fd_w;
+		du->cbp.sz = du->payload_size;
+		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
+
+		/* Rx thread ready, wait for talker to start sending
+		 *
+		 * !!! WARNING: await_talker() BLOCKS !!!
+		 */
+		if (do_srp) {
+			await_talker(du->ctx);
+			send_ready(du->ctx);
+		}
 	}
 
 	return du;
@@ -334,6 +446,28 @@ void pdu_destroy(struct timedc_avtp **pdu)
 {
 	if (!*pdu)
 		return;
+	printf("%s(): destroying pdu\n", __func__);
+	/* FIXME: Rx SRP cleanup */
+	if (do_srp) {
+		if ((*pdu)->tx_sock != -1) {
+			int res = mrp_unadvertise_stream((*pdu)->sidw.s8, (*pdu)->dst, 84, 1,
+						3900, (*pdu)->ctx);
+			if (verbose)
+				printf("%s(): unadvertise stream %d\n", __func__, res);
+		} else {
+			send_leave((*pdu)->ctx);
+		}
+
+		if (mrp_disconnect((*pdu)->ctx))
+			fprintf(stderr, "%s(): disconnect from SRP daemon failed</fyi>\n", __func__);
+
+		if ((*pdu)->ctx)
+			free((*pdu)->ctx);
+		if ((*pdu)->class_a)
+			free((*pdu)->class_a);
+		if ((*pdu)->class_b)
+			free((*pdu)->class_b);
+	}
 
 	/* close down tx-threads */
 	if ((*pdu)->tx_tid > 0) {
