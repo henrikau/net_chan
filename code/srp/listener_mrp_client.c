@@ -190,7 +190,7 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 int await_talker(struct mrp_ctx *ctx)
 {
 	while (0 == ctx->talker)
-		;
+		usleep(5000);
 	return 0;
 }
 
