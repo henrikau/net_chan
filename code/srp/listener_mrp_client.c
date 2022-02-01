@@ -187,44 +187,6 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 		return 0;
 }
 
-int mrp_listener_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b)
-{
-	char *msgbuf;
-	int ret;
-
-	/* we may not get a notification if we are joining late,
-	 * so query for what is already there ...
-	 */
-	msgbuf = malloc(1500);
-	if (NULL == msgbuf)
-		return -1;
-	memset(msgbuf, 0, 1500);
-	sprintf(msgbuf, "S??");
-	ret = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	free(msgbuf);
-	if (ret != 1500)
-		return -1;
-	while (!ctx->halt_tx && (ctx->domain_a_valid == 0) && (ctx->domain_b_valid == 0))
-		usleep(20000);
-	class_a->id = 0;
-	class_a->priority = 0;
-	class_a->vid = 0;
-	class_b->id = 0;
-	class_b->priority = 0;
-	class_b->vid = 0;
-	if (ctx->domain_a_valid) {
-		class_a->id = ctx->domain_class_a_id;
-		class_a->priority = ctx->domain_class_a_priority;
-		class_a->vid = ctx->domain_class_a_vid;
-	}
-	if (ctx->domain_b_valid) {
-		class_b->id = ctx->domain_class_b_id;
-		class_b->priority = ctx->domain_class_b_priority;
-		class_b->vid = ctx->domain_class_b_vid;
-	}
-	return 0;
-}
-
 int await_talker(struct mrp_ctx *ctx)
 {
 	while (0 == ctx->talker)

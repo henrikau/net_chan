@@ -36,3 +36,45 @@ int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx)
 	sprintf(msgbuf, "V++:I=%04x\n",reg_class->vid);
 	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
 }
+
+int mrp_get_domain(struct mrp_ctx *ctx,
+		struct mrp_domain_attr *class_a,
+		struct mrp_domain_attr *class_b)
+{
+	if (!ctx || !class_a || !class_b)
+		return -ENOMEM;
+
+	char msgbuf[32] = {0};
+	sprintf(msgbuf, "S??");
+	printf("%s(): Sending S?? to mrpd\n", __func__);
+	if (mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket) == -1) {
+		fprintf(stderr, "%s(): Failed sending msg to MRPD, %d: %s\n",
+			__func__, errno, strerror(errno));
+		return -1;
+	}
+	printf("%s(): got reply from mrpd\n", __func__);
+
+	memset(class_a, 0, sizeof(*class_a));
+	memset(class_b, 0, sizeof(*class_b));
+
+	/*
+	 * Wait for reply to come and populate with valid domain descriptors
+	 */
+	while (!ctx->halt_tx && (ctx->domain_a_valid == 0) && (ctx->domain_b_valid == 0)) {
+		usleep(20000);
+		printf("."); fflush(stdout);
+	}
+
+	if (ctx->halt_tx)
+		return 0;
+
+	class_a->id = ctx->domain_class_a_id;
+	class_a->priority = ctx->domain_class_a_priority;
+	class_a->vid = ctx->domain_class_a_vid;
+
+	class_b->id = ctx->domain_class_b_id;
+	class_b->priority = ctx->domain_class_b_priority;
+	class_b->vid = ctx->domain_class_b_vid;
+
+	return 0;
+}
