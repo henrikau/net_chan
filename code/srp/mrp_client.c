@@ -30,3 +30,9 @@ int mrp_disconnect(struct mrp_ctx *ctx)
 	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
 }
 
+int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx)
+{
+	char msgbuf[32] = {0};
+	sprintf(msgbuf, "V++:I=%04x\n",reg_class->vid);
+	return mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket);
+}

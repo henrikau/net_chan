@@ -225,26 +225,6 @@ int mrp_listener_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a
 	return 0;
 }
 
-int join_vlan(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
-{
-	char *msgbuf;
-	int rc;
-
-	msgbuf = malloc(1500);
-	if (NULL == msgbuf)
-		return -1;
-	memset(msgbuf, 0, 1500);
-	sprintf(msgbuf, "V++:I=%04x\n",class_a->vid);
-	printf("Joing VLAN %s\n",msgbuf);
-	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	free(msgbuf);
-
-	if (rc != 1500)
-		return -1;
-	else
-		return 0;
-}
-
 int await_talker(struct mrp_ctx *ctx)
 {
 	while (0 == ctx->talker)
