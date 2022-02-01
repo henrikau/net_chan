@@ -74,6 +74,7 @@ struct mrp_domain_attr
 };
 
 /* common */
+int mrp_ctx_init(struct mrp_ctx *ctx);
 int mrp_send_msg(char *data, int len, int control_socket);
 
 

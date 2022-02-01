@@ -21,38 +21,7 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-
 #include <srp/mrp_client.h>
-
-
-/*
- * private
- */
-
-int mrp_listener_client_init(struct mrp_ctx *ctx)
-{
-	int i;
-	ctx->control_socket=-1;
-	ctx->talker = 0;
-	ctx->halt_tx = 0;
-	ctx->domain_a_valid = 0;
-	ctx->domain_class_a_id = 0;
-	ctx->domain_class_a_priority = 0;
-	ctx->domain_class_a_vid = 0;
-	ctx->domain_b_valid = 0;
-	ctx->domain_class_b_id = 0;
-	ctx->domain_class_b_priority = 0;
-	ctx->domain_class_b_vid = 0;
-	for (i=0;i<8;i++)
-	{
-		ctx->stream_id[i]=0;
-	}
-	for (i=0;i<6;i++)
-	{
-		ctx->dst_mac[i]=0;
-	}
-	return 0;
-}
 
 int msg_process(char *buf, int buflen, struct mrp_ctx *ctx)
 {

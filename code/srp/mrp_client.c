@@ -1,4 +1,13 @@
+#include <errno.h>
 #include <srp/mrp_client.h>
+int mrp_ctx_init(struct mrp_ctx *ctx)
+{
+	if (!ctx)
+		return -1;
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->control_socket = -1;
+	return 0;
+}
 
 int mrp_send_msg(char *data, int len, int control_socket)
 {

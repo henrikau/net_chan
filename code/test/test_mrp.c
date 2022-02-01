@@ -142,7 +142,7 @@ void setUp(void)
 		rx_running = true;
 		start_rx();
 	}
-	mrp_talker_client_init(&txctx);
+	mrp_ctx_init(&txctx);
 	mrp_connect(&txctx);
 }
 
@@ -174,14 +174,14 @@ void tearDown(void)
 static void test_mrp_init(void)
 {
 	struct mrp_ctx ctx;
-	mrp_talker_client_init(&ctx);
+	mrp_ctx_init(&ctx);
 	TEST_ASSERT(ctx.listeners == 0);
 	TEST_ASSERT(ctx.control_socket == -1);
 }
 static void test_mrp_connect(void)
 {
 	struct mrp_ctx ctx;
-	mrp_talker_client_init(&ctx);
+	mrp_ctx_init(&ctx);
 	TEST_ASSERT(mrp_connect(&ctx) == 0);
 	TEST_ASSERT(ctx.halt_tx == 0);
 	TEST_ASSERT(mrp_disconnect(&ctx));
@@ -192,7 +192,7 @@ static void test_mrp_connect(void)
 static void test_mrp_send_msg(void)
 {
 	struct mrp_ctx ctx;
-	mrp_talker_client_init(&ctx);
+	mrp_ctx_init(&ctx);
 	mrp_connect(&ctx);
 
 	TEST_ASSERT(ctx.halt_tx == 0);

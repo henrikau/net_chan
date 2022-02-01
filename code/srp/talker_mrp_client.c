@@ -42,30 +42,6 @@ pthread_t monitor_thread;
 pthread_attr_t monitor_attr;
 
 
-/*
- * private
- */
-
-int mrp_talker_client_init(struct mrp_ctx *ctx)
-{
-	int i;
-	ctx->control_socket = -1;
-	ctx->halt_tx = 0;
-	ctx->listeners = 0;
-	ctx->domain_a_valid = 0;
-	ctx->domain_class_a_id = 0;
-	ctx->domain_class_a_priority = 0;
-	ctx->domain_class_a_vid = 0;
-	ctx->domain_b_valid = 0;
-	ctx->domain_class_b_id = 0;
-	ctx->domain_class_b_priority = 0;
-	ctx->domain_class_b_vid = 0;
-	for (i=0;i<8;i++)
-	{
-		ctx->monitor_stream_id[i] = 0;
-	}
-	return 0;
-}
 
 int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 {
