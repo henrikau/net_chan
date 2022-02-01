@@ -480,11 +480,3 @@ int mrp_talker_get_domain(struct mrp_ctx *ctx,struct mrp_domain_attr *class_a,st
 	}
 	return 0;
 }
-
-// TODO remove
-int recv_mrp_okay()
-{
-	while ((mrp_okay == 0) && (mrp_error == 0))
-		usleep(20000);
-	return 0;
-}
