@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <linux/if.h>
 #include <linux/if_packet.h>
+#include <linux/net_tstamp.h>
 #include <netinet/ether.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -13,6 +14,8 @@
 #include <time.h>
 #include <srp/mrp_client.h>
 #include <ptp_getclock.h>
+#include <logger.h>
+
 /**
  * cb_priv: private data for callbacks
  *
@@ -145,6 +148,10 @@ struct nethandler {
 	 */
 	int ptp_fd;
 
+	/*
+	 * datalogger, used by both Tx and Rx
+	 */
+	struct logc *logger;
 
 	/* hashmap, chan_id -> cb_entity  */
 	size_t hmap_sz;
@@ -155,7 +162,17 @@ static struct nethandler *_nh;
 static bool do_srp = false;
 static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
+static bool enable_logging = false;
+static char nf_logfile[129] = {0};
 static int nf_hmap_size = 42;
+
+int nf_set_nic(char *nic)
+{
+	strncpy(nf_nic, nic, IFNAMSIZ-1);
+	if (verbose)
+		printf("%s(): set nic to %s\n", __func__, nf_nic);
+	return 0;
+}
 
 void nf_set_hmap_size(int sz)
 {
@@ -169,7 +186,14 @@ void nf_verbose(void)
 {
 	verbose = true;
 }
-
+void nf_set_logfile(const char *logfile)
+{
+	strncpy(nf_logfile, logfile, 128);
+	enable_logging = true;
+	if (verbose) {
+		printf("%s(): set logfile to %s\n", __func__, nf_logfile);
+	}
+}
 
 int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 {
@@ -277,14 +301,6 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	pdu->tx_sock = -1;
 	pdu->running = false;
 	return pdu;
-}
-
-int nf_set_nic(char *nic)
-{
-	strncpy(nf_nic, nic, IFNAMSIZ-1);
-	if (verbose)
-		printf("%s(): set nic to %s\n", __func__, nf_nic);
-	return 0;
 }
 
 struct timedc_avtp *pdu_create_standalone(char *name,
@@ -546,11 +562,12 @@ int pdu_send(struct timedc_avtp *du)
 int pdu_send_now(struct timedc_avtp *du, void *data)
 {
 	uint64_t ts_ns = get_ptp_ts_ns(du->nh->ptp_fd);
-
 	if (pdu_update(du, tai_to_avtp_ns(ts_ns), data)) {
 		fprintf(stderr, "%s(): pdu_update failed\n", __func__);
 		return -1;
 	}
+	if (enable_logging)
+		log_tx(du->nh->logger, &du->pdu, ts_ns, ts_ns);
 
 	return pdu_send(du);
 }
@@ -615,7 +632,7 @@ static int _nh_socket_setup_common(struct nethandler *nh)
 	return sock;
 }
 
-struct nethandler * nh_init(char *ifname, size_t hmap_size)
+struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 {
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
@@ -632,6 +649,17 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size)
 	nh->rx_sock = _nh_socket_setup_common(nh);
 	if (nh->tid == 0)
 		nh_start_rx(nh);
+
+	/*
+	 * Open logfile if provided
+	 */
+	if (enable_logging) {
+		nh->logger = log_create(logfile);
+		if (!nh->logger) {
+			fprintf(stderr, "%s() Somethign went wrong when enabling logger, datalogging disabled\n", __func__);
+			enable_logging = false;
+		}
+	}
 
 	/* get PTP fd for timekeeping
 	 *
@@ -650,7 +678,7 @@ int nh_init_standalone(void)
 	/* avoid double-create */
 	if (_nh != NULL)
 		return -1;
-	_nh = nh_init(nf_nic, nf_hmap_size);
+	_nh = nh_init(nf_nic, nf_hmap_size, nf_logfile);
 	if (_nh)
 		return 0;
 	return -1;
@@ -751,22 +779,63 @@ static void * nh_runner(void *data)
 		printf("%s(): Could not set timeout on socket (%d): %s\n",
 			__func__, nh->rx_sock, strerror(errno));
 	}
+
+	int enable_ts = 1;
+	if (setsockopt(nh->rx_sock, SOL_SOCKET, SO_TIMESTAMPNS, &enable_ts, sizeof(enable_ts)) < 0) {
+		fprintf(stderr, "%s(): failed enabling SO_TIMESTAMPNS on Rx socket (%d, %s)\n",
+			__func__, errno, strerror(errno));
+	}
+	if (verbose)
+		printf("%s() SO_TIMESTAMPNS enabled! -> %d\n", __func__, enable_ts);
+
 	unsigned char buffer[1522] = {0};
 	bool running = true;
-	while (running) {
-		int n = recv(nh->rx_sock, buffer, 1522, 0);
-		uint32_t ts_ns = tai_to_avtp_ns(get_ptp_ts_ns(nh->ptp_fd));
 
+	struct msghdr msg;
+	struct iovec entry;
+	struct sockaddr_in addr;
+	struct {
+		struct cmsghdr cm;
+		char control[512];
+	} control;
+
+	while (running) {
+
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_iov = &entry;
+		msg.msg_iovlen = 1;
+		entry.iov_base = buffer;
+		entry.iov_len = sizeof(buffer);
+		msg.msg_name = (caddr_t)&addr;
+		msg.msg_namelen = sizeof(addr);
+		msg.msg_control = &control;
+		msg.msg_controllen = sizeof(control);
+
+		int n = recvmsg(nh->rx_sock, &msg, 0);
+		/* grab local timestamp now that we've received a msg */
+		uint64_t recv_ptp_ns = get_ptp_ts_ns(nh->ptp_fd);
+		uint64_t rx_hw_ns = 0;
 		running = nh->running;
 		if (n > 0) {
+			/* Read HW Rx time  */
+			struct cmsghdr *cmsg;
+			for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+				if (cmsg->cmsg_type == SO_TIMESTAMPNS) {
+					struct timespec *stamp = (struct timespec *)CMSG_DATA(cmsg);
+					rx_hw_ns = stamp->tv_sec * 1e9 + stamp->tv_nsec;
+				}
+			}
 
+			/* parse data */
 			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
-			int64_t diff_ns = ts_ns - du->avtp_timestamp;
-
-			printf("%s() got data (stream_id=%ld, size=%d, txdiff: %ld), feeding pdu to callback\n",
-				__func__, be64toh(du->stream_id), n, diff_ns);
-
 			nh_feed_pdu(nh, du);
+
+			/* we have all the timestamps, so we can safely
+			 * log this /after/ the data has been passed
+			 * on
+			 */
+			if (enable_logging)
+				log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
 		}
 	}
 	return NULL;
@@ -851,6 +920,12 @@ void nh_destroy(struct nethandler **nh)
 {
 	if (*nh) {
 		nf_stop_rx(*nh);
+
+		if (enable_logging) {
+			log_close_fp((*nh)->logger);
+			free((*nh)->logger);
+			(*nh)->logger = NULL;
+		}
 
 		/* close down and exit safely */
 		if ((*nh)->hmap != NULL)

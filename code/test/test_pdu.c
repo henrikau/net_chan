@@ -20,7 +20,7 @@ struct nethandler *nh;
 
 void setUp(void)
 {
-	nh = nh_init("lo", 16);
+	nh = nh_init("lo", 16, NULL);
 	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, DATA17SZ);
 	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, DATA42SZ);
 	memset(data42, 0x42, DATA42SZ);

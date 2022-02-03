@@ -7,6 +7,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
       case 'i':
 	      nf_set_nic(arg);
 	      break;
+      case 'l':
+	      nf_set_logfile(arg);
+	      break;
       case 's':
 	      nf_set_hmap_size(atoi(arg));
 	      break;

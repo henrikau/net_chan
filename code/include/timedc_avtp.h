@@ -111,6 +111,7 @@ int nf_set_nic(char *nic);
 void nf_set_hmap_size(int sz);
 void nf_use_srp(void);
 void nf_verbose(void);
+void nf_set_logfile(const char *logfile);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
@@ -243,7 +244,7 @@ int pdu_read(struct timedc_avtp *du, void *data);
  *
  * @returns struct nethandler on success, NULL on error
  */
-struct nethandler * nh_init(char *ifname, size_t hmap_size);
+struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile);
 
 /**
  * nh_init_standalone - create a standalone instance of nethandler

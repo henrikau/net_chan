@@ -6,6 +6,7 @@ static struct argp_option options[] = {
        {"hmap_sz", 's', "HMAP_SZ", 0, "Size of hash-map for Rx callbacks"},
        {"srp"    , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
        {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
+       {"log_ts" , 'l', "LOGFILE", 0, "Log timestamps to logfile (csv format)"},
        { 0 }
 };
 
