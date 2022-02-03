@@ -515,8 +515,9 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
 	if (!data)
 		return -ENOMEM;
 	pdu->pdu.seqnr++;
-	pdu->pdu.avtp_timestamp = ts;
+	pdu->pdu.avtp_timestamp = htonl(ts);
 	pdu->pdu.tv = 1;
+	pdu->pdu.sdl = htons(pdu->payload_size);
 	memcpy(pdu->payload, data, pdu->payload_size);
 	return 0;
 }

@@ -61,7 +61,7 @@ static void test_pdu_update(void)
 
 	TEST_ASSERT(pdu_update(pdu17, 3, NULL) == -ENOMEM);
 	TEST_ASSERT(pdu_update(pdu17, 4, data17) == 0);
-	TEST_ASSERT(pdu17->pdu.avtp_timestamp == 4);
+	TEST_ASSERT(pdu17->pdu.avtp_timestamp == htonl(4));
 	TEST_ASSERT(pdu17->pdu.tv == 1);
 	TEST_ASSERT(pdu17->payload[0] == 0x17);
 	TEST_ASSERT(pdu17->payload[DATA17SZ-1] == 0x17);
@@ -72,7 +72,7 @@ static void test_pdu_update(void)
 	TEST_ASSERT(pdu_update(pdu42, 5, &val) == 0);
 	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 
-	TEST_ASSERT(pdu42->pdu.avtp_timestamp == 5);
+	TEST_ASSERT(pdu42->pdu.avtp_timestamp == htonl(5));
 	uint64_t *pl = (uint64_t *)pdu42->payload;
 	TEST_ASSERT(*pl == 0xdeadbeef);
 
@@ -180,7 +180,7 @@ static void test_pdu_send_now(void)
 	uint64_t data = 0xa0a0a0a0;
 	NETFIFO_TX(test1);
 	TEST_ASSERT(test1_du->pdu.seqnr == 0xff);
-	TEST_ASSERT(test1_du->pdu.avtp_timestamp == 0);
+	TEST_ASSERT(test1_du->pdu.avtp_timestamp == htonl(0));
 
 	pdu_send_now(test1_du, &data);
 	TEST_ASSERT(test1_du > 0);
