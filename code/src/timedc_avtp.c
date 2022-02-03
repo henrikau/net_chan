@@ -136,6 +136,9 @@ struct nethandler {
 	bool running;
 	pthread_t tid;
 
+	int tx_sock_prio_a;
+	int tx_sock_prio_b;
+
 	/*
 	 * fd for PTP device to retrieve timestamp.
 	 *
@@ -383,7 +386,11 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		if (verbose)
 			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
 
-		/* FIXME: Set tx-prio for socket */
+		if (setsockopt(du->tx_sock, SOL_SOCKET, SO_PRIORITY, &_nh->tx_sock_prio_a, sizeof(_nh->tx_sock_prio_a)) < 0) {
+			fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
+				__func__, errno, strerror(errno));
+		}
+		printf("%s(): socket prio set!\n", __func__);
 
 		if (do_srp) {
 			/* common setup  */
@@ -644,6 +651,9 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 		free(nh);
 		return NULL;
 	}
+	nh->tx_sock_prio_a = 3;
+	nh->tx_sock_prio_b = 2;
+
 	strncpy((char *)nh->ifname, ifname, IFNAMSIZ-1);
 
 	nh->rx_sock = _nh_socket_setup_common(nh);
