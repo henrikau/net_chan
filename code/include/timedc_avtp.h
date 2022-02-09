@@ -32,6 +32,16 @@
  */
 #define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
 
+enum {
+	DEFAULT_CLASS_A_PRIO = 3,
+	DEFAULT_CLASS_B_PRIO = 2
+};
+
+enum stream_class {
+	CLASS_A,
+	CLASS_B
+};
+
 /**
  * struct net_fifo
  *
@@ -52,6 +62,14 @@ struct net_fifo
 	 */
 	uint8_t dst[ETH_ALEN];
 	uint64_t stream_id;
+
+	/*
+	 * Indicate if stream should run as class A or B
+	 *
+	 * Will recover the actual PCP prio values from SRP, if run
+	 * without SRP, it will use default values (A:3, B:2)
+	 */
+	enum stream_class class;
 
 	/* Size of payload, 0..1500 bytes */
 	uint16_t size;
@@ -146,6 +164,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
  * @param nh nethandler container
  * @param dst destination address for this PDU
  * @param stream_id 64 bit unique value for the stream allotted to our channel.
+ * @param class: class this stream belongs to, required to set correct socket prio
  * @param sz: size of data to transmit
  *
  * @returns the new PDU or NULL upon failure.
@@ -153,6 +172,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
+				enum stream_class class,
 				uint16_t sz);
 
 

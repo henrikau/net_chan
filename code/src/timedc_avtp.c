@@ -93,6 +93,8 @@ struct timedc_avtp
 	struct mrp_ctx *ctx;
 	struct mrp_domain_attr *class_a;
 	struct mrp_domain_attr *class_b;
+	enum stream_class class;
+	int socket_prio;
 
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
@@ -285,6 +287,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
+				enum stream_class class,
 				uint16_t sz)
 {
 	struct timedc_avtp *pdu = malloc(sizeof(*pdu) + sz);
@@ -300,9 +303,24 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
+	pdu->sidw.s64 = stream_id;
+	pdu->class = class;
 	pdu->tx_tid = 0;
 	pdu->tx_sock = -1;
 	pdu->running = false;
+
+	/* Set default values, if we run with SRP, it will be updated
+	 * once we've connected to mrpd
+	 */
+	switch (pdu->class) {
+	case CLASS_A:
+		pdu->socket_prio = DEFAULT_CLASS_A_PRIO;
+		break;
+	case CLASS_B:
+		pdu->socket_prio = DEFAULT_CLASS_B_PRIO;
+		break;
+	}
+
 	return pdu;
 }
 
@@ -329,8 +347,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 
 	if (verbose)
 		printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
-	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].size);
-
+	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].class, arr[idx].size);
 	if (!du)
 		return NULL;
 
@@ -386,12 +403,6 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		if (verbose)
 			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
 
-		if (setsockopt(du->tx_sock, SOL_SOCKET, SO_PRIORITY, &_nh->tx_sock_prio_a, sizeof(_nh->tx_sock_prio_a)) < 0) {
-			fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
-				__func__, errno, strerror(errno));
-		}
-		printf("%s(): socket prio set!\n", __func__);
-
 		if (do_srp) {
 			/* common setup  */
 			du->sidw.s64 = du->pdu.stream_id;
@@ -403,6 +414,22 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			mrp_register_domain(du->class_a, du->ctx);
 			mrp_join_vlan(du->class_a, du->ctx);
 
+			if (verbose) {
+				printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
+					__func__,
+					du->class_a->priority,
+					du->class_b->priority,
+					du->class == CLASS_A ? "CLASS_A" : "CLASS_B");
+			}
+
+			switch (du->class) {
+			case CLASS_A:
+				du->socket_prio = du->class_a->priority;
+				break;
+			case CLASS_B:
+				du->socket_prio = du->class_b->priority;
+				break;
+			}
 			/* FIXME: find correct values for the stream and
 			 * send to MRP here
 			 *
@@ -420,6 +447,16 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					125000 / 125000,
 					3900, du->ctx);
 		}
+
+		if (setsockopt(du->tx_sock,
+				SOL_SOCKET,
+				SO_PRIORITY,
+				&du->socket_prio,
+				sizeof(du->socket_prio)) < 0) {
+			fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
+				__func__, errno, strerror(errno));
+		}
+		printf("%s(): socket prio set to %d\n", __func__, du->socket_prio);
 
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(du->nh, du);
@@ -651,8 +688,6 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 		free(nh);
 		return NULL;
 	}
-	nh->tx_sock_prio_a = 3;
-	nh->tx_sock_prio_b = 2;
 
 	strncpy((char *)nh->ifname, ifname, IFNAMSIZ-1);
 

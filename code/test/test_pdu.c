@@ -21,8 +21,8 @@ struct nethandler *nh;
 void setUp(void)
 {
 	nh = nh_init("lo", 16, NULL);
-	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, DATA17SZ);
-	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, DATA42SZ);
+	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ);
+	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_A, DATA42SZ);
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 }
@@ -41,7 +41,7 @@ void tearDown(void)
 static void test_pdu_create(void)
 {
 	printf("%s(): start\n", __func__);
-	struct timedc_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 128);
+	struct timedc_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128);
 	TEST_ASSERT(pdu != NULL);
 	TEST_ASSERT(pdu->pdu.stream_id == be64toh(43));
 	TEST_ASSERT(pdu->payload_size == 128);
@@ -130,7 +130,7 @@ static void test_add_anon_pdu(void)
 	//struct timedc_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 128);
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
 	TEST_ASSERT_NULL(nh->du_tx_head);
-	struct timedc_avtp *du = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+	struct timedc_avtp *du = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8);
 	TEST_ASSERT_NOT_NULL(du);
 	TEST_ASSERT(nh_add_tx(NULL, du) == -EINVAL);
 	TEST_ASSERT(nh_add_tx(nh, NULL) == -EINVAL);
@@ -140,7 +140,7 @@ static void test_add_anon_pdu(void)
 	TEST_ASSERT(nh->du_tx_tail == du);
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 
-	struct timedc_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:43", 43, 8);
+	struct timedc_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:43", 43, CLASS_A, 8);
 	TEST_ASSERT(nh_add_tx(nh, du2) == 0);
 	TEST_ASSERT(nh_get_num_tx(nh) == 2);
 	TEST_ASSERT(nh->du_tx_head == du);
@@ -153,10 +153,10 @@ static void test_add_anon_pdu(void)
 
 static void test_add_anon_rx_pdu(void)
 {
-	struct timedc_avtp *du1 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
-	struct timedc_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
-	struct timedc_avtp *du3 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
-	struct timedc_avtp *du4 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 8);
+	struct timedc_avtp *du1 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct timedc_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct timedc_avtp *du3 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct timedc_avtp *du4 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
 
 	TEST_ASSERT(nh_get_num_rx(nh) == 0);
 	TEST_ASSERT(nh_add_rx(NULL, du1) == -EINVAL);
