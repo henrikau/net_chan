@@ -140,12 +140,19 @@ static void test_create_cb(void)
 	pdu_update(pdu42, 0, &val);
 	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == 0);
 
-	/* Verify that callback has written data into pipe */
-	uint64_t res = 0;
-	int rdsz = read(pfd[0], &res, sizeof(uint64_t));
-	TEST_ASSERT(rdsz == 8);
-	TEST_ASSERT(res == 0xdeadbeef);
+	/* Verify that callback has written data into pipe
+	 *
+	 * We bundle some metadata alongside the payload in the pipe (to
+	 * feed timestamps), so it's somewhat more involved dissecting
+	 * the data.
+	 */
+	struct pipe_meta *pm = malloc(sizeof(struct pipe_meta) + sizeof(uint64_t));
+	int rdsz = read(pfd[0], pm, sizeof(*pm) + sizeof(uint64_t));
+	uint64_t *res = (uint64_t *)&pm->payload[0];
 
+	TEST_ASSERT(rdsz == sizeof(*pm) + sizeof(uint64_t));
+	TEST_ASSERT(*res == 0xdeadbeef);
+	free(pm);
 	val = 1;
 }
 

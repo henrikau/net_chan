@@ -15,9 +15,12 @@
 #define NETFIFO_TX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
 
 #define WRITE(x,v) pdu_send_now(x ## _du, v)
+#define WRITE_WAIT(x,v) pdu_send_now_wait(x ## _du, v)
 #define READ(x,v) pdu_read(x ## _du, v)
+#define READ_WAIT(x,v) pdu_read_wait(x ## _du, v)
 
 #define CLEANUP() nh_destroy_standalone()
+
 /* Deprecated
  *    - Use NETFIFO_(R|T)X instad
  */
@@ -31,6 +34,10 @@
  * bit to low order 23)
  */
 #define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
+#define US_IN_MS (1000)
+#define NS_IN_MS (1000 * US_IN_MS)
+#define CLASS_A_DEFAULT_WAIT_MS 1000
+#define CLASS_B_DEFAULT_WAIT_MS 50
 
 enum {
 	DEFAULT_CLASS_A_PRIO = 3,
@@ -68,6 +75,11 @@ struct net_fifo
 	 *
 	 * Will recover the actual PCP prio values from SRP, if run
 	 * without SRP, it will use default values (A:3, B:2)
+	 *
+	 * Note: when using WRITE_WAIT and READ_WAIT, thread will block
+	 * until capture_time + class_max_delay has passed.
+	 * For class A:  2ms
+	 *     class B: 50ms
 	 */
 	enum stream_class class;
 
@@ -248,6 +260,20 @@ int pdu_send(struct timedc_avtp *pdu);
 int pdu_send_now(struct timedc_avtp *du, void *data);
 
 /**
+ * pdu_send_now_wait - update and send PDU, and wait for class delay
+ *
+ * When using this function, caller will be blocked for 2ms or 50ms
+ * depending on class before continuing. This gives a synchronized wait
+ * approach to the semantics.
+ *
+ * @param pdu: data container to send
+ * @param data: new data to copy into field and send.
+ *
+ * @return 0 on success, negative on error
+ */
+int pdu_send_now_wait(struct timedc_avtp *du, void *data);
+
+/**
  * pdu_read : read data from incoming pipe attached to DU
  *
  * @param du: data container
@@ -256,6 +282,20 @@ int pdu_send_now(struct timedc_avtp *du, void *data);
  * @return bytes received or -1 on error
  */
 int pdu_read(struct timedc_avtp *du, void *data);
+
+/**
+ * pdu_read_wait : read data from incoming pipe attached to DU and wait for class delay
+ *
+ * When using this function, caller will be delayed until capture time +
+ * class delay has passed. This expects the clocks for both writer and
+ * reader to be synchronized properly.
+ *
+ * @param du: data container
+ * @param data: memory to store received data to
+ *
+ * @return bytes received or -1 on error
+ */
+int pdu_read_wait(struct timedc_avtp *du, void *data);
 
 /**
  * nh_init - initialize nethandler
@@ -332,6 +372,9 @@ int nh_std_cb(void *data, struct avtpdu_cshdr *du);
  * @returns
  */
 int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *du);
+int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *du,
+		uint64_t rx_hw_ns,
+		uint64_t recv_ptp_ns);
 
 /**
  * nh_start_rx - start receiver thread

@@ -17,6 +17,13 @@
 #include <logger.h>
 #include <tracebuffer.h>
 
+struct pipe_meta {
+	uint64_t ts_rx_ns;
+	uint64_t ts_recv_ptp_ns;
+	uint32_t avtp_timestamp;
+	uint8_t payload[0];
+}__attribute__((packed));
+
 /**
  * cb_priv: private data for callbacks
  *
@@ -27,12 +34,16 @@
  *
  * @param sz: size of data to read/write
  * @param fd: filedescriptor to write to/read from
+ * @param meta: metadata about the data
  */
 struct cb_priv
 {
 	int sz;
 	/* FIFO FD */
 	int fd;
+
+	/* meta-info about the stream  */
+	struct pipe_meta meta;
 };
 
 /* StreamID u64 to bytearray wrapper */
@@ -99,11 +110,11 @@ struct timedc_avtp
 
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
-	struct cb_priv cbp;
+	struct cb_priv *cbp;
 	int fd_w;
 	int fd_r;
 
-	/* payload */
+	/* payload size */
 	uint16_t payload_size;
 
 	struct avtpdu_cshdr pdu;
@@ -504,11 +515,21 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		nh_add_rx(du->nh, du);
 
 		/* trigger on incoming DUs and attach a generic callback
-		 * and write data into correct pipe
+		 * and write data into correct pipe.
+		 *
+		 * data to feed through the pipe, we need to keep track of
+		 * metadata such as timestamps etc, so we cannot copy just the
+		 * payload, we need additional fields - thus a temp buffer that
+		 * follows the pdu.
 		 */
-		du->cbp.fd = du->fd_w;
-		du->cbp.sz = du->payload_size;
-		nh_reg_callback(du->nh, arr[idx].stream_id, &du->cbp, nh_std_cb);
+		du->cbp = malloc(sizeof(struct cb_priv) + du->payload_size);
+		if (!du->cbp) {
+			pdu_destroy(&du);
+			return NULL;
+		}
+		du->cbp->fd = du->fd_w;
+		du->cbp->sz = du->payload_size;
+		nh_reg_callback(du->nh, arr[idx].stream_id, du->cbp, nh_std_cb);
 
 		/* Rx thread ready, wait for talker to start sending
 		 *
@@ -571,6 +592,9 @@ void pdu_destroy(struct timedc_avtp **pdu)
 		close((*pdu)->tx_sock);
 		(*pdu)->tx_sock = -1;
 	}
+	if ((*pdu)->cbp)
+		free((*pdu)->cbp);
+
 	free(*pdu);
 	*pdu = NULL;
 }
@@ -611,24 +635,142 @@ int pdu_send(struct timedc_avtp *du)
 	return txsz;
 }
 
-int pdu_send_now(struct timedc_avtp *du, void *data)
+/*
+ * ptp_target_delay_ns: absolute timestamp for PTP time to delay to
+ * du: datauint for timedc internals (need access to PTP fd)
+ *
+ * ptp_target_delay_ns is adjusted for correct class
+ */
+int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
+{
+	/* Calculate delay
+	 * - take CLOCK_MONOTONIC ts and current PTP Time, find diff between the 2
+	 * - set sleep to ptp_delay ts + monotonic_diff
+	 */
+	uint64_t now_ptp_ns = get_ptp_ts_ns(du->nh->ptp_fd);
+	if (ptp_target_delay_ns < now_ptp_ns)
+		return ptp_target_delay_ns - now_ptp_ns;
+
+	/* Relative delay (easy, but larger error)
+	 * shorten delay by 100us to account for task-switching.
+	 *
+	 * FIXME: set absolute wakeup.
+	 */
+	uint64_t delay_ns = ptp_target_delay_ns - now_ptp_ns - 100000;
+	struct timespec ts = {
+		.tv_sec = 0,
+		.tv_nsec = delay_ns};
+
+	if (clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL) == -1)
+		printf("%s(): clock_nanosleep failed (%d, %s)\n", __func__, errno, strerror(errno));
+
+	now_ptp_ns = get_ptp_ts_ns(du->nh->ptp_fd);
+	int64_t error_ns = ptp_target_delay_ns - now_ptp_ns;
+
+	if (use_tracebuffer) {
+		char tbmsg[128] = {0};
+		snprintf(tbmsg, 127, "_delay(), target=%lu, current=%lu, error=%ld", ptp_target_delay_ns, now_ptp_ns, error_ns);
+		tb_tag(du->nh->tb, tbmsg);
+	}
+
+	if (verbose) {
+		printf("%s(): delay_ns: %lu, PTP Target: %lu, actual: %lu, error: %ld\n",
+			__func__, delay_ns, ptp_target_delay_ns, now_ptp_ns, error_ns);
+	}
+	return error_ns;
+}
+
+int _pdu_send_now(struct timedc_avtp *du, void *data, bool wait_class_delay)
 {
 	uint64_t ts_ns = get_ptp_ts_ns(du->nh->ptp_fd);
 	if (pdu_update(du, tai_to_avtp_ns(ts_ns), data)) {
 		fprintf(stderr, "%s(): pdu_update failed\n", __func__);
 		return -1;
 	}
+	printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
 	if (enable_logging)
 		log_tx(du->nh->logger, &du->pdu, ts_ns, ts_ns);
 
-	return pdu_send(du);
+	int res = pdu_send(du);
+
+	int err_ns = 150000;
+	while (wait_class_delay && err_ns > 50000) {
+		switch (du->class) {
+		case CLASS_A:
+			err_ns = _delay(du, ts_ns + 2*NS_IN_MS);
+			break;
+		case CLASS_B:
+			err_ns = _delay(du, ts_ns + 50*NS_IN_MS);
+			break;
+		}
+	}
+
+	return res;
+}
+
+int pdu_send_now(struct timedc_avtp *du, void *data)
+{
+	return _pdu_send_now(du, data, false);
+}
+
+int pdu_send_now_wait(struct timedc_avtp *du, void *data)
+{
+	return _pdu_send_now(du, data, true);
+}
+
+int _pdu_read(struct timedc_avtp *du, void *data, bool read_delay)
+{
+	size_t rpsz = sizeof(struct pipe_meta) + du->payload_size;
+
+	int res = read(du->fd_r, &du->cbp->meta, rpsz);
+
+	memcpy(data, &du->cbp->meta.payload, du->payload_size);
+
+	/* Extract timing-data from pipe, reconstruct avtp_timestamp,
+	 * find diff since it was sent and calculate offset to determine
+	 * length of sleep before moving on.
+	 */
+	if (read_delay) {
+		uint64_t lavtp = tai_to_avtp_ns(du->cbp->meta.ts_recv_ptp_ns);
+		if (lavtp < du->cbp->meta.avtp_timestamp) {
+			printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
+			lavtp += ((uint64_t)1<<32)-1;
+		}
+		int64_t avtp_diff = lavtp - du->cbp->meta.avtp_timestamp;
+		uint64_t ptp_capture = du->cbp->meta.ts_recv_ptp_ns - avtp_diff;
+
+		switch (du->class) {
+		case CLASS_A:
+			ptp_capture += 2 * NS_IN_MS;
+			break;
+		case CLASS_B:
+			ptp_capture += 50 * NS_IN_MS;
+			break;
+		}
+		int64_t err = _delay(du, ptp_capture);
+
+		if (verbose) {
+			printf("%s() Sample spent %ld ns from capture to recvmsg()\n",
+				__func__, avtp_diff);
+			printf("%s() Reconstructed timestamp: %lu\n",
+				__func__, ptp_capture);
+			printf("%s() Delayed to %lu, missed by %ld ns\n",
+				__func__, ptp_capture, err);
+		}
+	}
+
+	return res;
 }
 
 int pdu_read(struct timedc_avtp *du, void *data)
 {
-	return read(du->fd_r, data, du->payload_size);
+	return _pdu_read(du, data, false);
 }
 
+int pdu_read_wait(struct timedc_avtp *du, void *data)
+{
+	return _pdu_read(du, data, true);
+}
 
 void * pdu_get_payload(struct timedc_avtp *pdu)
 {
@@ -777,12 +919,19 @@ int nh_std_cb(void *priv, struct avtpdu_cshdr *du)
 		return -EINVAL;
 	}
 
+	/* copy payload in du into payload in pipe_meta */
 	void *payload = (void *)du + sizeof(*du);
-	int wsz = write(cbp->fd, payload, cbp->sz);
+	memcpy(&cbp->meta.payload, payload, cbp->sz);
 
+	int wsz = write(cbp->fd, (void *)&cbp->meta, sizeof(struct pipe_meta) + cbp->sz);
 	if (wsz == -1) {
 		perror("Failed writing to fifo");
 		return -EINVAL;
+	}
+	if (use_tracebuffer && _nh) {
+		char tbmsg[128] = {0};
+		snprintf(tbmsg, 127, "wrote %d to pipe", wsz);
+		tb_tag(_nh->tb, tbmsg);
 	}
 
 	return 0;
@@ -804,18 +953,43 @@ static int get_hm_idx(struct nethandler *nh, uint64_t stream_id)
 	return -1;
 }
 
-int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *cshdr)
+
+int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *cshdr,
+		uint64_t rx_hw_ns,
+		uint64_t recv_ptp_ns)
 {
 	if (!nh || !cshdr)
 		return -EINVAL;
 	int idx = get_hm_idx(nh, be64toh(cshdr->stream_id));
 
-	if (idx >= 0)
-		return nh->hmap[idx].cb(nh->hmap[idx].priv_data, cshdr);
+	if (use_tracebuffer) {
+		char tbmsg[128] = {0};
+		snprintf(tbmsg, 127, "feed_pdu_ts, feed to hmapidx=%d", idx);
+		tb_tag(nh->tb, tbmsg);
+	}
+
+	if (idx >= 0) {
+		if (verbose)
+			printf("%s(): received msg, hmidx: %d\n", __func__, idx);
+		struct cb_priv *cbp = nh->hmap[idx].priv_data;
+		cbp->meta.ts_rx_ns = rx_hw_ns;
+		cbp->meta.ts_recv_ptp_ns = recv_ptp_ns;
+		cbp->meta.avtp_timestamp = ntohl(cshdr->avtp_timestamp);
+
+		/* printf("%s(): ts_rx_ns=%lu, ts_recv_ptp_ns=%lu, avtp_timestamp=%u\n", */
+		/* 	__func__, cbp->meta.ts_rx_ns, cbp->meta.ts_recv_ptp_ns, cbp->meta.avtp_timestamp); */
+		return nh->hmap[idx].cb(cbp, cshdr);
+	}
 
 	/* no callback registred, though not exactly an FD-error */
 	return -EBADFD;
 }
+
+int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *cshdr)
+{
+	return nh_feed_pdu_ts(nh, cshdr, 0, 0);
+}
+
 
 static void * nh_runner(void *data)
 {
@@ -885,7 +1059,7 @@ static void * nh_runner(void *data)
 
 			/* parse data */
 			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
-			nh_feed_pdu(nh, du);
+			nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
 
 			/* we have all the timestamps, so we can safely
 			 * log this /after/ the data has been passed

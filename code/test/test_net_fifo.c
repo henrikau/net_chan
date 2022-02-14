@@ -209,9 +209,11 @@ static void test_create_netfifo_rx_send_ok(void)
 	int txsz = helper_send_8byte(0, data);
 	TEST_ASSERT(txsz == 8);
 
-	uint64_t received = 0;
-	read(r, &received, 8);
-	TEST_ASSERT(received == data);
+	struct pipe_meta *pm = malloc(sizeof(struct pipe_meta) + sizeof(uint64_t));
+	read(r, pm, sizeof(*pm) + sizeof(uint64_t));
+	uint64_t *received = (uint64_t *)&pm->payload[0];
+	TEST_ASSERT(*received == data);
+	free(pm);
 }
 
 static void test_create_netfifo_rx_recv(void)
@@ -224,10 +226,15 @@ static void test_create_netfifo_rx_recv(void)
 	uint64_t data = 0x0a0a0a0a;
 	int txsz = helper_send_8byte(1, data);
 	TEST_ASSERT(txsz == 8);
-	uint64_t r = 0;
-	int rsz = read(rxchan, &r, 8);
-	TEST_ASSERT(rsz == 8);
-	TEST_ASSERT(r == data);
+
+
+	struct pipe_meta *pm = malloc(sizeof(struct pipe_meta) + sizeof(uint64_t));
+	int rsz = read(rxchan, pm, sizeof(*pm) + sizeof(uint64_t));
+	uint64_t *r = (uint64_t *)&pm->payload[0];
+	TEST_ASSERT(rsz == (sizeof(struct pipe_meta) + sizeof(uint64_t)));
+	TEST_ASSERT(*r == data);
+
+	free(pm);
 }
 
 int main(int argc, char *argv[])
