@@ -206,10 +206,16 @@ void nf_use_srp(void)
 {
 	do_srp = true;
 }
+void nf_use_ftrace(void)
+{
+	use_tracebuffer = true;
+}
+
 void nf_verbose(void)
 {
 	verbose = true;
 }
+
 void nf_set_logfile(const char *logfile)
 {
 	strncpy(nf_logfile, logfile, 128);
