@@ -16,6 +16,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
       case 'S':
 	      nf_use_srp();
 	      break;
+      case 't':
+	      nf_use_ftrace();
+	      break;
       case 'v':
 	      nf_verbose();
 	      break;

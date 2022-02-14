@@ -15,6 +15,7 @@
 #include <srp/mrp_client.h>
 #include <ptp_getclock.h>
 #include <logger.h>
+#include <tracebuffer.h>
 
 /**
  * cb_priv: private data for callbacks
@@ -154,6 +155,12 @@ struct nethandler {
 	int ptp_fd;
 
 	/*
+	 * Tag tracebuffer, useful to tag trace when frames have arrived
+	 * etc to pinpoint delays etc.
+	 */
+	FILE *tb;
+
+	/*
 	 * datalogger, used by both Tx and Rx
 	 */
 	struct logc *logger;
@@ -165,6 +172,7 @@ struct nethandler {
 static struct nethandler *_nh;
 
 static bool do_srp = false;
+static bool use_tracebuffer = false;
 static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
 static bool enable_logging = false;
@@ -706,6 +714,10 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 		}
 	}
 
+	if (use_tracebuffer) {
+		nh->tb = tb_open();
+	}
+
 	/* get PTP fd for timekeeping
 	 *
 	 * FIXME: properly handle error when opening (assume caller
@@ -964,6 +976,9 @@ int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du)
 void nh_destroy(struct nethandler **nh)
 {
 	if (*nh) {
+		if (use_tracebuffer)
+			tb_close((*nh)->tb);
+
 		nf_stop_rx(*nh);
 
 		if (enable_logging) {

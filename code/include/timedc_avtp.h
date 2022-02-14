@@ -128,6 +128,7 @@ struct nethandler;
 int nf_set_nic(char *nic);
 void nf_set_hmap_size(int sz);
 void nf_use_srp(void);
+void nf_use_ftrace(void);
 void nf_verbose(void);
 void nf_set_logfile(const char *logfile);
 

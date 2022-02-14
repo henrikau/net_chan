@@ -7,6 +7,7 @@ static struct argp_option options[] = {
        {"srp"    , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
        {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
        {"log_ts" , 'l', "LOGFILE", 0, "Log timestamps to logfile (csv format)"},
+       {"ftrace" , 't', NULL     , 0, "Enable tagging of ftrace tracebuffer from various points in the system"},
        { 0 }
 };
 
