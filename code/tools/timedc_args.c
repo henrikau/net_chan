@@ -10,6 +10,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
       case 'l':
 	      nf_set_logfile(arg);
 	      break;
+      case 'L':
+	      nf_log_delay();
+	      break;
       case 's':
 	      nf_set_hmap_size(atoi(arg));
 	      break;

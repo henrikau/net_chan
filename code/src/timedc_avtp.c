@@ -187,6 +187,7 @@ static bool use_tracebuffer = false;
 static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
 static bool enable_logging = false;
+static bool enable_delay_logging = false;
 static char nf_logfile[129] = {0};
 static int nf_hmap_size = 42;
 
@@ -223,6 +224,10 @@ void nf_set_logfile(const char *logfile)
 	if (verbose) {
 		printf("%s(): set logfile to %s\n", __func__, nf_logfile);
 	}
+}
+void nf_log_delay(void)
+{
+	enable_delay_logging = true;
 }
 
 int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
@@ -855,7 +860,7 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 	 * Open logfile if provided
 	 */
 	if (enable_logging) {
-		nh->logger = log_create(logfile);
+		nh->logger = log_create(logfile, enable_delay_logging);
 		if (!nh->logger) {
 			fprintf(stderr, "%s() Somethign went wrong when enabling logger, datalogging disabled\n", __func__);
 			enable_logging = false;

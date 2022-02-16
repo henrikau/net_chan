@@ -36,6 +36,7 @@
 #define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
 #define US_IN_MS (1000)
 #define NS_IN_MS (1000 * US_IN_MS)
+#define NS_IN_SEC (1000 * NS_IN_MS)
 #define CLASS_A_DEFAULT_WAIT_MS 1000
 #define CLASS_B_DEFAULT_WAIT_MS 50
 
@@ -143,6 +144,7 @@ void nf_use_srp(void);
 void nf_use_ftrace(void);
 void nf_verbose(void);
 void nf_set_logfile(const char *logfile);
+void nf_log_delay(void);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 

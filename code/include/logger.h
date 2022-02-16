@@ -22,7 +22,7 @@
  */
 struct logc;
 
-struct logc * log_create(const char *logfile);
+struct logc * log_create(const char *logfile, bool log_delay);
 void log_close_fp(struct logc *logc);
 
 /**
@@ -66,3 +66,14 @@ void log_rx(struct logc *logc,
 	struct avtpdu_cshdr *du,
 	uint64_t rx_ns,
 	uint64_t recv_ptp_ns);
+
+/**
+ * log_delay: log timestamps for delay (clock_nanosleep)
+ *
+ * @param: logc: log container
+ * @param: ptp_target_ns: target wakeup time
+ * @param: ptp_actual_ns: ptp timestamp for when thread actually woke up.
+ */
+void log_delay(struct logc *logc,
+	uint64_t ptp_target_ns,
+	uint64_t ptp_actual_ns);

@@ -4,10 +4,11 @@
 struct logc
 {
 	FILE *logfp;
+	FILE *delayfp;
 	pthread_mutex_t m;
 };
 
-struct logc * log_create(const char *logfile)
+struct logc * log_create(const char *logfile, bool log_delay)
 {
 	if (!logfile || strlen(logfile) == 0)
 		return NULL;
@@ -30,8 +31,15 @@ struct logc * log_create(const char *logfile)
 		free(logc);
 		return NULL;
 	}
-
 	fprintf(logc->logfp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,rx_ns,recv_ptp_ns\n");
+
+	if (log_delay) {
+		char ldf[256] = {0};
+		snprintf(ldf, 255, "%s_d", logfile);
+		logc->delayfp = fopen(ldf, "w+");
+		fprintf(logc->delayfp, "ptp_target,ptp_actual\n");
+	}
+
 	pthread_mutex_unlock(&logc->m);
 
 	return logc;
@@ -86,8 +94,26 @@ void log_close_fp(struct logc *logc)
 		fflush(logc->logfp);
 		fclose(logc->logfp);
 		logc->logfp = NULL;
+		if (logc->delayfp) {
+			fflush(logc->delayfp);
+			fclose(logc->delayfp);
+			logc->delayfp = NULL;
+		}
 		pthread_mutex_unlock(&logc->m);
 		pthread_mutex_destroy(&logc->m);
 		memset(logc, 0, sizeof(*logc));
+	}
+}
+
+void log_delay(struct logc *logc,
+		uint64_t ptp_target_ns,
+		uint64_t ptp_actual_ns)
+{
+	if (logc && logc->delayfp) {
+		pthread_mutex_lock(&logc->m);
+		fprintf(logc->delayfp, "%lu,%lu\n", ptp_target_ns, ptp_actual_ns);
+		fflush(logc->delayfp);
+		pthread_mutex_unlock(&logc->m);
+
 	}
 }
