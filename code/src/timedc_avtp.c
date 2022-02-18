@@ -13,7 +13,11 @@
 #include <unistd.h>
 #include <time.h>
 #include <srp/mrp_client.h>
-#include <ptp_getclock.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <logger.h>
 #include <tracebuffer.h>
 
@@ -164,6 +168,13 @@ struct nethandler {
 	 * a ref here.
 	 */
 	int ptp_fd;
+
+	/* reference to cpu_dma_latency, once opened and set to 0,
+	 * computer /should/ refrain from entering high cstates
+	 *
+	 * See: https://access.redhat.com/articles/65410
+	 */
+	int dma_lat_fd;
 
 	/*
 	 * Tag tracebuffer, useful to tag trace when frames have arrived
@@ -662,33 +673,65 @@ int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
 	if (ptp_target_delay_ns < now_ptp_ns)
 		return ptp_target_delay_ns - now_ptp_ns;
 
-	/* Relative delay (easy, but larger error)
-	 * shorten delay by 100us to account for task-switching.
-	 *
-	 * FIXME: set absolute wakeup.
+	/* NOTE: we assume both clocks run with same rate, i.e. that 1
+	 * ns on PTP is of same length as 1 ns on CPU
 	 */
-	uint64_t delay_ns = ptp_target_delay_ns - now_ptp_ns - 100000;
-	struct timespec ts = {
-		.tv_sec = 0,
-		.tv_nsec = delay_ns};
+	uint64_t rel_delay_ns = ptp_target_delay_ns - now_ptp_ns;
 
-	if (clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL) == -1)
+	struct timespec ts_cpu = {0}, ts_wakeup = {0};
+	if (clock_gettime(CLOCK_MONOTONIC, &ts_cpu) == -1) {
+		fprintf(stderr, "%s() FAILED (%d, %s)\n", __func__, errno, strerror(errno));
+		return -1;
+	}
+	ts_cpu.tv_nsec += rel_delay_ns;
+	ts_normalize(&ts_cpu);
+	uint64_t cpu_target_delay_ns = ts_cpu.tv_sec * NS_IN_SEC + ts_cpu.tv_nsec;
+
+	/* FIXME:
+	 * track down why this is almost always ~200us late,
+	 * cyclictest 4-8us latency on clock_nanosleep() wakeup error
+	 * sudo cyclictest --duration=60 -p 30 -m -n -t 3 -a --policy=rr
+	 */
+	if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts_cpu, NULL) == -1)
 		printf("%s(): clock_nanosleep failed (%d, %s)\n", __func__, errno, strerror(errno));
 
-	now_ptp_ns = get_ptp_ts_ns(du->nh->ptp_fd);
-	int64_t error_ns = ptp_target_delay_ns - now_ptp_ns;
+	clock_gettime(CLOCK_MONOTONIC, &ts_wakeup);
+	uint64_t cpu_wakeup_ns = ts_wakeup.tv_sec * NS_IN_SEC + ts_wakeup.tv_nsec;
+	int64_t error_cpu_ns = cpu_target_delay_ns - cpu_wakeup_ns;
 
+	if (enable_delay_logging)
+		log_delay(du->nh->logger, cpu_target_delay_ns, cpu_wakeup_ns);
+
+	static int tblimit = 10;
 	if (use_tracebuffer) {
 		char tbmsg[128] = {0};
-		snprintf(tbmsg, 127, "_delay(), target=%lu, current=%lu, error=%ld", ptp_target_delay_ns, now_ptp_ns, error_ns);
+		snprintf(tbmsg, 127, "_delay(), target=%lu, current=%lu, error=%ld (%s)",
+			ptp_target_delay_ns,
+			cpu_wakeup_ns,
+			error_cpu_ns,
+			error_cpu_ns < 0 ? "late" : "early");
+
 		tb_tag(du->nh->tb, tbmsg);
+		if (error_cpu_ns > 100000 || error_cpu_ns < -100000) {
+			if (--tblimit < 0) {
+				memset(tbmsg, 0, 128);
+				snprintf(tbmsg, 127, "_delay(), error too large, error=%ld (%s)",
+					error_cpu_ns,
+					error_cpu_ns < 0 ? "late" : "early");
+				tb_close(du->nh->tb);
+				fprintf(stderr, "delay too large, closing tracebuffer\n");
+			}
+		}
 	}
 
 	if (verbose) {
-		printf("%s(): delay_ns: %lu, PTP Target: %lu, actual: %lu, error: %ld\n",
-			__func__, delay_ns, ptp_target_delay_ns, now_ptp_ns, error_ns);
+		printf("%s(): PTP Target: %lu, actual: %lu, error: %.3f (us) (%s)\n",
+			__func__, cpu_target_delay_ns, cpu_wakeup_ns,
+			1.0 * error_cpu_ns / 1000,
+			error_cpu_ns < 0 ? "late" : "early");
 	}
-	return error_ns;
+
+	return error_cpu_ns;
 }
 
 int _pdu_send_now(struct timedc_avtp *du, void *data, bool wait_class_delay)
@@ -698,7 +741,9 @@ int _pdu_send_now(struct timedc_avtp *du, void *data, bool wait_class_delay)
 		fprintf(stderr, "%s(): pdu_update failed\n", __func__);
 		return -1;
 	}
-	printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
+
+	if (verbose)
+		printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
 	if (enable_logging)
 		log_tx(du->nh->logger, &du->pdu, ts_ns, ts_ns);
 
@@ -744,7 +789,8 @@ int _pdu_read(struct timedc_avtp *du, void *data, bool read_delay)
 	if (read_delay) {
 		uint64_t lavtp = tai_to_avtp_ns(du->cbp->meta.ts_recv_ptp_ns);
 		if (lavtp < du->cbp->meta.avtp_timestamp) {
-			printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
+			if (verbose)
+				printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
 			lavtp += ((uint64_t)1<<32)-1;
 		}
 		int64_t avtp_diff = lavtp - du->cbp->meta.avtp_timestamp;
@@ -855,6 +901,30 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 	nh->rx_sock = _nh_socket_setup_common(nh);
 	if (nh->tid == 0)
 		nh_start_rx(nh);
+
+	/* lock memory, we don't pagefaults later */
+	if (mlockall(MCL_CURRENT|MCL_FUTURE)) {
+		fprintf(stderr, "%s(): failed locking memory (%d, %s)\n",
+			__func__, errno, strerror(errno));
+		nh_destroy(&nh);
+		return NULL;
+	}
+
+	/* disable dma latency */
+
+	nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
+	if (nh->dma_lat_fd < 0) {
+		fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
+			__func__, errno, strerror(errno));
+	} else {
+		int lat_val = 0;
+		int res = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
+		if (res < 1) {
+			fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
+				__func__, lat_val, errno, strerror(errno));
+		}
+		printf("%s(): Disabled cstate on CPU\n", __func__);
+	}
 
 	/*
 	 * Open logfile if provided
@@ -1163,6 +1233,9 @@ void nh_destroy(struct nethandler **nh)
 	if (*nh) {
 		if (use_tracebuffer)
 			tb_close((*nh)->tb);
+		if ((*nh)->dma_lat_fd > 0)
+			close((*nh)->dma_lat_fd);
+
 
 		nf_stop_rx(*nh);
 
