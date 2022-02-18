@@ -2,7 +2,8 @@
 #include <unistd.h>
 #include <timedc_avtp.h>
 #include <timedc_args.h>
-#include "net_fifo.h"
+
+#include "manifest.h"
 
 int main(int argc, char *argv[])
 {

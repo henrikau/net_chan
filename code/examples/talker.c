@@ -5,7 +5,7 @@
 #include <timedc_avtp.h>
 #include <timedc_args.h>
 
-#include "net_fifo.h"
+#include "manifest.h"
 static int running = 0;
 
 void sighandler(int signum)
