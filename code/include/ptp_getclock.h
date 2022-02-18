@@ -1,5 +1,6 @@
 #pragma once
 #include <inttypes.h>
+#include <time.h>
 
 /**
  * get fd for the PTP device on ifname
@@ -23,3 +24,15 @@ uint64_t get_ptp_ts_ns(int ptp_fd);
  * or roughly 4 seconds of timestamp.
  */
 uint32_t tai_to_avtp_ns(uint64_t tai_ns);
+
+#define US_IN_MS (1000)
+#define NS_IN_MS (1000 * US_IN_MS)
+#define NS_IN_SEC (1000 * NS_IN_MS)
+
+static inline void ts_normalize(struct timespec *ts)
+{
+	while (ts->tv_nsec >= NS_IN_SEC) {
+		ts->tv_nsec -= NS_IN_SEC;
+		ts->tv_sec++;
+	}
+}

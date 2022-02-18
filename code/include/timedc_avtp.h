@@ -7,6 +7,7 @@
 #include <linux/if_ether.h>
 
 #include <srp/mrp_client.h>
+#include <ptp_getclock.h>
 
 /* --------------------------
  * Main TimedC values
@@ -34,9 +35,6 @@
  * bit to low order 23)
  */
 #define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
-#define US_IN_MS (1000)
-#define NS_IN_MS (1000 * US_IN_MS)
-#define NS_IN_SEC (1000 * NS_IN_MS)
 #define CLASS_A_DEFAULT_WAIT_MS 1000
 #define CLASS_B_DEFAULT_WAIT_MS 50
 
