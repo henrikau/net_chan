@@ -53,5 +53,4 @@ void tb_tag(FILE *tracefd, const char *line)
 			__func__, errno, strerror(errno));
 	}
 	fflush(tracefd);
-	/* printf("%s()=%d -> %s \n", __func__, r, line); */
 }
