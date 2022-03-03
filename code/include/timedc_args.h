@@ -7,8 +7,9 @@ static struct argp_option options[] = {
        {"srp"    , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
        {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
        {"log_ts" , 'l', "LOGFILE", 0, "Log timestamps to logfile (csv format)"},
-       {"log_delay" , 'L', NULL, 0, "Log wakeup (delay) to file (csv format)"},
-       {"ftrace" , 't', NULL     , 0, "Enable tagging of ftrace tracebuffer from various points in the system"},
+       {"log_delay" , 'L', NULL  , 0, "Log wakeup (delay) to file (csv format)"},
+       {"ftrace"    , 't', NULL  , 0, "Enable tagging of ftrace tracebuffer from various points in the system"},
+       {"terminal"  , 'T', "device"  , 0, "Write a character to the tty-device on return from READ/WRITE(_WAIT)"},
        { 0 }
 };
 

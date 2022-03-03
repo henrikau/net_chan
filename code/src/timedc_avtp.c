@@ -20,6 +20,7 @@
 
 #include <logger.h>
 #include <tracebuffer.h>
+/* #include <terminal.h> */
 
 struct pipe_meta {
 	uint64_t ts_rx_ns;
@@ -176,6 +177,11 @@ struct nethandler {
 	 */
 	int dma_lat_fd;
 
+	/* terminal TTY, used if we want to tag event to the output
+	 * serial port (for attaching a scope or some external timing
+	 * measure).
+	 */
+	int ttys;
 	/*
 	 * Tag tracebuffer, useful to tag trace when frames have arrived
 	 * etc to pinpoint delays etc.
@@ -200,6 +206,7 @@ static char nf_nic[IFNAMSIZ] = {0};
 static bool enable_logging = false;
 static bool enable_delay_logging = false;
 static char nf_logfile[129] = {0};
+static char nf_termdevice[129] = {0};
 static int nf_hmap_size = 42;
 
 int nf_set_nic(char *nic)
@@ -235,6 +242,25 @@ void nf_set_logfile(const char *logfile)
 	if (verbose) {
 		printf("%s(): set logfile to %s\n", __func__, nf_logfile);
 	}
+}
+
+void nf_use_termtag(const char *devpath)
+{
+	if (!devpath || strlen(devpath) <= 0)
+		return;
+
+	/* basic sanity check
+	 * exists?
+	 * device?
+	 */
+	struct stat s;
+	if (stat(devpath, &s) == -1) {
+		printf("%s() Error stat on %s (%d, %s)\n",
+			__func__, devpath, errno, strerror(errno));
+		return;
+	}
+
+	strncpy(nf_termdevice, devpath, 128);
 }
 void nf_log_delay(void)
 {
@@ -985,6 +1011,10 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 	nh->ptp_fd = get_ptp_fd(ifname);
 	if (nh->ptp_fd < 0)
 		fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
+
+
+	/* if (strlen(nf_termdevice) > 0) */
+	/* 	nh->ttys = term_open(nf_termdevice); */
 
 	return nh;
 }
