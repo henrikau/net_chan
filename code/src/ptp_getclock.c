@@ -15,9 +15,9 @@
 #include <errno.h>
 
 #define PTP_MAX_DEV_PATH 16
-#define MS_IN_SEC 1000
-#define US_IN_SEC (1000 * MS_IN_SEC)
-#define NS_IN_SEC (1000 * US_IN_SEC)
+/* #define MS_IN_SEC 1000 */
+/* #define US_IN_SEC (1000 * MS_IN_SEC) */
+/* #define NS_IN_SEC (1000 * US_IN_SEC) */
 
 /*
  * Get clockid, take get_clockid() from
