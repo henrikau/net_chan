@@ -37,7 +37,7 @@ struct logc * log_create(const char *logfile, bool log_delay)
 		char ldf[256] = {0};
 		snprintf(ldf, 255, "%s_d", logfile);
 		logc->delayfp = fopen(ldf, "w+");
-		fprintf(logc->delayfp, "ptp_target,ptp_actual\n");
+		fprintf(logc->delayfp, "ptp_target,cpu_target,cpu_actual\n");
 	}
 
 	pthread_mutex_unlock(&logc->m);
@@ -106,12 +106,14 @@ void log_close_fp(struct logc *logc)
 }
 
 void log_delay(struct logc *logc,
-		uint64_t ptp_target_ns,
-		uint64_t ptp_actual_ns)
+	uint64_t ptp_target_ns,
+	uint64_t cpu_target_ns,
+	uint64_t cpu_actual_ns)
 {
 	if (logc && logc->delayfp) {
 		pthread_mutex_lock(&logc->m);
-		fprintf(logc->delayfp, "%lu,%lu\n", ptp_target_ns, ptp_actual_ns);
+		fprintf(logc->delayfp, "%lu,%lu,%lu\n",
+			ptp_target_ns, cpu_target_ns, cpu_actual_ns);
 		fflush(logc->delayfp);
 		pthread_mutex_unlock(&logc->m);
 

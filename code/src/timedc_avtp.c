@@ -700,7 +700,7 @@ int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
 	int64_t error_cpu_ns = cpu_target_delay_ns - cpu_wakeup_ns;
 
 	if (enable_delay_logging)
-		log_delay(du->nh->logger, cpu_target_delay_ns, cpu_wakeup_ns);
+		log_delay(du->nh->logger, ptp_target_delay_ns, cpu_target_delay_ns, cpu_wakeup_ns);
 
 	static int tblimit = 10;
 	if (use_tracebuffer) {

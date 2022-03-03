@@ -70,10 +70,18 @@ void log_rx(struct logc *logc,
 /**
  * log_delay: log timestamps for delay (clock_nanosleep)
  *
+ * clock_nanosleep() uses CLOCK_MONOTONIC, so we log both ptp target and
+ * CPU target. We assume that the CPU clock runs at close enough rate so
+ * that we don't have to convert back to PTP timestamp. We want to avoid
+ * this as reading the PTP clock over a PCIe link have latency
+ * variations from 2-20 us depending on the PCIe link load.
+ *
  * @param: logc: log container
  * @param: ptp_target_ns: target wakeup time
- * @param: ptp_actual_ns: ptp timestamp for when thread actually woke up.
+ * @param: cpu_target_ns: target wakeup time converted to CLOCK_MONOTONIC
+ * @param: cpu_actual_ns: cpu timestamp (MONOTONIC) for when thread actually woke up.
  */
 void log_delay(struct logc *logc,
 	uint64_t ptp_target_ns,
-	uint64_t ptp_actual_ns);
+	uint64_t cpu_target_ns,
+	uint64_t cpu_actual_ns);
