@@ -449,11 +449,42 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			du->sidw.s64 = du->pdu.stream_id;
 
 			/* FIXME: check return from mrp */
-			mrp_ctx_init(du->ctx);
-			mrp_connect(du->ctx);
-			mrp_get_domain(du->ctx, du->class_a, du->class_b);
-			mrp_register_domain(du->class_a, du->ctx);
-			mrp_join_vlan(du->class_a, du->ctx);
+			int res = mrp_ctx_init(du->ctx);
+			if (res == -1) {
+				fprintf(stderr, "%s(): CTX init failed (%d; %s)\n",
+					__func__, errno, strerror(errno));
+				pdu_destroy(&du);
+				return NULL;
+			}
+
+			res = mrp_connect(du->ctx);
+			if (res == -1) {
+				fprintf(stderr, "%s(): mrp_connect() failed (%d; %s)\n",
+					__func__, errno, strerror(errno));
+				pdu_destroy(&du);
+				return NULL;
+			}
+			res = mrp_get_domain(du->ctx, du->class_a, du->class_b);
+			if (res == -1) {
+				fprintf(stderr, "%s(): mrp_get_domaion() failed (%d; %s)\n",
+					__func__, errno, strerror(errno));
+				pdu_destroy(&du);
+				return NULL;
+			}
+			res = mrp_register_domain(du->class_a, du->ctx);
+			if (res == -1) {
+				fprintf(stderr, "%s(): register-domain failed (%d; %s)\n",
+					__func__, errno, strerror(errno));
+				pdu_destroy(&du);
+				return NULL;
+			}
+			res = mrp_join_vlan(du->class_a, du->ctx);
+			if (res == -1) {
+				fprintf(stderr, "%s(): join VLAN failed (%d; %s)\n",
+					__func__, errno, strerror(errno));
+				pdu_destroy(&du);
+				return NULL;
+			}
 
 			if (verbose) {
 				printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
@@ -483,10 +514,12 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			 *    Rank         : 0
 			 *    Bandwidth    : 5376 Kbit/s
 			 */
-			mrp_advertise_stream(du->sidw.s8, du->dst,
-					84,
-					125000 / 125000,
-					3900, du->ctx);
+			res = mrp_advertise_stream(du->sidw.s8, du->dst,
+						84,
+						125000 / 125000,
+						3900, du->ctx);
+			if (verbose)
+				printf("%s(): advertised strem: %d\n", __func__, res);
 		}
 
 		if (setsockopt(du->tx_sock,
@@ -497,7 +530,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
 				__func__, errno, strerror(errno));
 		}
-		printf("%s(): socket prio set to %d\n", __func__, du->socket_prio);
+		if (verbose)
+			printf("%s(): socket prio set to %d\n", __func__, du->socket_prio);
 
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(du->nh, du);
@@ -577,13 +611,13 @@ void pdu_destroy(struct timedc_avtp **pdu)
 			int res = mrp_unadvertise_stream((*pdu)->sidw.s8, (*pdu)->dst, 84, 1,
 						3900, (*pdu)->ctx);
 			if (verbose)
-				printf("%s(): unadvertise stream %d\n", __func__, res);
+				printf("%s(): unadvertise stream %s\n", __func__, res == 0 ? "OK" : "FAILED");
 		} else {
 			send_leave((*pdu)->ctx);
 		}
-
-		if (mrp_disconnect((*pdu)->ctx))
-			fprintf(stderr, "%s(): disconnect from SRP daemon failed</fyi>\n", __func__);
+		int res = mrp_disconnect((*pdu)->ctx);
+		if (verbose)
+			printf("%s(): MRP disconnect stream %s\n", __func__, res == -1 ? "FAILED" : "OK");
 
 		if ((*pdu)->ctx)
 			free((*pdu)->ctx);
@@ -619,6 +653,8 @@ void pdu_destroy(struct timedc_avtp **pdu)
 
 	free(*pdu);
 	*pdu = NULL;
+	if (verbose)
+		printf("%s(): PDU destroyed\n", __func__);
 }
 
 int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
