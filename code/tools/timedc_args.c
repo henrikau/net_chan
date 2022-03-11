@@ -4,6 +4,9 @@
 error_t parser(int key, char *arg, struct argp_state *state)
 {
       switch (key) {
+      case 'D':
+	      nf_keep_cstate();
+	      break;
       case 'i':
 	      nf_set_nic(arg);
 	      break;

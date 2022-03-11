@@ -137,6 +137,7 @@ struct timedc_avtp;
 struct nethandler;
 
 int nf_set_nic(char *nic);
+void nf_keep_cstate();
 void nf_set_hmap_size(int sz);
 void nf_use_srp(void);
 void nf_use_ftrace(void);

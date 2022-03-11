@@ -5,6 +5,7 @@ static struct argp_option options[] = {
        {"nic"    , 'i', "NIC"    , 0, "Network Interface" },
        {"hmap_sz", 's', "HMAP_SZ", 0, "Size of hash-map for Rx callbacks"},
        {"srp"    , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
+       {"keep_cstate", 'D', NULL, 0, "Do not disable cstate adjustment for powersave (this option is *not* good for RT!)"},
        {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
        {"log_ts" , 'l', "LOGFILE", 0, "Log timestamps to logfile (csv format)"},
        {"log_delay" , 'L', NULL  , 0, "Log wakeup (delay) to file (csv format)"},

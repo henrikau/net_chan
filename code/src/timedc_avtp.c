@@ -200,6 +200,7 @@ struct nethandler {
 static struct nethandler *_nh;
 
 static bool do_srp = false;
+static bool keep_cstate = false;
 static bool use_tracebuffer = false;
 static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
@@ -215,6 +216,13 @@ int nf_set_nic(char *nic)
 	if (verbose)
 		printf("%s(): set nic to %s\n", __func__, nf_nic);
 	return 0;
+}
+
+void nf_keep_cstate()
+{
+	keep_cstate = true;
+	if (verbose)
+		printf("%s(): keep CSTATE (probably bad for RT!)\n", __func__);
 }
 
 void nf_set_hmap_size(int sz)
@@ -973,21 +981,21 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 	}
 
 	/* disable dma latency */
-
-	nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
-	if (nh->dma_lat_fd < 0) {
-		fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
-			__func__, errno, strerror(errno));
-	} else {
-		int lat_val = 0;
-		int res = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
-		if (res < 1) {
-			fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
-				__func__, lat_val, errno, strerror(errno));
+	if (!keep_cstate) {
+		nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
+		if (nh->dma_lat_fd < 0) {
+			fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
+				__func__, errno, strerror(errno));
+		} else {
+			int lat_val = 0;
+			int res = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
+			if (res < 1) {
+				fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
+					__func__, lat_val, errno, strerror(errno));
+			}
+			printf("%s(): Disabled cstate on CPU\n", __func__);
 		}
-		printf("%s(): Disabled cstate on CPU\n", __func__);
 	}
-
 	/*
 	 * Open logfile if provided
 	 */
