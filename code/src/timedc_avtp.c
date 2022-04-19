@@ -202,6 +202,7 @@ static struct nethandler *_nh;
 static bool do_srp = false;
 static bool keep_cstate = false;
 static bool use_tracebuffer = false;
+static int break_us = -1;
 static bool verbose = false;
 static char nf_nic[IFNAMSIZ] = {0};
 static bool enable_logging = false;
@@ -236,6 +237,11 @@ void nf_use_srp(void)
 void nf_use_ftrace(void)
 {
 	use_tracebuffer = true;
+}
+void nf_breakval(int b_us)
+{
+	if (b_us > 0 && b_us < 1000000)
+		break_us = b_us;
 }
 
 void nf_verbose(void)

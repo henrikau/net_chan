@@ -25,6 +25,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
       case 't':
 	      nf_use_ftrace();
 	      break;
+      case 'b':
+	      nf_breakval(atoi(arg));
+	      break;
       case 'T':
 	      nf_use_termtag(arg);
 	      break;
