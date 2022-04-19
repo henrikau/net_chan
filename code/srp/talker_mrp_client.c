@@ -70,8 +70,8 @@ int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 		break;
 	case 'M':
 	case 'V':
-		printf("%s unhandled from mrpd\n", buf);
-		fflush(stdout);
+		/* printf("%s unhandled from mrpd\n", buf); */
+		/* fflush(stdout); */
 
 		/* unhandled for now */
 		break;

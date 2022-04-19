@@ -30,8 +30,6 @@ int msg_process(char *buf, int buflen, struct mrp_ctx *ctx)
 	unsigned int vid;
 	unsigned int priority;
 
-	fprintf(stderr, "Msg: %s\n", buf);
-
 	if (strncmp(buf, "SNE T:", 6) == 0 || strncmp(buf, "SJO T:", 6) == 0)
 	{
 		l = 6; /* skip "Sxx T:" */
