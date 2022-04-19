@@ -10,10 +10,14 @@
 #include <ptp_getclock.h>
 
 /* --------------------------
- * Main TimedC values
+ * Main TimedC Macros
  */
-#define NETFIFO_RX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 0, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
-#define NETFIFO_TX(x) struct timedc_avtp * x ## _du = pdu_create_standalone(#x, 1, net_fifo_chans, ARRAY_SIZE(net_fifo_chans))
+#define NETFIFO_RX(x) struct timedc_avtp * x ## _du = \
+		pdu_create_standalone(#x, 0, net_fifo_chans, \
+		ARRAY_SIZE(net_fifo_chans))
+#define NETFIFO_TX(x) struct timedc_avtp * x ## _du = \
+		pdu_create_standalone(#x, 1, net_fifo_chans, \
+		ARRAY_SIZE(net_fifo_chans))
 
 #define WRITE(x,v) pdu_send_now(x ## _du, v)
 #define WRITE_WAIT(x,v) pdu_send_now_wait(x ## _du, v)

@@ -3,7 +3,7 @@
 
 struct net_fifo net_fifo_chans[] = {
 	{
-		.dst       = {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00},
+		.dst       = DEFAULT_MCAST,
 		.stream_id = 42,
 		.class     = CLASS_A,
 		.size      = 8,
