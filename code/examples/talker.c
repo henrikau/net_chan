@@ -7,7 +7,6 @@
 
 #include "manifest.h"
 static int running = 0;
-
 void sighandler(int signum)
 {
 	printf("%s(): Got signal (%d), closing\n", __func__, signum);
@@ -20,12 +19,13 @@ int main(int argc, char *argv[])
 	GET_ARGS();
 
 	NETFIFO_TX(mcast42);
+	usleep(10000);
 	running = 1;
 
 	signal(SIGINT, sighandler);
-	for (uint64_t i = 0; i < 500 && running; i++) {
+	for (int64_t i = 0; i < (50*60*60*6) && running; i++) {
 		WRITE_WAIT(mcast42, &i);
-		if (!(i%10))
+		if (!(i%50))
 			printf("%lu: written\n", i);
 
 		/* Take freq and subtract expected wait from class to
@@ -34,7 +34,12 @@ int main(int argc, char *argv[])
 		int udel = 1000000 / net_fifo_chans[0].freq - (net_fifo_chans[0].class == CLASS_A ? 2*US_IN_MS : 50*US_IN_MS);
 		usleep(udel);
 	}
-
+	int64_t marker = -1;
+	printf("%s() Attempting to stop remote, sending magic marker\n", __func__);
+	WRITE_WAIT(mcast42, &marker);
+	usleep(10000);
+	printf("%s() Attempting to stop remote, sending magic marker\n", __func__);
+	WRITE_WAIT(mcast42, &marker);
 	CLEANUP();
 	return 0;
 }
