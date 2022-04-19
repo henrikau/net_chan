@@ -488,7 +488,6 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 			/* common setup  */
 			du->sidw.s64 = du->pdu.stream_id;
 
-			/* FIXME: check return from mrp */
 			int res = mrp_ctx_init(du->ctx);
 			if (res == -1) {
 				fprintf(stderr, "%s(): CTX init failed (%d; %s)\n",
@@ -542,8 +541,13 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 				du->socket_prio = du->class_b->priority;
 				break;
 			}
+
 			/* FIXME: find correct values for the stream and
 			 * send to MRP here
+			 *
+			 * Currently we use 84 bytes/frame and allow for
+			 * 8kHz inter frame gap (even if the actual freq
+			 * is 50Hz rather than 8kHz)
 			 *
 			 * This yields a 5376kbit/sec BW
 			 *
@@ -559,7 +563,17 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 						125000 / 125000,
 						3900, du->ctx);
 			if (verbose)
-				printf("%s(): advertised strem: %d\n", __func__, res);
+				printf("%s(): advertised stream: %d\n", __func__, res);
+
+			/*
+			 * WARNING: mrp-awai_listener BLOCKS
+			 */
+			res = mrp_await_listener(du->sidw.s8, du->ctx);
+			if (res) {
+				printf("%s(): mrp_await_listener failed\n", __func__);
+				pdu_destroy(&du);
+				return NULL;
+			}
 		}
 
 		if (setsockopt(du->tx_sock,
@@ -632,6 +646,8 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 		 * !!! WARNING: await_talker() BLOCKS !!!
 		 */
 		if (do_srp) {
+			printf("%s(): Awaiting talker\n", __func__);
+			fflush(stdout);
 			await_talker(du->ctx);
 			send_ready(du->ctx);
 		}
@@ -778,7 +794,6 @@ int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
 	if (enable_delay_logging)
 		log_delay(du->nh->logger, ptp_target_delay_ns, cpu_target_delay_ns, cpu_wakeup_ns);
 
-	static int tblimit = 10;
 	if (use_tracebuffer) {
 		char tbmsg[128] = {0};
 		snprintf(tbmsg, 127, "_delay(), target=%lu, current=%lu, error=%ld (%s)",
@@ -788,16 +803,6 @@ int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
 			error_cpu_ns < 0 ? "late" : "early");
 
 		tb_tag(du->nh->tb, tbmsg);
-		if (error_cpu_ns > 100000 || error_cpu_ns < -100000) {
-			if (--tblimit < 0) {
-				memset(tbmsg, 0, 128);
-				snprintf(tbmsg, 127, "_delay(), error too large, error=%ld (%s)",
-					error_cpu_ns,
-					error_cpu_ns < 0 ? "late" : "early");
-				tb_close(du->nh->tb);
-				fprintf(stderr, "delay too large, closing tracebuffer\n");
-			}
-		}
 	}
 
 	if (verbose) {
@@ -858,20 +863,31 @@ int _pdu_read(struct timedc_avtp *du, void *data, bool read_delay)
 
 	memcpy(data, &du->cbp->meta.payload, du->payload_size);
 
+	/* Reconstruct PTP capture timestamp from sender */
+	uint64_t lavtp = tai_to_avtp_ns(du->cbp->meta.ts_recv_ptp_ns);
+	if (lavtp < du->cbp->meta.avtp_timestamp) {
+		if (verbose)
+			printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
+		lavtp += ((uint64_t)1<<32)-1;
+	}
+	int64_t avtp_diff = lavtp - du->cbp->meta.avtp_timestamp;
+	uint64_t ptp_capture = du->cbp->meta.ts_recv_ptp_ns - avtp_diff;
+
+	/* track E2E delay if --break is passed */
+	if (break_us > 0 && (avtp_diff/1000)  > break_us) {
+		char tbmsg[128] = {0};
+		snprintf(tbmsg, 127, "E2E delay (%.3f us) exceeded break_value (%d)", (float)avtp_diff/1000, break_us);
+		fprintf(stderr, "%s\n", tbmsg);
+		tb_tag(_nh->tb, tbmsg);
+		tb_close(_nh->tb);
+		_nh->tb = NULL;
+		nh_destroy(&_nh);
+	}
 	/* Extract timing-data from pipe, reconstruct avtp_timestamp,
 	 * find diff since it was sent and calculate offset to determine
 	 * length of sleep before moving on.
 	 */
 	if (read_delay) {
-		uint64_t lavtp = tai_to_avtp_ns(du->cbp->meta.ts_recv_ptp_ns);
-		if (lavtp < du->cbp->meta.avtp_timestamp) {
-			if (verbose)
-				printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
-			lavtp += ((uint64_t)1<<32)-1;
-		}
-		int64_t avtp_diff = lavtp - du->cbp->meta.avtp_timestamp;
-		uint64_t ptp_capture = du->cbp->meta.ts_recv_ptp_ns - avtp_diff;
-
 		switch (du->class) {
 		case CLASS_A:
 			ptp_capture += 2 * NS_IN_MS;
