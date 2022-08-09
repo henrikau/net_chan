@@ -44,22 +44,22 @@ def do_plot(ax1, n, p, title="", show_legend=True):
     ax2.tick_params(axis='y', colors='red')
 
 
-base = "/home/henrikau/dev/timedc_work/code/logs/tr20"
+base = "/home/henrikau/dev/timedc_work/code/net_chan_profiling_22/varnoise"
 if __name__ == "__main__":
     # No SRP
-    n1 = noise.NetNoise("{}/tr20_netnoise_nosrp.log".format(base), "Netnoise, No SRP, 30 sec cycles", 3.8)
+    n1 = noise.NetNoise("{}/netnoise_nosrp.log".format(base), "Netnoise, No SRP, 30 sec cycles", 3.8)
     p1 = pkt.PktDelay("{}/netfifo_listener_rt_nosrp.csv".format(base),
                       "{}/netfifo_talker_rt_nosrp.csv".format(base),
-                      "tsn1", "tsn2", True)
+                      "Listener", "Talker", True)
     print("Time offset: {}, {} -> {}".format(
         p1.m['cap_ptp_ns_t'][0], n1.df['ts'][0], p1.m['cap_ptp_ns_t'][0] - n1.df['ts'][0]))
 
 
     # Using SRP
-    n2 = noise.NetNoise("{}/tr20_netnoise_srp.log".format(base), "Netnoise, SRP, 30 sec cycles", -1.35)
+    n2 = noise.NetNoise("{}/netnoise_srp.log".format(base), "Netnoise, SRP, 30 sec cycles", -1.35)
     p2 = pkt.PktDelay("{}/netfifo_listener_rt_srp.csv".format(base),
                       "{}/netfifo_talker_rt_srp.csv".format(base),
-                      "tsn1", "tsn2", True)
+                      "Listener", "Talker", True)
     # plt.rcParams.update({'font.size': 12})
     fig = plt.figure(num=None, figsize=(24,13.5), dpi=160, facecolor='w', edgecolor='k')
     fig_nosrp = plt.figure(num=None, figsize=(24,6.75), dpi=160, facecolor='w', edgecolor='k')
