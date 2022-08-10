@@ -97,7 +97,7 @@ struct net_fifo
 	uint16_t size;
 
 	/* Minimum distance between each frame, in Hz */
-	uint8_t freq;
+	uint32_t freq;
 
 	/* Name of net_fifo (used by macros to create variable)
 	 * It expects a callback
