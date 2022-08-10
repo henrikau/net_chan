@@ -91,7 +91,7 @@ struct net_fifo
 	 * For class A:  2ms
 	 *     class B: 50ms
 	 */
-	enum stream_class class;
+	enum stream_class sc;
 
 	/* Size of payload, 0..1500 bytes */
 	uint16_t size;
@@ -191,7 +191,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
  * @param nh nethandler container
  * @param dst destination address for this PDU
  * @param stream_id 64 bit unique value for the stream allotted to our channel.
- * @param class: class this stream belongs to, required to set correct socket prio
+ * @param cl: stream class this stream belongs to, required to set correct socket prio
  * @param sz: size of data to transmit
  *
  * @returns the new PDU or NULL upon failure.
@@ -199,7 +199,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
-				enum stream_class class,
+				enum stream_class sc,
 				uint16_t sz);
 
 

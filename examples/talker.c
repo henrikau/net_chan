@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 		/* Take freq and subtract expected wait from class to
 		 * get roughly right delay
 		 */
-		int udel = 1000000 / net_fifo_chans[0].freq - (net_fifo_chans[0].class == CLASS_A ? 2*US_IN_MS : 50*US_IN_MS);
+		int udel = 1000000 / net_fifo_chans[0].freq - (net_fifo_chans[0].sc == CLASS_A ? 2*US_IN_MS : 50*US_IN_MS);
 		usleep(udel);
 	}
 	int64_t marker = -1;

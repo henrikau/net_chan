@@ -117,7 +117,7 @@ struct timedc_avtp
 	struct mrp_ctx *ctx;
 	struct mrp_domain_attr *class_a;
 	struct mrp_domain_attr *class_b;
-	enum stream_class class;
+	enum stream_class sc;
 	int socket_prio;
 
 	/* private area for callback, embed directly i not struct to
@@ -375,7 +375,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 struct timedc_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
-				enum stream_class class,
+				enum stream_class sc,
 				uint16_t sz)
 {
 	struct timedc_avtp *pdu = malloc(sizeof(*pdu) + sz);
@@ -392,7 +392,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
 	pdu->sidw.s64 = stream_id;
-	pdu->class = class;
+	pdu->sc = sc;
 	pdu->tx_tid = 0;
 	pdu->tx_sock = -1;
 	pdu->running = false;
@@ -400,7 +400,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	/* Set default values, if we run with SRP, it will be updated
 	 * once we've connected to mrpd
 	 */
-	switch (pdu->class) {
+	switch (pdu->sc) {
 	case CLASS_A:
 		pdu->socket_prio = DEFAULT_CLASS_A_PRIO;
 		break;
@@ -435,7 +435,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 
 	if (verbose)
 		printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
-	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].class, arr[idx].size);
+	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size);
 	if (!du)
 		return NULL;
 
@@ -537,10 +537,10 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 					__func__,
 					du->class_a->priority,
 					du->class_b->priority,
-					du->class == CLASS_A ? "CLASS_A" : "CLASS_B");
+					du->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 			}
 
-			switch (du->class) {
+			switch (du->sc) {
 			case CLASS_A:
 				du->socket_prio = du->class_a->priority;
 				break;
@@ -839,7 +839,7 @@ int _pdu_send_now(struct timedc_avtp *du, void *data, bool wait_class_delay)
 
 	int err_ns = 150000;
 	while (wait_class_delay && err_ns > 50000) {
-		switch (du->class) {
+		switch (du->sc) {
 		case CLASS_A:
 			err_ns = _delay(du, ts_ns + 2*NS_IN_MS);
 			break;
@@ -895,7 +895,7 @@ int _pdu_read(struct timedc_avtp *du, void *data, bool read_delay)
 	 * length of sleep before moving on.
 	 */
 	if (read_delay) {
-		switch (du->class) {
+		switch (du->sc) {
 		case CLASS_A:
 			ptp_capture += 2 * NS_IN_MS;
 			break;
