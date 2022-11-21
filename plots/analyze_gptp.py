@@ -2,17 +2,20 @@
 import os
 import sys
 
-sys.path.append("/home/henrikau/dev/ipynb/")
+bpath = os.path.dirname(os.path.dirname(sys.argv[0]))
+sys.path.append(os.path.dirname(sys.argv[0])+"/lib/")
+
+from lib.gPTP import *
 from lib import *
 import lib.timedc_lib as tcl
-from lib.gPTP import *
 
-base = "/home/henrikau/dev/timedc_work/code/net_chan_profiling_22/ptp_profiling"
+print(bpath)
+base = "{}/net_chan_profiling_22/ptp_profiling".format(bpath)
 
 if __name__ == "__main__":
     gptpl = "{}/gptp_rt_srp_listener.log".format(base)
     gptpt = "{}/gptp_rt_srp_talker.log".format(base)
-    gptp = gPTP(gptpl, gptpt, "Listener", "Talker")
+    gptp = gPTP.gPTP(gptpl, gptpt, "Listener", "Talker")
 
     print(gptp.table_summary("5.16.2-rt19", "RT+SRP"))
 

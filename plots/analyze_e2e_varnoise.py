@@ -4,12 +4,26 @@ import sys
 import argparse
 import matplotlib.pyplot as plt
 
-sys.path.append("/home/henrikau/dev/ipynb/")
+bpath = os.path.dirname(os.path.dirname(sys.argv[0]))
+sys.path.append(os.path.dirname(sys.argv[0])+"/lib/")
+
 import lib.timedc_lib as tcl
 import lib.packet_delay as pkt
 import lib.WakeDelay as wkd
 import lib.NetNoise as noise
 import lib.gPTP as gptp
+
+SMALL_SIZE = 12
+MEDIUM_SIZE = 17
+BIGGER_SIZE = 24
+
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=50)  # fontsize of the figure title
 
 def do_plot(ax1, n, p, title="", show_legend=True):
     # packets has time in ns, move to sec
@@ -45,7 +59,8 @@ def do_plot(ax1, n, p, title="", show_legend=True):
     ax2.tick_params(axis='y', colors='red')
 
 def analyze_5min():
-    path="/home/henrikau/dev/timedc_work/code/net_chan_profiling_22/varnoise_e2e_5min"
+    path="{}/net_chan_profiling_22/varnoise_e2e_5min".format(bpath)
+
     pkt_nosrp = pkt.PktDelay("{}/netfifo_listener_rt_nosrp.csv".format(path),
                             "{}/netfifo_talker_rt_nosrp.csv".format(path),
                              "Listener", "Talker", True)
@@ -82,7 +97,7 @@ def analyze_5min():
 
 
 def analyze_60min():
-    path="/home/henrikau/dev/timedc_work/code/net_chan_profiling_22/varnoise_e2e_60min"
+    path="{}/net_chan_profiling_22/varnoise_e2e_60min".format(bpath)
 
     pkt_srp = pkt.PktDelay("{}/netfifo_listener_rt_srp.csv".format(path),
                            "{}/netfifo_talker_rt_srp.csv".format(path),
@@ -93,28 +108,28 @@ def analyze_60min():
                             "{}/netfifo_talker_rt_srp.csv_d".format(path),
                             "Listener", "Talker")
     tr21wkd.set_title("VarNoise E2E Linux v5.16.2-rt19, longrun (RT+SRP, make+noise)")
-    tr21gptp = gptp.gPTP("{}/gptp_rt_srp_listener.log".format(path),
-                         "{}/gptp_rt_srp_talker.log".format(path),
-                         "Listener", "Talker")
+    # tr21gptp = gptp.gPTP("{}/gptp_rt_srp_listener.log".format(path),
+    #                      "{}/gptp_rt_srp_talker.log".format(path),
+    #                      "Listener", "Talker")
 
     print(pkt_srp)
-
     print(tr21wkd)
 
-    with open("{}/e2e_delay_noise.log".format(path), "w") as f:
-        f.write("\nPacket Delay analysis. 60 min run, w/periodic netnoise, With SRP\n")
-        f.write(str(pkt_srp))
+    # return
+
+    # with open("{}/e2e_delay_noise.log".format(path), "w") as f:
+    #     f.write("\nPacket Delay analysis. 60 min run, w/periodic netnoise, With SRP\n")
+    #     f.write(str(pkt_srp))
 
     tr21wkd.set_folder(path, "rt_srp_preempt_rt_make")
-    tr21wkd.plot_all("5.16.2-rt19, make, RT")
+    tr21wkd.plot_all("5.16.2-rt19, High local load, RT measures")
 
-    n_srp = noise.NetNoise("{}/tr21_netnoise_srp.log".format(path), "Netnoise, SRP, 5 min cycle", -12)
-    fig_srp = plt.figure(num=None, figsize=(24,6.75), dpi=160, facecolor='w', edgecolor='k')
-    plt.tight_layout()
-    do_plot(fig_srp.add_subplot(111), n_srp, pkt_srp, "Frame E2E ($\mu$s) with stream protection")
-    fig_srp.savefig("{}/e2e_delay_noise_srp.png".format(path), bbox_inches='tight')
+    # n_srp = noise.NetNoise("{}/tr21_netnoise_srp.log".format(path), "Netnoise, SRP, 5 min cycle", -12)
+    # fig_srp = plt.figure(num=None, figsize=(24,6.75), dpi=160, facecolor='w', edgecolor='k')
+    # plt.tight_layout()
+    # do_plot(fig_srp.add_subplot(111), n_srp, pkt_srp, "Frame E2E ($\mu$s) with stream protection")
+    # fig_srp.savefig("{}/e2e_delay_noise_srp.png".format(path), bbox_inches='tight')
 
 
 if __name__ == "__main__":
-    analyze_5min()
     analyze_60min()
