@@ -1,34 +1,47 @@
 # Reliable Network Channels
 
-This project creates network channels, which if wanted, can be
-configured to use AVB/TSN for network protection. Currently only AVB
-class A and B is supported.
+Reliable, or deterministic **network channel** (*net_chan*) is a logical
+construct that can be added to a distributed system to provide
+deterministic and reliable connections. The core idea is to make it
+simple to express the traffic for a channel in a concise, provable
+manner and provide constructs for creating and using the channels.
 
-Typically we refer to the project as 'net chans' or 'net_chan'.
+In essence, a logical channel can be used as a local UNIX pipe between
+remote systems.
+
+A fundamental part of the reliability provided by net_chan is Time
+Sensitive Networking (TSN) which is used to reserve capacity and guard
+the data being transmitted. This is not to say that net_chan *require*
+TSN, but without a hard QoS scheme, determinism cannot be guaranteed.
 
 ## Overall Design
 
-Net_chan is intended to create a logical channel between to processes
+**Net_chan** is intended to create a logical channel between to processes
 running on different hosts in a network. The process need not run on
 different hosts (but if you're on the same host, perhaps other means of
-communicating is a better fit?).
+communicating is a better fit).
 
 Conceptually, net_chan provide a channel that is undisturbed by outside
-events such as other people yousing **your** network capacity.
+events such as other people using **your** network capacity. A channel
+is used by a sender (often called *Talker* in TSN terminology) and one
+or more receivers (*Listeners*). The data in the channel is sent in a
+*stream*, again from TSN terminology and is just a sequence of network
+packages that logically belong together (think periodic temperature
+readings or from a microphone being continously sampled).
 
 ![net_chan](imgs/net_chan.png)
 
-
-Central to all of this, is 'the manifest'. This is how we describe the
-channels we use, adding metrics such as payload size, target
-destination, traffic class, transmitting frequency and a unique ID for
-the stream.
+Central to all of this, is 'the Manifest' where all the streams are
+listed.  Each stream is described using payload size, target
+destination, traffic class, transmitting frequency and a unique ID. This
+is then used by the core net_chan machinery to allocate buffers, start
+receivers, reserve bandwidth etc.
 
 ```C
 struct net_fifo net_fifo_chans[] = {
 	{
 		/* DEFAULT_MCAST */
-		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x42},
+		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x02, 0x42},
 		.stream_id = 42,
 		.class	   = CLASS_A,
 		.size      =  8,
@@ -38,9 +51,13 @@ struct net_fifo net_fifo_chans[] = {
 };
 ```
 
-All participants in the distributed system you create must share this
-file as both talker and listener will configure the available channels
-based on this content.
+All participants in the distributed system will use the manifest to
+configure the channels.
+
+net_chan will compile a static library which can be used to link your
+application. The project has a couple of examples, look at
+[the meson build file](meson.build).
+
 
 ### Simple talker example
 A talker (the task or process that **produces** data) need only 2 macros
@@ -49,7 +66,7 @@ from net_chan: namely
 + write data to channel
 
 Note: this example is stripped of all excessive commands, includes
-etc. Have a gander at [the talker](examples/talker.c) for a more comprehensive example.
+etc. Have a gander at [the talker](examples/talker.c) for the full example.
 ```C
 int main(int argc, char *argv[])
 {
@@ -63,10 +80,13 @@ int main(int argc, char *argv[])
 }
 ```
 
+The examples directory also contains a sample listener to be used
+alongside the talker example above.
 
 ## Build instructions
 
-net_chan uses meson and ninja to build
+net_chan uses meson and ninja to build and details can be found in [the
+meson build file](meson.build).
 
 ```bash
 meson build
@@ -91,10 +111,11 @@ Timed C.
 
 ## Running tests
 
-net_chan has a few unit-test written in Unity, a C-framework for tests
-that is reasonable small and (importantly) very fast. It does require
-that an mrpd-daemon is running (see below). See scripts/watch_builder.sh
-for how to set up tests to run.
+net_chan has a few unit-test written in
+[Unity](http://www.throwtheswitch.org/unity), a lightweight C-framework
+for tests that is reasonable small and (importantly) very fast. It does
+require that an mrpd-daemon is running (see below). See
+scripts/watch_builder.sh for how to set up tests to run.
 
 A typical workflow consists of setting up watch_builder in one terminal
 and watch the system kick into action when files are saved
@@ -118,16 +139,15 @@ ninja: no work to do.
 5/5 nh test            OK              1.13s
 
 
-Ok:                 5   
-Expected Fail:      0   
-Fail:               0   
-Unexpected Pass:    0   
-Skipped:            0   
-Timeout:            0   
+Ok:                 5
+Expected Fail:      0
+Fail:               0
+Unexpected Pass:    0
+Skipped:            0
+Timeout:            0
 
 Full log written to /home/henrikau/dev/net_chan/build/meson-logs/testlog.txt
 ```
-
 
 ## Including Reliable Network Channels in other projects
 
@@ -154,11 +174,10 @@ sudo ptp4l -i enp2s0 -f gPTP.cfg -m
 ```
 
 There's no need to run phc2sys as we will read the timestamp directly
-from the network interface, but if you choose to run phc2sys, it will
-not harm anything.
+from the network interface.
 
 ptp4l can either be installed via your favorite package manager or
-cloned and built locally
+cloned and built locally.
 ```bash
 git clone git://git.code.sf.net/p/linuxptp/code linuxptp
 cd linuxptp/
@@ -167,11 +186,15 @@ sudo make install
 ```
 
 ### Stream Reservation
-A key feature of TSN is the reservation of bandwidth and buffer capacity
-through the network. AvNU has an excellent project (OpenAvnu) which
-contains code for the mrpd daemon. net_chan comes with the client-side
-of AvNUs mrp code, slightly tailored and adapted for our need (this can
-be found in the srp/ subfolder).
+A key feature of net_chan is the ability to reserve bandwidth and buffer
+capacity through the network (provided the network supports TSN). This
+is done using the stream reservation protocol (SRP) and AvNU has an
+excellent project (OpenAvnu) to support this. In this project, the
+*mrpd* daemon must be built and started locally *on each
+machine*. net_chan comes with the client-side of AvNUs mrp code,
+slightly tailored and adapted for our need (this can be found in the
+srp/ subfolder). This allows net_chan to communicate with the
+mrpd-daemon and send reservations, receive subscribe requests etc.
 
 ```bash
 git clone github.com:Avnu/OpenAvnu.git
@@ -179,8 +202,7 @@ cd OpenAvnu
 make mrpd
 ```
 
-Before running net_chan, the daemon must be started and attached to the
-network that supports MRP. It will then listen on a localhost port
+Once started, the dameon will then listen on a localhost port
 awaiting clients to connect before sending the required SRP messages to
 the network.
 
@@ -188,7 +210,7 @@ the network.
 sudo ./daemons/mrpd/mrpd -i enp2s0 -mvs
 ```
 
-### Enabling SRP
+#### Enabling SRP
 To instruct net_chan to attach to the srp daemon and reserve bandwidth
 and buffers, the startup-section of your code must contain calls to
 ```nf_use_srp();```. This will cause net_chan to hook into the
