@@ -16,6 +16,15 @@ mrplib = static_library('mrp',
 			install: true
 		       )
 
+mrplibso = library('mrp',
+			'srp/mrp_client.c',
+			'srp/talker_mrp_client.c',
+			'srp/listener_mrp_client.c',
+			include_directories: include_directories('include'),
+			dependencies: deps,
+			install: true
+		       )
+
 timedc_avtp = static_library('timedc_avtp',
 			     'src/timedc_avtp.c',
 			     'src/ptp_getclock.c',
@@ -26,6 +35,17 @@ timedc_avtp = static_library('timedc_avtp',
 			link_with: mrplib,
 			install: true
 		       )
+
+timedc_avtpso = library('timedc_avtp',
+				'src/timedc_avtp.c',
+				'src/ptp_getclock.c',
+				'src/tracebuffer.c',
+				'src/logger.c',
+				include_directories: include_directories('include'),
+				dependencies: deps,
+				link_with: mrplib,
+				install: true
+			       )
 
 install_headers('include/timedc_avtp.h')
 install_subdir('include/srp', install_dir: 'include/')
