@@ -261,11 +261,6 @@ static void test_mrp_join_vlan(void)
 					rx_mrpd_payload, "Unexpected mrp reply (is mrpd running?)");
 }
 
-static void test_mrp_advertise_stream(void)
-{
-
-}
-
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -274,6 +269,5 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_mrp_send_msg);
 	RUN_TEST(test_mrp_reg_domain);
 	RUN_TEST(test_mrp_join_vlan);
-	RUN_TEST(test_mrp_advertise_stream);
 	return UNITY_END();
 }
