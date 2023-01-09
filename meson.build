@@ -47,7 +47,7 @@ timedc_avtpso = library('timedc_avtp',
 				install: true
 			       )
 
-install_headers('include/timedc_avtp.h')
+install_headers(['include/timedc_avtp.h', 'include/ptp_getclock.h'])
 install_subdir('include/srp', install_dir: 'include/')
 
 executable(
