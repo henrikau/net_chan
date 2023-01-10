@@ -5,6 +5,6 @@ sudo setcap cap_net_raw,cap_net_admin=eip testpdu
 sudo setcap cap_net_raw,cap_net_admin=eip testprog
 sudo setcap cap_net_raw,cap_net_admin=eip testnfmacro
 sudo setcap cap_net_raw,cap_net_admin,cap_sys_nice=eip testmrp
-sudo setcap cap_net_raw,cap_net_admin=eip .talker
+sudo setcap cap_net_raw,cap_net_admin=eip talker
 sudo setcap cap_net_raw,cap_net_admin=eip listener
 popd
