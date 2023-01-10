@@ -18,6 +18,10 @@
 
 /* --------------------------
  * Main NetChan Macros
+ *
+ * These macros rely heavily upon a sort-of singleton approach. If you
+ * are concerned with interference from other threads, then avoid the
+ * macros and use the non-standalone functions.
  */
 #define NETCHAN_RX(x) struct netchan_avtp * x ## _du = \
 		pdu_create_standalone(#x, 0, net_fifo_chans, \
@@ -32,14 +36,6 @@
 #define READ_WAIT(x,v) pdu_read_wait(x ## _du, v)
 
 #define CLEANUP() nh_destroy_standalone()
-
-/* Deprecated
- *    - Use NETCHAN_(R|T)X instad
- */
-#define NETCHAN_TX_CREATE(x)						\
-	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
-#define NETCHAN_RX_CREATE(x)						\
-	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
 
 
 /* Empty mac multicast (ip multicast should be appended (low order 23

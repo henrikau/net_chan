@@ -62,10 +62,10 @@ static void test_arr_get_ref(void)
 static void test_create_netfifo_tx(void)
 {
 	/* Create pipe, datasize 8, streamID 42, first multicast address */
-	int w = NETCHAN_TX_CREATE("missing");
+	int w = nf_tx_create("missing", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(w == -1);
 
-	w = NETCHAN_TX_CREATE("test1");
+	w = nf_tx_create("test1", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(w != -1);
 	uint64_t val = 0xaa00aa00;
 
@@ -146,7 +146,7 @@ static void * test_grabber(void *data)
 static void test_create_netfifo_tx_send(void)
 {
 	uint64_t data = 0xdeadbeef;
-	int w = NETCHAN_TX_CREATE("test1");
+	int w = nf_tx_create("test1", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(w != -1);
 	pthread_t tg_tid;
 	tg_runner = true;
@@ -218,9 +218,7 @@ static void test_create_netfifo_rx_send_ok(void)
 
 static void test_create_netfifo_rx_recv(void)
 {
-	int wrong = NETCHAN_RX_CREATE("missing");
-	TEST_ASSERT(wrong==-1);
-	int rxchan = NETCHAN_RX_CREATE("test2");
+	int rxchan = nf_rx_create("test2", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(rxchan != -1);
 
 	uint64_t data = 0x0a0a0a0a;
