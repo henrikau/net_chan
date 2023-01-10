@@ -429,7 +429,7 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 	if (idx < 0)
 		return NULL;
 
-	nh_init_standalone();
+	nh_create_init_standalone();
 	if (!_nh)
 		return NULL;
 
@@ -982,7 +982,7 @@ static int _nh_socket_setup_common(struct nethandler *nh)
 	return sock;
 }
 
-struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
+struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile)
 {
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
@@ -1056,12 +1056,12 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
 	return nh;
 }
 
-int nh_init_standalone(void)
+int nh_create_init_standalone(void)
 {
 	/* avoid double-create */
 	if (_nh != NULL)
 		return -1;
-	_nh = nh_init(nf_nic, nf_hmap_size, nf_logfile);
+	_nh = nh_create_init(nf_nic, nf_hmap_size, nf_logfile);
 	if (_nh)
 		return 0;
 	return -1;

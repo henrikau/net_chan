@@ -25,7 +25,7 @@ struct nethandler *nh;
 int pfd[2];
 void setUp(void)
 {
-	nh = nh_init("lo", 16, NULL);
+	nh = nh_create_init("lo", 16, NULL);
 	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ);
 	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_B, DATA42SZ);
 	memset(data42, 0x42, DATA42SZ);
@@ -160,7 +160,7 @@ static void test_nh_add_cb_overflow(void)
 {
 	struct cb_priv cbp = { .fd = pfd[1], };
 	int (*cb)(void *priv_data, struct avtpdu_cshdr *du) = nh_std_cb;
-	struct nethandler *nh_small = nh_init("lo", 4, NULL);
+	struct nethandler *nh_small = nh_create_init("lo", 4, NULL);
 
 	TEST_ASSERT(nh_reg_callback(nh_small, 1, &cbp, cb) == 0);
 	TEST_ASSERT(nh_reg_callback(nh_small, 2, &cbp, cb) == 0);
@@ -191,15 +191,15 @@ static void test_create_tx_fifo(void)
 static void test_nh_standalone_create(void)
 {
 	TEST_ASSERT_NULL(_nh);
-	TEST_ASSERT(nh_init_standalone() == 0);
+	TEST_ASSERT(nh_create_init_standalone() == 0);
 	TEST_ASSERT_NOT_NULL(_nh);
-	TEST_ASSERT(nh_init_standalone() == -1);
+	TEST_ASSERT(nh_create_init_standalone() == -1);
 }
 
 static void test_nh_standalone_destroy(void)
 {
 	TEST_ASSERT_NULL(_nh);
-	TEST_ASSERT(nh_init_standalone() == 0);
+	TEST_ASSERT(nh_create_init_standalone() == 0);
 	nh_destroy_standalone();
 	TEST_ASSERT_NULL(_nh);
 }

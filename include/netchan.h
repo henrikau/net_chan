@@ -308,17 +308,17 @@ int pdu_read(struct netchan_avtp *du, void *data);
 int pdu_read_wait(struct netchan_avtp *du, void *data);
 
 /**
- * nh_init - initialize nethandler
+ * nh_create_init - create and initialize nethandler
  *
  * @param ifname: NIC to attach to
  * @param hmap_size: sizeof incoming frame hashmap
  *
  * @returns struct nethandler on success, NULL on error
  */
-struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile);
+struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile);
 
 /**
- * nh_init_standalone - create a standalone instance of nethandler
+ * nh_create_init_standalone - create and initialize a standalone instance of nethandler
  *
  * This creates a 'hidden' nethandler instance kept by the library. It
  * is intended to be used alongside the various macros (in particular
@@ -330,7 +330,7 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
  * @params : void
  * @returns: 0 on success, -1 on error
  */
-int nh_init_standalone(void);
+int nh_create_init_standalone(void);
 
 
 /**
@@ -431,7 +431,7 @@ int nh_add_rx(struct nethandler *nh, struct netchan_avtp *du);
 void nh_destroy(struct nethandler **nh);
 
 /**
- * nh_destroy_standalone: destroy singular nethandler created by nh_init_standalone()
+ * nh_destroy_standalone: destroy singular nethandler created by nh_create_init_standalone()
  *
  * @param void
  * @return: void
