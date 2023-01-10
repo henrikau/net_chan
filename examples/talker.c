@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 {
 	GET_ARGS();
 
-	NETFIFO_TX(mcast42);
+	NETCHAN_TX(mcast42);
 	usleep(10000);
 	running = 1;
 

@@ -24,7 +24,7 @@ void sighandler(int signum)
 int main(int argc, char *argv[])
 {
 	GET_ARGS();
-	NETFIFO_RX(mcast42);
+	NETCHAN_RX(mcast42);
 	usleep(10000);
 	running = 1;
 	signal(SIGINT, sighandler);

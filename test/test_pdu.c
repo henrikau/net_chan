@@ -104,7 +104,7 @@ static void test_create_standalone(void)
 
 	TEST_ASSERT(pdu_create_standalone(NULL, false, net_fifo_chans, nfc_sz) == NULL);
 	TEST_ASSERT(pdu_create_standalone("missing", false, net_fifo_chans, nfc_sz) == NULL);
-	NETFIFO_RX(missing);
+	NETCHAN_RX(missing);
 	TEST_ASSERT(missing_du == NULL);
 
 	struct netchan_avtp *pdu;
@@ -114,7 +114,7 @@ static void test_create_standalone(void)
 	pdu = pdu_create_standalone("test2", false, net_fifo_chans, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
 
-	NETFIFO_RX(test1);
+	NETCHAN_RX(test1);
 	TEST_ASSERT(test1_du != NULL);
 
 	/* Test pdu internals after macro creation */
@@ -178,7 +178,7 @@ static void test_add_anon_rx_pdu(void)
 static void test_pdu_send_now(void)
 {
 	uint64_t data = 0xa0a0a0a0;
-	NETFIFO_TX(test1);
+	NETCHAN_TX(test1);
 	TEST_ASSERT(test1_du->pdu.seqnr == 0xff);
 	TEST_ASSERT(test1_du->pdu.avtp_timestamp == htonl(0));
 

@@ -17,12 +17,12 @@
 #include <ptp_getclock.h>
 
 /* --------------------------
- * Main TimedC Macros
+ * Main NetChan Macros
  */
-#define NETFIFO_RX(x) struct netchan_avtp * x ## _du = \
+#define NETCHAN_RX(x) struct netchan_avtp * x ## _du = \
 		pdu_create_standalone(#x, 0, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
-#define NETFIFO_TX(x) struct netchan_avtp * x ## _du = \
+#define NETCHAN_TX(x) struct netchan_avtp * x ## _du = \
 		pdu_create_standalone(#x, 1, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
 
@@ -34,11 +34,11 @@
 #define CLEANUP() nh_destroy_standalone()
 
 /* Deprecated
- *    - Use NETFIFO_(R|T)X instad
+ *    - Use NETCHAN_(R|T)X instad
  */
-#define NETFIFO_TX_CREATE(x)						\
+#define NETCHAN_TX_CREATE(x)						\
 	nf_tx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
-#define NETFIFO_RX_CREATE(x)						\
+#define NETCHAN_RX_CREATE(x)						\
 	nf_rx_create((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
 
 
@@ -250,7 +250,7 @@ void pdu_destroy(struct netchan_avtp **pdu);
 int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data);
 
 /**
- * pdu_send : send payload of TimedC data unit
+ * pdu_send : send payload of netchan data unit
  *
  * This will extract the AVTP payload from the PDU and send it to the
  * correct destination MAC.
@@ -326,7 +326,7 @@ struct nethandler * nh_init(char *ifname, size_t hmap_size, const char *logfile)
  *
  * This creates a 'hidden' nethandler instance kept by the library. It
  * is intended to be used alongside the various macros (in particular
- * NETFIFO_(T|R)X_CREATE()) to hide away resource management etc.
+ * NETCHAN_(T|R)X_CREATE()) to hide away resource management etc.
  *
  * It will use the values stored in nf_nic (see nf_set_nic) and
  * nf_hmap_size.
@@ -422,7 +422,7 @@ int nh_get_num_rx(struct nethandler *nh);
  * remove single items, only when completely destroying the handler.
  *
  * @param: nh nethandler container
- * @param: du: new TimedC Data-unit
+ * @param: du: new NetChan Data-unit
  */
 int nh_add_tx(struct nethandler *nh, struct netchan_avtp *du);
 int nh_add_rx(struct nethandler *nh, struct netchan_avtp *du);

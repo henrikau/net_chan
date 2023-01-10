@@ -35,7 +35,7 @@ static void test_macro_nf_write(void)
 
 	uint64_t data = 0xa0a0a0a0;
 
-	NETFIFO_TX(macro11);
+	NETCHAN_TX(macro11);
 	WRITE(macro11, &data);
 
 	/* wait for frame to be received and processed by worker */
@@ -56,7 +56,7 @@ static void * txworker(void *d)
 
 static void test_macro_nf_read(void)
 {
-	NETFIFO_RX(macro11);
+	NETCHAN_RX(macro11);
 
 	uint64_t rxd = 0;
 	uint64_t txd = 0xdeadbeef;

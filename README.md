@@ -70,7 +70,7 @@ etc. Have a gander at [the talker](examples/talker.c) for the full example.
 ```C
 int main(int argc, char *argv[])
 {
-	NETFIFO_TX(mcast42);
+	NETCHAN_TX(mcast42);
 	for (int64_t i = 0; i < 10; i++) {
 		WRITE(mcast42, &i);
 		usleep(20000);
