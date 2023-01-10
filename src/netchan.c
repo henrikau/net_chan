@@ -383,7 +383,7 @@ struct netchan_avtp * pdu_create(struct nethandler *nh,
 		return NULL;
 
 	memset(pdu, 0, sizeof(*pdu));
-	pdu->pdu.subtype = AVTP_SUBTYPE_TIMEDC;
+	pdu->pdu.subtype = AVTP_SUBTYPE_NETCHAN;
 	pdu->pdu.stream_id = htobe64(stream_id);
 	pdu->pdu.sv = 1;
 	pdu->pdu.seqnr = 0xff;

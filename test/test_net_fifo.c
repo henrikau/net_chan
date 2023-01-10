@@ -173,7 +173,7 @@ static void test_create_netfifo_tx_send(void)
 
 	struct ether_header *hdr = (struct ether_header *)tgc.buffer;
 	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)(&tgc.buffer[0] + sizeof(*hdr));
-	TEST_ASSERT(cshdr->subtype == AVTP_SUBTYPE_TIMEDC);
+	TEST_ASSERT(cshdr->subtype == AVTP_SUBTYPE_NETCHAN);
 	TEST_ASSERT(be64toh(cshdr->stream_id) == 42);
 	TEST_ASSERT(hdr->ether_dhost[0] == net_fifo_chans[0].dst[0]);
 	TEST_ASSERT(hdr->ether_dhost[1] == net_fifo_chans[0].dst[1]);

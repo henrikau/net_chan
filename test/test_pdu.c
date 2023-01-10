@@ -76,8 +76,8 @@ static void test_pdu_update(void)
 	uint64_t *pl = (uint64_t *)pdu42->payload;
 	TEST_ASSERT(*pl == 0xdeadbeef);
 
-	TEST_ASSERT(pdu17->pdu.subtype == AVTP_SUBTYPE_TIMEDC);
-	TEST_ASSERT(pdu42->pdu.subtype == AVTP_SUBTYPE_TIMEDC);
+	TEST_ASSERT(pdu17->pdu.subtype == AVTP_SUBTYPE_NETCHAN);
+	TEST_ASSERT(pdu42->pdu.subtype == AVTP_SUBTYPE_NETCHAN);
 }
 
 static void test_pdu_get_payload(void)

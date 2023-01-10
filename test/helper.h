@@ -45,7 +45,7 @@ static inline int helper_send_8byte(int nfc_idx, uint64_t data)
 	struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)buffer;
 	uint64_t *d = (uint64_t *)(buffer + sizeof(*cshdr));
 
-	cshdr->subtype = AVTP_SUBTYPE_TIMEDC;
+	cshdr->subtype = AVTP_SUBTYPE_NETCHAN;
 	cshdr->stream_id = htobe64(net_fifo_chans[nfc_idx].stream_id);
 	*d = data;
 

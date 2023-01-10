@@ -105,8 +105,8 @@ struct net_fifo
 	char name[32];
 };
 
-/* Rename experimental type to TimedC subtype for now */
-#define AVTP_SUBTYPE_TIMEDC 0x7F
+/* Rename experimental type to NETCHAN subtype for now */
+#define AVTP_SUBTYPE_NETCHAN 0x7F
 
 /**
  * AVB Transport Protocol Data Unit Common Header
