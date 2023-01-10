@@ -13,11 +13,11 @@
 
 #define DATA17SZ 32
 char data17[DATA17SZ] = {0};
-struct timedc_avtp *pdu17;
+struct netchan_avtp *pdu17;
 
 #define DATA42SZ 8
 char data42[DATA42SZ] = {0};
-struct timedc_avtp *pdu42;
+struct netchan_avtp *pdu42;
 
 struct nethandler *nh;
 

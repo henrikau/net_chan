@@ -19,10 +19,10 @@
 /* --------------------------
  * Main TimedC Macros
  */
-#define NETFIFO_RX(x) struct timedc_avtp * x ## _du = \
+#define NETFIFO_RX(x) struct netchan_avtp * x ## _du = \
 		pdu_create_standalone(#x, 0, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
-#define NETFIFO_TX(x) struct timedc_avtp * x ## _du = \
+#define NETFIFO_TX(x) struct netchan_avtp * x ## _du = \
 		pdu_create_standalone(#x, 1, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
 
@@ -144,7 +144,7 @@ struct avtpdu_cshdr {
 	uint16_t fsd_3;
 } __attribute__((packed));
 
-struct timedc_avtp;
+struct netchan_avtp;
 struct nethandler;
 
 int nf_set_nic(char *nic);
@@ -196,7 +196,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
  *
  * @returns the new PDU or NULL upon failure.
  */
-struct timedc_avtp * pdu_create(struct nethandler *nh,
+struct netchan_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
 				enum stream_class sc,
@@ -216,7 +216,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
  *
  * @returns new pdu, NULL on error
  */
-struct timedc_avtp *pdu_create_standalone(char *name,
+struct netchan_avtp *pdu_create_standalone(char *name,
 					bool tx,
 					struct net_fifo *arr,
 					int arr_size);
@@ -227,14 +227,14 @@ struct timedc_avtp *pdu_create_standalone(char *name,
  * @param pdu AVTP dataunit
  * @returns pointer to payload
  */
-void * pdu_get_payload(struct timedc_avtp *pdu);
+void * pdu_get_payload(struct netchan_avtp *pdu);
 
 /**
  * pdu_destroy : clean up and destroy a pdu
  *
  * @param pdu: pointer to pdu
  */
-void pdu_destroy(struct timedc_avtp **pdu);
+void pdu_destroy(struct netchan_avtp **pdu);
 
 /**
  * pdu_update : take an existing PDU and update timestamp and data and make it ready for Tx
@@ -247,7 +247,7 @@ void pdu_destroy(struct timedc_avtp **pdu);
  *
  * @returns 0 on success, errno on failure.
  */
-int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data);
+int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data);
 
 /**
  * pdu_send : send payload of TimedC data unit
@@ -258,7 +258,7 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data);
  * @params: pdu
  * @returns: 0 on success negative value on error.
  */
-int pdu_send(struct timedc_avtp *pdu);
+int pdu_send(struct netchan_avtp *pdu);
 
 /**
  * pdu_send_now: update and send pdu *now*
@@ -271,7 +271,7 @@ int pdu_send(struct timedc_avtp *pdu);
  *
  * @return 0 on success, negative on error
  */
-int pdu_send_now(struct timedc_avtp *du, void *data);
+int pdu_send_now(struct netchan_avtp *du, void *data);
 
 /**
  * pdu_send_now_wait - update and send PDU, and wait for class delay
@@ -285,7 +285,7 @@ int pdu_send_now(struct timedc_avtp *du, void *data);
  *
  * @return 0 on success, negative on error
  */
-int pdu_send_now_wait(struct timedc_avtp *du, void *data);
+int pdu_send_now_wait(struct netchan_avtp *du, void *data);
 
 /**
  * pdu_read : read data from incoming pipe attached to DU
@@ -295,7 +295,7 @@ int pdu_send_now_wait(struct timedc_avtp *du, void *data);
  *
  * @return bytes received or -1 on error
  */
-int pdu_read(struct timedc_avtp *du, void *data);
+int pdu_read(struct netchan_avtp *du, void *data);
 
 /**
  * pdu_read_wait : read data from incoming pipe attached to DU and wait for class delay
@@ -309,7 +309,7 @@ int pdu_read(struct timedc_avtp *du, void *data);
  *
  * @return bytes received or -1 on error
  */
-int pdu_read_wait(struct timedc_avtp *du, void *data);
+int pdu_read_wait(struct netchan_avtp *du, void *data);
 
 /**
  * nh_init - initialize nethandler
@@ -424,8 +424,8 @@ int nh_get_num_rx(struct nethandler *nh);
  * @param: nh nethandler container
  * @param: du: new TimedC Data-unit
  */
-int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du);
-int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du);
+int nh_add_tx(struct nethandler *nh, struct netchan_avtp *du);
+int nh_add_rx(struct nethandler *nh, struct netchan_avtp *du);
 
 /**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.

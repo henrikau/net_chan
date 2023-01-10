@@ -83,7 +83,7 @@ struct tg_container {
 	bool received_ok;
 	int nf_idx;
 	unsigned char *expected_data;
-	struct timedc_avtp *source_du;
+	struct netchan_avtp *source_du;
 	char buffer[2048];
 };
 

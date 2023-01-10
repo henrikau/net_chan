@@ -74,10 +74,10 @@ union stream_id_wrapper {
  * @payload_size: num bytes for the payload
  * @payload: grows at the end of the struct
  */
-struct timedc_avtp
+struct netchan_avtp
 {
 	struct nethandler *nh;
-	struct timedc_avtp *next;
+	struct netchan_avtp *next;
 
 
 	bool running;
@@ -145,11 +145,11 @@ struct cb_entity {
 };
 
 struct nethandler {
-	struct timedc_avtp *du_tx_head;
-	struct timedc_avtp *du_tx_tail;
+	struct netchan_avtp *du_tx_head;
+	struct netchan_avtp *du_tx_tail;
 
-	struct timedc_avtp *du_rx_head;
-	struct timedc_avtp *du_rx_tail;
+	struct netchan_avtp *du_rx_head;
+	struct netchan_avtp *du_rx_tail;
 
 	/*
 	 * We have one Rx socket, but each datastream will have its own
@@ -325,7 +325,7 @@ const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, 
 
 void * nf_tx_worker(void *data)
 {
-	struct timedc_avtp *du = (struct timedc_avtp *)data;
+	struct netchan_avtp *du = (struct netchan_avtp *)data;
 	if (!du)
 		return NULL;
 
@@ -351,7 +351,7 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 {
 	if (verbose)
 		printf("%s(): starting netfifo Tx end\n", __func__);
-	struct timedc_avtp *du = pdu_create_standalone(name, 1, arr, arr_size);
+	struct netchan_avtp *du = pdu_create_standalone(name, 1, arr, arr_size);
 	if (!du)
 		return -1;
 
@@ -365,20 +365,20 @@ int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
 
 int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
-	struct timedc_avtp *du = pdu_create_standalone(name, 0, arr, arr_size);
+	struct netchan_avtp *du = pdu_create_standalone(name, 0, arr, arr_size);
 	if (!du)
 		return -1;
 
 	return du->fd_r;
 }
 
-struct timedc_avtp * pdu_create(struct nethandler *nh,
+struct netchan_avtp * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
 				enum stream_class sc,
 				uint16_t sz)
 {
-	struct timedc_avtp *pdu = malloc(sizeof(*pdu) + sz);
+	struct netchan_avtp *pdu = malloc(sizeof(*pdu) + sz);
 	if (!pdu)
 		return NULL;
 
@@ -412,7 +412,7 @@ struct timedc_avtp * pdu_create(struct nethandler *nh,
 	return pdu;
 }
 
-struct timedc_avtp *pdu_create_standalone(char *name,
+struct netchan_avtp *pdu_create_standalone(char *name,
 					bool tx_update,
 					struct net_fifo *arr,
 					int arr_size)
@@ -435,7 +435,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 
 	if (verbose)
 		printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
-	struct timedc_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size);
+	struct netchan_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size);
 	if (!du)
 		return NULL;
 
@@ -663,7 +663,7 @@ struct timedc_avtp *pdu_create_standalone(char *name,
 	return du;
 }
 
-void pdu_destroy(struct timedc_avtp **pdu)
+void pdu_destroy(struct netchan_avtp **pdu)
 {
 	if (!*pdu)
 		return;
@@ -720,7 +720,7 @@ void pdu_destroy(struct timedc_avtp **pdu)
 		printf("%s(): PDU destroyed\n", __func__);
 }
 
-int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
+int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data)
 {
 	if (!pdu)
 		return -ENOMEM;
@@ -735,7 +735,7 @@ int pdu_update(struct timedc_avtp *pdu, uint32_t ts, void *data)
 	return 0;
 }
 
-int pdu_send(struct timedc_avtp *du)
+int pdu_send(struct netchan_avtp *du)
 {
 	if (!du)
 		return -ENOMEM;
@@ -762,7 +762,7 @@ int pdu_send(struct timedc_avtp *du)
  *
  * ptp_target_delay_ns is adjusted for correct class
  */
-int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
+int64_t _delay(struct netchan_avtp *du, uint64_t ptp_target_delay_ns)
 {
 	/* Calculate delay
 	 * - take CLOCK_MONOTONIC ts and current PTP Time, find diff between the 2
@@ -822,7 +822,7 @@ int64_t _delay(struct timedc_avtp *du, uint64_t ptp_target_delay_ns)
 	return error_cpu_ns;
 }
 
-int _pdu_send_now(struct timedc_avtp *du, void *data, bool wait_class_delay)
+int _pdu_send_now(struct netchan_avtp *du, void *data, bool wait_class_delay)
 {
 	uint64_t ts_ns = get_ptp_ts_ns(du->nh->ptp_fd);
 	if (pdu_update(du, tai_to_avtp_ns(ts_ns), data)) {
@@ -852,17 +852,17 @@ int _pdu_send_now(struct timedc_avtp *du, void *data, bool wait_class_delay)
 	return res;
 }
 
-int pdu_send_now(struct timedc_avtp *du, void *data)
+int pdu_send_now(struct netchan_avtp *du, void *data)
 {
 	return _pdu_send_now(du, data, false);
 }
 
-int pdu_send_now_wait(struct timedc_avtp *du, void *data)
+int pdu_send_now_wait(struct netchan_avtp *du, void *data)
 {
 	return _pdu_send_now(du, data, true);
 }
 
-int _pdu_read(struct timedc_avtp *du, void *data, bool read_delay)
+int _pdu_read(struct netchan_avtp *du, void *data, bool read_delay)
 {
 	size_t rpsz = sizeof(struct pipe_meta) + du->payload_size;
 
@@ -918,17 +918,17 @@ int _pdu_read(struct timedc_avtp *du, void *data, bool read_delay)
 	return res;
 }
 
-int pdu_read(struct timedc_avtp *du, void *data)
+int pdu_read(struct netchan_avtp *du, void *data)
 {
 	return _pdu_read(du, data, false);
 }
 
-int pdu_read_wait(struct timedc_avtp *du, void *data)
+int pdu_read_wait(struct netchan_avtp *du, void *data)
 {
 	return _pdu_read(du, data, true);
 }
 
-void * pdu_get_payload(struct timedc_avtp *pdu)
+void * pdu_get_payload(struct netchan_avtp *pdu)
 {
 	if (!pdu)
 		return NULL;
@@ -1281,7 +1281,7 @@ void nf_stop_rx(struct nethandler *nh)
 	}
 }
 
-int _nh_get_len(struct timedc_avtp *head)
+int _nh_get_len(struct netchan_avtp *head)
 {
 	if (!head)
 		return 0;
@@ -1302,7 +1302,7 @@ int nh_get_num_rx(struct nethandler *nh)
 	return _nh_get_len(nh->du_rx_head);
 }
 
-int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du)
+int nh_add_tx(struct nethandler *nh, struct netchan_avtp *du)
 {
 	if (!nh || !du)
 		return -EINVAL;
@@ -1316,7 +1316,7 @@ int nh_add_tx(struct nethandler *nh, struct timedc_avtp *du)
 	return 0;
 }
 
-int nh_add_rx(struct nethandler *nh, struct timedc_avtp *du)
+int nh_add_rx(struct nethandler *nh, struct netchan_avtp *du)
 {
 	if (!nh || !du)
 		return -EINVAL;
@@ -1354,14 +1354,14 @@ void nh_destroy(struct nethandler **nh)
 
 		/* clean up TX PDUs */
 		while ((*nh)->du_tx_head) {
-			struct timedc_avtp *pdu = (*nh)->du_tx_head;
+			struct netchan_avtp *pdu = (*nh)->du_tx_head;
 			(*nh)->du_tx_head = (*nh)->du_tx_head->next;
 			pdu_destroy(&pdu);
 		}
 
 		/* clean up Rx PDUs */
 		while ((*nh)->du_rx_head) {
-			struct timedc_avtp *pdu = (*nh)->du_rx_head;
+			struct netchan_avtp *pdu = (*nh)->du_rx_head;
 			(*nh)->du_rx_head = (*nh)->du_rx_head->next;
 			pdu_destroy(&pdu);
 		}
