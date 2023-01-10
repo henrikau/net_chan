@@ -6,7 +6,7 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #include <timedc_args.h>
-#include <timedc_avtp.h>
+#include <netchan.h>
 
 error_t parser(int key, char *arg, struct argp_state *state)
 {

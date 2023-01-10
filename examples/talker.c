@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <timedc_avtp.h>
+#include <netchan.h>
 #include <timedc_args.h>
 
 #include "manifest.h"

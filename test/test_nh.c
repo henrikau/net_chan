@@ -9,7 +9,7 @@
  * include c directly (need access to internals) as common hides
  * internals (and we want to produce a single file for ktc later)
  */
-#include "../src/timedc_avtp.c"
+#include "../src/netchan.c"
 
 #define DATA17SZ 32
 char data17[DATA17SZ] = {0};

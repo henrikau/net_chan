@@ -6,7 +6,7 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #pragma once
-#include <timedc_avtp.h>
+#include <netchan.h>
 struct net_fifo net_fifo_chans[] = {
 	{
 		/* DEFAULT_MCAST */

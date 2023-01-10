@@ -1,5 +1,5 @@
 #pragma once
-#include <timedc_avtp.h>
+#include <netchan.h>
 
 struct net_fifo net_fifo_chans[] = {
 	{

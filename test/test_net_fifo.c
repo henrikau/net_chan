@@ -2,12 +2,12 @@
 #include "unity.h"
 #include "helper.h"
 #include "test_net_fifo.h"
-#include <timedc_avtp.h>
+#include <netchan.h>
 /*
  * include c directly (need access to internals) as common hides
  * internals (and we want to produce a single file for ktc later)
  */
-#include "../src/timedc_avtp.c"
+#include "../src/netchan.c"
 
 void tearDown(void)
 {

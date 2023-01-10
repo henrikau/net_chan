@@ -5,7 +5,7 @@
  * Public License, v. 2.0. If a copy of the MPL was not distributed
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
-#include <timedc_avtp.h>
+#include <netchan.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -65,7 +65,7 @@ union stream_id_wrapper {
 };
 
 /**
- * timedc_avtp - Container for fifo/lvchan over TSN/AVB
+ * netchan_avtp - Container for fifo/lvchan over TSN/AVB
  *
  * Internal bits including the payload itself that a channel will send
  * between tasks.
@@ -153,7 +153,7 @@ struct nethandler {
 
 	/*
 	 * We have one Rx socket, but each datastream will have its own
-	 * SRP context, look to timedc_avtp for SRP related fields.
+	 * SRP context, look to netchan_avtp for SRP related fields.
 	 */
 	int rx_sock;
 
@@ -758,7 +758,7 @@ int pdu_send(struct timedc_avtp *du)
 
 /*
  * ptp_target_delay_ns: absolute timestamp for PTP time to delay to
- * du: datauint for timedc internals (need access to PTP fd)
+ * du: data-unit for netchan internals (need access to PTP fd)
  *
  * ptp_target_delay_ns is adjusted for correct class
  */

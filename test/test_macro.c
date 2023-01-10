@@ -2,7 +2,7 @@
 #include "unity.h"
 #include "helper.h"
 #include "test_net_fifo.h"
-#include <timedc_avtp.h>
+#include <netchan.h>
 #include <pthread.h>
 
 void setUp(void)

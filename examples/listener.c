@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
-#include <timedc_avtp.h>
+#include <netchan.h>
 #include <timedc_args.h>
 
 #include "manifest.h"

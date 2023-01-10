@@ -1,8 +1,8 @@
 project(
- 'timedc_demo',
+ 'netchan',
  'c',
- version: '0.0.1',
- license: 'BSD-3-Clause',
+ version: '0.0.2',
+ license: 'MPL-2-Clause',
 )
 
 deps = dependency('threads')
@@ -25,8 +25,8 @@ mrplibso = library('mrp',
 			install: true
 		       )
 
-timedc_avtp = static_library('timedc_avtp',
-			     'src/timedc_avtp.c',
+netchan = static_library('netchan',
+			     'src/netchan.c',
 			     'src/ptp_getclock.c',
 			     'src/tracebuffer.c',
 			     'src/logger.c',
@@ -36,8 +36,8 @@ timedc_avtp = static_library('timedc_avtp',
 			install: true
 		       )
 
-timedc_avtpso = library('timedc_avtp',
-				'src/timedc_avtp.c',
+netchan_so = library('netchan',
+				'src/netchan.c',
 				'src/ptp_getclock.c',
 				'src/tracebuffer.c',
 				'src/logger.c',
@@ -47,7 +47,7 @@ timedc_avtpso = library('timedc_avtp',
 				install: true
 			       )
 
-install_headers(['include/timedc_avtp.h', 'include/ptp_getclock.h'])
+install_headers(['include/netchan.h', 'include/ptp_getclock.h'])
 install_subdir('include/srp', install_dir: 'include/')
 
 executable(
@@ -57,7 +57,7 @@ executable(
    include_directories: include_directories('include'),
    build_by_default: true,
 	dependencies: deps,
-   link_with : [timedc_avtp, mrplib])
+   link_with : [netchan, mrplib])
 
 executable(
    'listener',
@@ -66,9 +66,9 @@ executable(
    include_directories: include_directories('include'),
    build_by_default: true,
 	dependencies: deps,
-   link_with : timedc_avtp)
+   link_with : netchan)
 
-# includes timedc_avtp.c directly to test internals
+# includes netchan.c directly to test internals
 t_pdu = executable('testpdu',
 	       'test/test_pdu.c',
 	       'src/ptp_getclock.c',
@@ -82,7 +82,7 @@ t_pdu = executable('testpdu',
 	       dependencies: deps
 	      )
 
-# includes timedc_avtp.c directly to test internals
+# includes netchan.c directly to test internals
 t_nh = executable('testprog',
 	       'test/test_nh.c',
 	       'src/ptp_getclock.c',
@@ -96,7 +96,7 @@ t_nh = executable('testprog',
 	       dependencies: deps
 	      )
 
-# includes timedc_avtp.c directly to test internals
+# includes netchan.c directly to test internals
 t_net_fifo = executable('testnetfifo',
 	       'test/test_net_fifo.c',
 	       'src/ptp_getclock.c',
@@ -116,7 +116,7 @@ t_nf_macro = executable('testnfmacro',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
 	       dependencies: deps,
-	       link_with : timedc_avtp)
+	       link_with : netchan)
 
 t_mrp =  executable('testmrp',
 	       'test/test_mrp.c',

@@ -43,7 +43,7 @@ struct net_fifo net_fifo_chans[] = {
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x02, 0x42},
 		.stream_id = 42,
-		.class	   = CLASS_A,
+		.cs 	   = CLASS_A,
 		.size      =  8,
 		.freq      = 50,
 		.name      = "mcast42",
@@ -153,7 +153,7 @@ Full log written to /home/henrikau/dev/net_chan/build/meson-logs/testlog.txt
 
 The system builds 2 static libraries, one of which is a slightly
 modified version of AvNUs mrp-client. This is kept separate to avoid
-licensing issues. The other librarly (libtimedc_avtp.a) contains the
+licensing issues. The other librarly (libnetchan.a) contains the
 net_chan functionality.
 
 The headers, apart from definig functions and #defines, also contains a
