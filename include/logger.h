@@ -6,6 +6,10 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <netchan.h>
 #include <inttypes.h>
 
@@ -92,3 +96,6 @@ void log_delay(struct logc *logc,
 	uint64_t ptp_target_ns,
 	uint64_t cpu_target_ns,
 	uint64_t cpu_actual_ns);
+#ifdef __cplusplus
+}
+#endif

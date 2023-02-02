@@ -6,6 +6,10 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
@@ -437,3 +441,7 @@ void nh_destroy(struct nethandler **nh);
  * @return: void
  */
 void nh_destroy_standalone();
+
+#ifdef __cplusplus
+}
+#endif

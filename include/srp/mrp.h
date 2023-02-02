@@ -30,6 +30,9 @@
   POSSIBILITY OF SUCH DAMAGE.
 
 ******************************************************************************/
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* control debug logging output on stdout */
 #define LOG_MRP 0
@@ -245,4 +248,7 @@ char *mrp_send_string(int s);
 char *mrp_pdu_string(int s);
 char *mrp_print_status(const mrp_applicant_attribute_t * app,
 		       const mrp_registrar_attribute_t * reg);
+#endif
+#ifdef __cplusplus
+}
 #endif

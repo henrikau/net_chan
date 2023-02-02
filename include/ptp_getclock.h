@@ -6,6 +6,10 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <inttypes.h>
 #include <time.h>
 
@@ -43,3 +47,6 @@ static inline void ts_normalize(struct timespec *ts)
 		ts->tv_sec++;
 	}
 }
+#ifdef __cplusplus
+}
+#endif

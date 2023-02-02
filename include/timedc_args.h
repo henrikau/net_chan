@@ -6,6 +6,10 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <argp.h>
 
 static struct argp_option options[] = {
@@ -29,3 +33,6 @@ static struct argp argp __attribute__((unused)) = {
 	.parser = parser};
 
 #define GET_ARGS() argp_parse(&argp, argc, argv, 0, NULL, NULL)
+#ifdef __cplusplus
+}
+#endif

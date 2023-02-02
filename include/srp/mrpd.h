@@ -33,6 +33,9 @@
 /*
  * an endpoint implementation of 802.1Q-2011 MRP (MMRP, MVRP, MSRP)
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Operating specific defines */
 #if defined WIN32
@@ -134,3 +137,6 @@ int mrpd_close_socket(SOCKET sock);
 int mrpd_recvmsgbuf(SOCKET sock, char **buf);
 
 void mrpd_log_printf(const char *fmt, ...);
+#ifdef __cplusplus
+}
+#endif

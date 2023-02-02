@@ -32,6 +32,9 @@
 
 #ifndef EUI64SET_H_
 #define EUI64SET_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 
@@ -142,3 +145,6 @@ const struct eui64set_entry *eui64set_find(const struct eui64set *self,
 int eui64set_remove_and_sort(struct eui64set *self, uint64_t value);
 
 #endif				/* EUI64SET_H_ */
+#ifdef __cplusplus
+}
+#endif

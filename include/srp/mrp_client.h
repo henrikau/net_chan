@@ -29,6 +29,10 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,3 +102,6 @@ int mrp_advertise_stream(uint8_t * streamid, uint8_t * destaddr, int pktsz, int 
 int mrp_unadvertise_stream(uint8_t * streamid, uint8_t * destaddr, int pktsz, int interval, int latency, struct mrp_ctx *ctx);
 int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx);
 int mrp_talker_client_init(struct mrp_ctx *ctx);
+#ifdef __cplusplus
+}
+#endif
