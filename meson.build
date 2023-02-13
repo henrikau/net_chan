@@ -47,7 +47,7 @@ netchan_so = library('netchan',
 				install: true
 			       )
 
-install_headers(['include/netchan.h', 'include/ptp_getclock.h'])
+install_headers(['include/netchan.h', 'include/netchan.hpp', 'include/ptp_getclock.h'])
 install_subdir('include/srp', install_dir: 'include/')
 
 executable(
