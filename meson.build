@@ -1,8 +1,9 @@
 project(
  'netchan',
  'c',
- version: '0.0.2',
+ version: '0.0.3',
  license: 'MPL-2-Clause',
+ default_options: ['-Wall -pedantic -std=c11 -Werror'],
 )
 
 deps = dependency('threads')
