@@ -1,7 +1,7 @@
 project(
  'netchan',
  'c',
- version: '0.0.3',
+ version: '0.1.2',
  license: 'MPL-2-Clause',
  default_options: ['-Wall -pedantic -std=c11 -Werror'],
 )
