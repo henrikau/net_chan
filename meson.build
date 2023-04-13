@@ -131,3 +131,44 @@ test('nh test', t_nh)
 test('nh net fifo', t_net_fifo)
 test('nh macro', t_nf_macro)
 test('mrp', t_mrp)
+
+# Generate documentation if doxygen is available.
+doxygen = find_program('doxygen', required: false)
+if doxygen.found()
+  message('Doxygen found')
+  src_doxygen = files(
+    join_paths(meson.source_root(), 'src', 'netchan.c'),
+    join_paths(meson.source_root(), 'include', 'logger.h'),
+    join_paths(meson.source_root(), 'include', 'netchan.h')
+  )
+
+  doc_config = configuration_data()
+  doc_config.set('PACKAGE_NAME', meson.project_name())
+  doc_config.set('PACKAGE_VERSION', meson.project_version())
+  doc_config.set('builddir', meson.current_build_dir())
+
+  config_noop = configuration_data()
+  config_noop.set('dummy', 'dummy')
+  doxyfiles = []
+  foreach f : src_doxygen
+	    df = configure_file(input: f,
+				output: '@PLAINNAME@',
+				configuration: config_noop,
+				install: false)
+	    doxyfiles += [ df ]
+  endforeach
+
+  doxyfile = configure_file(input : 'doxygen.in',
+			    output: 'doxygen.out',
+			    configuration: doc_config,
+			    install: false)
+
+  custom_target('doxygen',
+	       input : [doxyfiles, doxyfile] + src_doxygen,
+	       output : ['.'],
+	       command: [doxygen, doxyfile ],
+	       install: false,
+	       build_by_default: true)
+else
+  warning('Docoumentation disabled without doxygen.')
+endif

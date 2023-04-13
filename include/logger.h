@@ -9,12 +9,23 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/**
+ * 
+ */
 
 #include <netchan.h>
 #include <inttypes.h>
 
 /**
- * timedC logger
+ * \package logger
+ * timedC logger - real-time safe(-ish) logging infrastructure.
+ *
+ * This module will allocate a fairly large buffer containing StreamID, seqnr and various timestamps.
+ * Once a package is received, a new entry in buffer is updated but \b not written to file.
+ * Only when the logger is closed down will the data (up to an upper limit defined internally in logger) actually be written to file.
+ *
+ * logger will create a csv-file using stream_id, frame-size, seqnr and timestamps.
+ * Depending on wether or not the current entry is for a talker or listener, some of the timestamp fields will not be set, in which case they will be set to 0.
  *
  * Format:
  * <common>
@@ -30,6 +41,7 @@ extern "C" {
  * <listener>
  * rx_ns: 64bit timestamp when packet received (preferrably with HW ts)
  * recv_ptp_ns: 64 bit PTP timestamp when frame has entered application via recvmsg()
+ *
  */
 struct logc;
 

@@ -5,6 +5,16 @@
  * Public License, v. 2.0. If a copy of the MPL was not distributed
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
+/**
+ * \package netchan
+ *
+ * Reliable, or deterministic **network channel** (*net_chan*) is a logical
+ * construct that can be added to a distributed system to provide
+ * deterministic and reliable connections. The core idea is to make it
+ * simple to express the traffic for a channel in a concise, provable
+ * manner and provide constructs for creating and using the channels.
+ */
+
 #pragma once
 #ifdef __cplusplus
 extern "C" {
