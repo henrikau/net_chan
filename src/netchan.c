@@ -323,46 +323,6 @@ const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, 
 	return &arr[idx];
 }
 
-void * nf_tx_worker(void *data)
-{
-	struct netchan_avtp *du = (struct netchan_avtp *)data;
-	if (!du)
-		return NULL;
-
-	char *buf = malloc(du->payload_size);
-	if (!buf)
-		return NULL;
-	while (du->running) {
-
-		int sz = read(du->fd_r, buf, du->payload_size);
-		if (sz == -1) {
-			perror("Failed reading data from pipe");
-			continue;
-		}
-		if (pdu_send_now(du, buf) == -1)
-			perror("failed sending data!");
-	}
-
-	free(buf);
-	return NULL;
-}
-
-int nf_tx_create(char *name, struct net_fifo *arr, int arr_size)
-{
-	if (verbose)
-		printf("%s(): starting netfifo Tx end\n", __func__);
-	struct netchan_avtp *du = pdu_create_standalone(name, 1, arr, arr_size);
-	if (!du)
-		return -1;
-
-	/* start thread to block on fd_r, return fd_w */
-	du->running = true;
-	pthread_create(&du->tx_tid, NULL, nf_tx_worker, du);
-	if (verbose)
-		printf("%s(): thread spawned (tid=%ld), ready to send data\n", __func__, du->tx_tid);
-	return du->fd_w;
-}
-
 int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
 	struct netchan_avtp *du = pdu_create_standalone(name, 0, arr, arr_size);
