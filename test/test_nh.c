@@ -21,6 +21,9 @@ struct netchan_avtp *pdu42;
 
 struct nethandler *nh;
 
+static void *cb_data = NULL;
+static void *cb_pdu = NULL;
+
 /* PIPE callback */
 int pfd[2];
 void setUp(void)
@@ -45,11 +48,11 @@ void tearDown(void)
 	close(pfd[1]);
 
 	nh_destroy_standalone();
+	cb_data = NULL;
+	cb_pdu = NULL;
 }
 
 
-static void *cb_data = NULL;
-static void *cb_pdu = NULL;
 
 int nh_callback(void *data, struct avtpdu_cshdr *du)
 {
