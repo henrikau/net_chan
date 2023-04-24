@@ -420,16 +420,8 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 	}
 
 	/* SRP common setup */
-	if (do_srp) {
-		du->ctx = malloc(sizeof(*du->ctx));
-		du->class_a = malloc(sizeof(*du->class_a));
-		du->class_b = malloc(sizeof(*du->class_b));
-		if (!du->ctx || !du->class_a || !du->class_b) {
-			fprintf(stderr, "%s(): memory allocation for SRP structs failed\n", __func__);
-			pdu_destroy(&du);
-			return NULL;
-		}
-	}
+	if (do_srp)
+		srp_client_setup(du);
 
 	/* if tx, create socket  */
 	if (tx_update) {
@@ -628,27 +620,9 @@ void pdu_destroy(struct netchan_avtp **pdu)
 	if (!*pdu)
 		return;
 	printf("%s(): destroying pdu\n", __func__);
-	/* FIXME: Rx SRP cleanup */
-	if (do_srp) {
-		if ((*pdu)->tx_sock != -1) {
-			int res = mrp_unadvertise_stream((*pdu)->sidw.s8, (*pdu)->dst, 84, 1,
-						3900, (*pdu)->ctx);
-			if (verbose)
-				printf("%s(): unadvertise stream %s\n", __func__, res == 0 ? "OK" : "FAILED");
-		} else {
-			send_leave((*pdu)->ctx);
-		}
-		int res = mrp_disconnect((*pdu)->ctx);
-		if (verbose)
-			printf("%s(): MRP disconnect stream %s\n", __func__, res == -1 ? "FAILED" : "OK");
 
-		if ((*pdu)->ctx)
-			free((*pdu)->ctx);
-		if ((*pdu)->class_a)
-			free((*pdu)->class_a);
-		if ((*pdu)->class_b)
-			free((*pdu)->class_b);
-	}
+	if (do_srp)
+		srp_client_destroy(*pdu);
 
 	/* close down tx-threads */
 	if ((*pdu)->tx_tid > 0) {
@@ -796,17 +770,11 @@ int _pdu_send_now(struct netchan_avtp *du, void *data, bool wait_class_delay)
 		log_tx(du->nh->logger, &du->pdu, ts_ns, ts_ns);
 
 	int res = pdu_send(du);
-
 	int err_ns = 150000;
+
+	ts_ns += get_class_delay_bound_ns(du);
 	while (wait_class_delay && err_ns > 50000) {
-		switch (du->sc) {
-		case CLASS_A:
-			err_ns = _delay(du, ts_ns + 2*NS_IN_MS);
-			break;
-		case CLASS_B:
-			err_ns = _delay(du, ts_ns + 50*NS_IN_MS);
-			break;
-		}
+		err_ns = _delay(du, ts_ns);
 	}
 
 	return res;
@@ -1336,4 +1304,63 @@ void nh_destroy_standalone()
 {
 	if (_nh)
 		nh_destroy(&_nh);
+}
+
+
+bool srp_client_setup(struct netchan_avtp *pdu)
+{
+	pdu->ctx = malloc(sizeof(*pdu->ctx));
+	pdu->class_a = malloc(sizeof(*pdu->class_a));
+	pdu->class_b = malloc(sizeof(*pdu->class_b));
+
+	if (!pdu->ctx || !pdu->class_a || !pdu->class_b) {
+		fprintf(stderr, "%s(): memory allocation for SRP structs failed\n", __func__);
+		return false;
+	}
+	return true;
+}
+
+void srp_client_destroy(struct netchan_avtp *pdu)
+{
+	if (!pdu)
+		return;
+
+	if (pdu->tx_sock != -1) {
+		int pktsz = pdu->payload_size + 22 + 20 + sizeof(struct ether_addr);
+		int interval = 125000/125000;
+		int res = mrp_unadvertise_stream(pdu->sidw.s8, pdu->dst,
+						pktsz,
+						interval,
+						3900, pdu->ctx);
+		if (verbose)
+			printf("%s(): unadvertise stream %s\n", __func__, res == 0 ? "OK" : "FAILED");
+
+	} else {
+		send_leave(pdu->ctx);
+	}
+
+	int res = mrp_disconnect(pdu->ctx);
+	if (verbose)
+		printf("%s(): MRP disconnect stream %s\n", __func__, res == -1 ? "FAILED" : "OK");
+
+	if (pdu->ctx)
+		free(pdu->ctx);
+	if (pdu->class_a)
+		free(pdu->class_a);
+	if (pdu->class_b)
+		free(pdu->class_b);
+}
+
+uint64_t get_class_delay_bound_ns(struct netchan_avtp *du)
+{
+	if (!du)
+		return 0;
+	switch (du->sc) {
+	case CLASS_A:
+		return 2*NS_IN_MS;
+	case CLASS_B:
+		return 50*NS_IN_MS;
+	default:
+		return 0;
+	}
 }
