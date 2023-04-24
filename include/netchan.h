@@ -56,8 +56,6 @@ extern "C" {
  * bit to low order 23)
  */
 #define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
-#define CLASS_A_DEFAULT_WAIT_MS 1000
-#define CLASS_B_DEFAULT_WAIT_MS 50
 
 enum {
 	DEFAULT_CLASS_A_PRIO = 3,
