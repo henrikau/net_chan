@@ -12,34 +12,34 @@ error_t parser(int key, char *arg, struct argp_state *state)
 {
       switch (key) {
       case 'D':
-	      nf_keep_cstate();
+	      nc_keep_cstate();
 	      break;
       case 'i':
-	      nf_set_nic(arg);
+	      nc_set_nic(arg);
 	      break;
       case 'l':
-	      nf_set_logfile(arg);
+	      nc_set_logfile(arg);
 	      break;
       case 'L':
-	      nf_log_delay();
+	      nc_log_delay();
 	      break;
       case 's':
-	      nf_set_hmap_size(atoi(arg));
+	      nc_set_hmap_size(atoi(arg));
 	      break;
       case 'S':
-	      nf_use_srp();
+	      nc_use_srp();
 	      break;
       case 't':
-	      nf_use_ftrace();
+	      nc_use_ftrace();
 	      break;
       case 'b':
-	      nf_breakval(atoi(arg));
+	      nc_breakval(atoi(arg));
 	      break;
       case 'T':
-	      nf_use_termtag(arg);
+	      nc_use_termtag(arg);
 	      break;
       case 'v':
-	      nf_verbose();
+	      nc_verbose();
 	      break;
        }
 

@@ -142,61 +142,61 @@ static bool keep_cstate = false;
 static bool use_tracebuffer = false;
 static int break_us = -1;
 static bool verbose = false;
-static char nf_nic[IFNAMSIZ] = {0};
+static char nc_nic[IFNAMSIZ] = {0};
 static bool enable_logging = false;
 static bool enable_delay_logging = false;
-static char nf_logfile[129] = {0};
-static char nf_termdevice[129] = {0};
-static int nf_hmap_size = 42;
+static char nc_logfile[129] = {0};
+static char nc_termdevice[129] = {0};
+static int nc_hmap_size = 42;
 
-int nf_set_nic(char *nic)
+int nc_set_nic(char *nic)
 {
-	strncpy(nf_nic, nic, IFNAMSIZ-1);
+	strncpy(nc_nic, nic, IFNAMSIZ-1);
 	if (verbose)
-		printf("%s(): set nic to %s\n", __func__, nf_nic);
+		printf("%s(): set nic to %s\n", __func__, nc_nic);
 	return 0;
 }
 
-void nf_keep_cstate()
+void nc_keep_cstate()
 {
 	keep_cstate = true;
 	if (verbose)
 		printf("%s(): keep CSTATE (probably bad for RT!)\n", __func__);
 }
 
-void nf_set_hmap_size(int sz)
+void nc_set_hmap_size(int sz)
 {
-	nf_hmap_size = sz;
+	nc_hmap_size = sz;
 }
-void nf_use_srp(void)
+void nc_use_srp(void)
 {
 	do_srp = true;
 }
-void nf_use_ftrace(void)
+void nc_use_ftrace(void)
 {
 	use_tracebuffer = true;
 }
-void nf_breakval(int b_us)
+void nc_breakval(int b_us)
 {
 	if (b_us > 0 && b_us < 1000000)
 		break_us = b_us;
 }
 
-void nf_verbose(void)
+void nc_verbose(void)
 {
 	verbose = true;
 }
 
-void nf_set_logfile(const char *logfile)
+void nc_set_logfile(const char *logfile)
 {
-	strncpy(nf_logfile, logfile, 128);
+	strncpy(nc_logfile, logfile, 128);
 	enable_logging = true;
 	if (verbose) {
-		printf("%s(): set logfile to %s\n", __func__, nf_logfile);
+		printf("%s(): set logfile to %s\n", __func__, nc_logfile);
 	}
 }
 
-void nf_use_termtag(const char *devpath)
+void nc_use_termtag(const char *devpath)
 {
 	if (!devpath || strlen(devpath) <= 0)
 		return;
@@ -212,14 +212,14 @@ void nf_use_termtag(const char *devpath)
 		return;
 	}
 
-	strncpy(nf_termdevice, devpath, 128);
+	strncpy(nc_termdevice, devpath, 128);
 }
-void nf_log_delay(void)
+void nc_log_delay(void)
 {
 	enable_delay_logging = true;
 }
 
-int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
+int nc_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 {
 	for (int i = 0; i < arr_size; i++) {
 		if (strncmp(name, arr[i].name, 32) == 0)
@@ -228,11 +228,11 @@ int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
 	return -1;
 }
 
-struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_size)
+struct net_fifo * nc_get_chan(char *name, const struct net_fifo *arr, int arr_size)
 {
 	if (!name || !arr || arr_size < 1)
 		return NULL;
-	int idx = nf_get_chan_idx(name, arr, arr_size);
+	int idx = nc_get_chan_idx(name, arr, arr_size);
 	if (idx == -1)
 		return NULL;
 
@@ -243,18 +243,18 @@ struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_si
 	return nf;
 }
 
-const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size)
+const struct net_fifo * nc_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size)
 {
 	if (!name || !arr || arr_size < 1)
 		return NULL;
-	int idx = nf_get_chan_idx(name, arr, arr_size);
+	int idx = nc_get_chan_idx(name, arr, arr_size);
 	if (idx == -1)
 		return NULL;
 
 	return &arr[idx];
 }
 
-int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
+int nc_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
 	struct channel *du = pdu_create_standalone(name, 0, arr, arr_size);
 	if (!du)
@@ -373,9 +373,9 @@ struct channel *pdu_create_standalone(char *name,
 	}
 
 	if (verbose)
-		printf("%s(): nic: %s\n", __func__, nf_nic);
+		printf("%s(): nic: %s\n", __func__, nc_nic);
 
-	int idx = nf_get_chan_idx(name, arr, arr_size);
+	int idx = nc_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
 		return NULL;
 
@@ -912,8 +912,8 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	 */
 	nh->link_speed = _get_link_speed_Mbps(nh->rx_sock, nh->ifname) * 1e6;
 
-	/* if (strlen(nf_termdevice) > 0) */
-	/* 	nh->ttys = term_open(nf_termdevice); */
+	/* if (strlen(nc_termdevice) > 0) */
+	/* 	nh->ttys = term_open(nc_termdevice); */
 
 	return nh;
 }
@@ -923,7 +923,7 @@ int nh_create_init_standalone(void)
 	/* avoid double-create */
 	if (_nh != NULL)
 		return -1;
-	_nh = nh_create_init(nf_nic, nf_hmap_size, nf_logfile);
+	_nh = nh_create_init(nc_nic, nc_hmap_size, nc_logfile);
 	if (_nh)
 		return 0;
 	return -1;
@@ -1130,7 +1130,7 @@ int nh_start_rx(struct nethandler *nh)
 	return 0;
 }
 
-void nf_stop_rx(struct nethandler *nh)
+void nh_stop_rx(struct nethandler *nh)
 {
 	if (nh && nh->running) {
 		nh->running = false;
@@ -1202,7 +1202,7 @@ void nh_destroy(struct nethandler **nh)
 			close((*nh)->dma_lat_fd);
 
 
-		nf_stop_rx(*nh);
+		nh_stop_rx(*nh);
 
 		if (enable_logging) {
 			log_close_fp((*nh)->logger);

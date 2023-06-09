@@ -213,6 +213,6 @@ sudo ./daemons/mrpd/mrpd -i enp2s0 -mvs
 #### Enabling SRP
 To instruct net_chan to attach to the srp daemon and reserve bandwidth
 and buffers, the startup-section of your code must contain calls to
-```nf_use_srp();```. This will cause net_chan to hook into the
+```nc_use_srp();```. This will cause net_chan to hook into the
 mrp-client library and ensure that the stream is properly protected. In
 a network with other noise, this has a very noticable effect.

@@ -22,17 +22,17 @@ static void test_arr_size(void)
 
 static void test_arr_idx(void)
 {
-	TEST_ASSERT(nf_get_chan_idx("test1", net_fifo_chans, ARRAY_SIZE(net_fifo_chans)) == 0);
-	TEST_ASSERT(nf_get_chan_idx("test2", net_fifo_chans, nfc_sz) == 1);
-	TEST_ASSERT(nf_get_chan_idx("missing", net_fifo_chans, nfc_sz) == -1);
+	TEST_ASSERT(nc_get_chan_idx("test1", net_fifo_chans, ARRAY_SIZE(net_fifo_chans)) == 0);
+	TEST_ASSERT(nc_get_chan_idx("test2", net_fifo_chans, nfc_sz) == 1);
+	TEST_ASSERT(nc_get_chan_idx("missing", net_fifo_chans, nfc_sz) == -1);
 
-	TEST_ASSERT(NF_CHAN_IDX("test2") == 1);
-	TEST_ASSERT(NF_CHAN_IDX("missing") == -1);
+	TEST_ASSERT(NC_CHAN_IDX("test2") == 1);
+	TEST_ASSERT(NC_CHAN_IDX("missing") == -1);
 
 	TEST_ASSERT_NULL_MESSAGE(NULL, "Should be null");
-	struct net_fifo *nf = NF_GET("missing");
+	struct net_fifo *nf = NC_GET("missing");
 	TEST_ASSERT_NULL_MESSAGE(nf, "nf should be null when name of net_fifo is not available");
-	nf = NF_GET("test1");
+	nf = NC_GET("test1");
 	TEST_ASSERT_NOT_NULL_MESSAGE(nf, "nf should *not* be null when name ('test1') of net_fifo is available");
 	TEST_ASSERT_MESSAGE(strncmp(nf->name, "test1", 5) == 0, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
@@ -46,9 +46,9 @@ static void test_arr_idx(void)
 
 static void test_arr_get_ref(void)
 {
-	TEST_ASSERT_NULL_MESSAGE(NF_GET_REF("missing"), "should not get ref to missing net_fifo");
+	TEST_ASSERT_NULL_MESSAGE(NC_GET_REF("missing"), "should not get ref to missing net_fifo");
 
-	const struct net_fifo *nf = NF_GET_REF("test1");
+	const struct net_fifo *nf = NC_GET_REF("test1");
 	TEST_ASSERT_NOT_NULL_MESSAGE(nf, "nf should *not* be null when name ('test1') of net_fifo is available");
 	TEST_ASSERT_MESSAGE(nf == &(net_fifo_chans[0]), "Expected ref, not copy!");
 
@@ -61,7 +61,7 @@ static void test_arr_get_ref(void)
 
 struct tg_container {
 	bool received_ok;
-	int nf_idx;
+	int nc_idx;
 	unsigned char *expected_data;
 	struct channel *source_du;
 	char buffer[2048];
@@ -70,9 +70,9 @@ struct tg_container {
 static void test_create_netfifo_rx_pipe_ok(void)
 {
 	/* NETCHAN_RX() tested in test_pdu */
-	int r = nf_rx_create("missing", net_fifo_chans, nfc_sz);
+	int r = nc_rx_create("missing", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(r==-1);
-	r = nf_rx_create("test1", net_fifo_chans, nfc_sz);
+	r = nc_rx_create("test1", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(r>=0);
 
 	uint64_t data = 0xdeadbeef;
@@ -86,7 +86,7 @@ static void test_create_netfifo_rx_pipe_ok(void)
 static void test_create_netfifo_rx_send_ok(void)
 {
 	/* Create listening socket and pipe-pair */
-	int r = nf_rx_create("test1", net_fifo_chans, nfc_sz);
+	int r = nc_rx_create("test1", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(r > 0);
 
 	uint64_t data = 0xdeadbeef;
@@ -102,7 +102,7 @@ static void test_create_netfifo_rx_send_ok(void)
 
 static void test_create_netfifo_rx_recv(void)
 {
-	int rxchan = nf_rx_create("test2", net_fifo_chans, nfc_sz);
+	int rxchan = nc_rx_create("test2", net_fifo_chans, nfc_sz);
 	TEST_ASSERT(rxchan != -1);
 
 	uint64_t data = 0x0a0a0a0a;
@@ -122,7 +122,7 @@ static void test_create_netfifo_rx_recv(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
-	nf_set_nic("lo");
+	nc_set_nic("lo");
 
 	RUN_TEST(test_arr_size);
 	RUN_TEST(test_arr_idx);

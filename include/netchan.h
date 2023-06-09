@@ -247,37 +247,40 @@ struct channel
 	uint64_t interval_ns;
 	uint64_t next_tx_ns;
 
+	/* The currently active packet entering/leaving is tacked onto
+	 * the end, payload is of size '->payload_size'
+	 */
 	struct avtpdu_cshdr pdu;
 	unsigned char payload[0];
 };
+
 struct nethandler;
 
-
-int nf_set_nic(char *nic);
-void nf_keep_cstate();
-void nf_set_hmap_size(int sz);
-void nf_use_srp(void);
-void nf_use_ftrace(void);
-void nf_breakval(int break_us);
-void nf_verbose(void);
-void nf_use_termtag(const char *devpath);
-void nf_set_logfile(const char *logfile);
-void nf_log_delay(void);
+int nc_set_nic(char *nic);
+void nc_keep_cstate();
+void nc_set_hmap_size(int sz);
+void nc_use_srp(void);
+void nc_use_ftrace(void);
+void nc_breakval(int break_us);
+void nc_verbose(void);
+void nc_use_termtag(const char *devpath);
+void nc_set_logfile(const char *logfile);
+void nc_log_delay(void);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
 /* Get idx of a channel based on the name
  */
-int nf_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
-#define NF_CHAN_IDX(x) (nf_get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+int nc_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
+#define NC_CHAN_IDX(x) (nc_get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
-struct net_fifo * nf_get_chan(char *name, const struct net_fifo *arr, int arr_size);
-const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size);
+struct net_fifo * nc_get_chan(char *name, const struct net_fifo *arr, int arr_size);
+const struct net_fifo * nc_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size);
 
-int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
+int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
 
-#define NF_GET(x) (nf_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
-#define NF_GET_REF(x) (nf_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+#define NC_GET(x) (nc_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+#define NC_GET_REF(x) (nc_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
 /**
  * pdu_create - create and initialize a new PDU.
@@ -434,8 +437,8 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
  * is intended to be used alongside the various macros (in particular
  * NETCHAN_(T|R)X_CREATE()) to hide away resource management etc.
  *
- * It will use the values stored in nf_nic (see nf_set_nic) and
- * nf_hmap_size.
+ * It will use the values stored in nc_nic (see nc_set_nic) and
+ * nc_hmap_size.
  *
  * @params : void
  * @returns: 0 on success, -1 on error
@@ -507,7 +510,7 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *du,
  * @returns 0 on success, negative on error
  */
 int nh_start_rx(struct nethandler *nh);
-void nf_stop_rx(struct nethandler *nh);
+void nh_stop_rx(struct nethandler *nh);
 
 /**
  * nh_get_num_(tx|rx) : get the number of Tx or Rx pipes registred

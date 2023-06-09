@@ -212,7 +212,7 @@ static void test_nh_standalone_destroy(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
-	nf_set_nic("lo");
+	nc_set_nic("lo");
 
 	RUN_TEST(test_nh_hashmap);
 	RUN_TEST(test_nh_feed_pdu);

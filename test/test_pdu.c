@@ -243,7 +243,7 @@ static void test_pdu_send_now(void)
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
-	nf_set_nic("lo");
+	nc_set_nic("lo");
 
 	RUN_TEST(test_pdu_create);
 	RUN_TEST(test_invalid_interval);

@@ -27,7 +27,7 @@ public:
     {
         set_nic(nic);
         net_fifo_chans = nfc;
-        nf_use_srp();
+        nc_use_srp();
         connect();
     }
 
@@ -36,10 +36,10 @@ public:
         nh_destroy_standalone();
     }
 
-    void verbose() { nf_verbose(); };
+    void verbose() { nc_verbose(); };
 
 protected:
-    void set_nic(std::string nic = "lo") { nf_set_nic((char *)nic.c_str()); };
+    void set_nic(std::string nic = "lo") { nc_set_nic((char *)nic.c_str()); };
     bool connect() {
         _ch = pdu_create_standalone((char *)channel_name.c_str(), tx, net_fifo_chans, nfc_sz);
         if (_ch)
