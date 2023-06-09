@@ -877,7 +877,8 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 				fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
 					__func__, lat_val, errno, strerror(errno));
 			}
-			printf("%s(): Disabled cstate on CPU\n", __func__);
+			if (verbose)
+				printf("%s(): Disabled cstate on CPU\n", __func__);
 		}
 	}
 	/*
