@@ -87,16 +87,19 @@ void * receiver(void *data)
 		struct ether_header *hdr  = (struct ether_header *)rx_buffer;
 		struct iphdr *iphdr = (struct iphdr *)((void *)hdr + sizeof(*hdr));
 		struct udphdr *udphdr = (struct udphdr *)((void *)iphdr + sizeof(*iphdr));
+
 		if (rxsz < (sizeof(*hdr) + sizeof(*iphdr) + sizeof(*udphdr)))
 			continue;
 
-
+		// printf("%s(): seemingly valid packet recevied. port=%d\n", __func__, ntohs(udphdr->dest));
 		if (ntohs(udphdr->dest) == MRPD_PORT_DEFAULT) {
 			/* outgoing msg to mrpd, grab a copy */
 			memcpy(rx_payload, (char *)udphdr + sizeof(*udphdr), BUFFER_SIZE);
+			//printf("%s(): rx_payload=%s\n", __func__, rx_mrpd_payload);
 		} else if (ntohs(udphdr->source) == MRPD_PORT_DEFAULT) {
 			/* reply from mrpd, grab to use when testing mrpd response */
 			memcpy(rx_mrpd_payload, (char *)udphdr + sizeof(*udphdr), BUFFER_SIZE);
+			//printf("%s(): rx_mrpd_payload(reply)=%s\n", __func__, rx_mrpd_payload);
 		}
 	}
 
@@ -198,7 +201,7 @@ static void test_mrp_send_msg(void)
 	TEST_ASSERT(ctx.halt_tx == 0);
 
 	char msg[] = "FOOBAR                               ";
-	int res = mrp_send_msg(msg, strlen(msg)+1, ctx.control_socket);
+	size_t res = mrp_send_msg(msg, strlen(msg)+1, ctx.control_socket);
 	TEST_ASSERT(res == strlen(msg)+1);
 
 	/* wait for thread to return, payload should be updated. If not,
@@ -214,7 +217,7 @@ static void test_mrp_send_msg(void)
 	/* Verify that expected message was sent and unknown command
 	 * returned from mrpd
 	 */
-	TEST_ASSERT_EQUAL_STRING_MESSAGE(msg, rx_payload, "Unknown outgoing message, did send_msg send multiple?");
+	TEST_ASSERT_EQUAL_STRING_MESSAGE(msg, rx_payload, "Unknown outgoing message, did send_msg() send multiple?");
 	TEST_ASSERT_EQUAL_STRING_MESSAGE("ERC MR", rx_mrpd_payload, "Unexpected reply (is mrpd running?)");
 }
 
@@ -253,10 +256,14 @@ static void test_mrp_join_vlan(void)
 		.id = 1337,
 	};
 	TEST_ASSERT(mrp_register_domain(&class_a, &txctx) > 0);
-	usleep(5000);
 	TEST_ASSERT(mrp_join_vlan(&class_a, &txctx) > 0);
+
 	usleep(5000);
 	TEST_ASSERT_EQUAL_STRING_MESSAGE("V++:I=0002\n", rx_payload, "Unexpected outgoing payload");
+
+	usleep(50000);
+	rx_running = false;
+	pthread_join(tid, NULL);
 	TEST_ASSERT_EQUAL_STRING_MESSAGE("VNE 0002 R=000000000000 VN/MT\n",
 					rx_mrpd_payload, "Unexpected mrp reply (is mrpd running?)");
 }
