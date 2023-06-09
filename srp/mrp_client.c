@@ -12,8 +12,10 @@ int mrp_ctx_init(struct mrp_ctx *ctx)
 int mrp_send_msg(char *data, int len, int control_socket)
 {
 	struct sockaddr_in addr;
-	if (control_socket == -1 || data == NULL)
+	if (control_socket == -1 || data == NULL) {
+		fprintf(stderr, "%s(): control_socket=%d, data=%p\n", __func__, control_socket, data);
 		return -1;
+	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -46,13 +48,11 @@ int mrp_get_domain(struct mrp_ctx *ctx,
 
 	char msgbuf[32] = {0};
 	sprintf(msgbuf, "S??");
-	printf("%s(): Sending S?? to mrpd\n", __func__);
 	if (mrp_send_msg(msgbuf, sizeof(msgbuf), ctx->control_socket) == -1) {
 		fprintf(stderr, "%s(): Failed sending msg to MRPD, %d: %s\n",
 			__func__, errno, strerror(errno));
 		return -1;
 	}
-	printf("%s(): got reply from mrpd\n", __func__);
 
 	memset(class_a, 0, sizeof(*class_a));
 	memset(class_b, 0, sizeof(*class_b));

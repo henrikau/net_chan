@@ -339,7 +339,8 @@ int mrp_monitor(void)
 int mrp_register_domain(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx)
 {
 	char msgbuf[64] = {0};
-	sprintf(msgbuf, "S+D:C=%d,P=%d,V=%04x", reg_class->id, reg_class->priority, reg_class->vid);
+	snprintf(msgbuf, sizeof(msgbuf), "S+D:C=%d,P=%d,V=%04x", reg_class->id, reg_class->priority, reg_class->vid);
+	printf("%s(): %s\n", __func__, msgbuf);
 	mrp_okay = 0;
 	return mrp_send_msg(msgbuf, strlen(msgbuf)+1, ctx->control_socket);
 }

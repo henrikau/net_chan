@@ -5,8 +5,10 @@
  * Public License, v. 2.0. If a copy of the MPL was not distributed
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
+#include <stdio.h>
 #include <logger.h>
 #include <pthread.h>
+#include <arpa/inet.h>
 
 /* log 6hrs worth of single stream, 50Hz freq
  * if multiple streams, total time logged will decrease
