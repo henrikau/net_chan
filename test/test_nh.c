@@ -42,8 +42,8 @@ void setUp(void)
 
 void tearDown(void)
 {
-	pdu_destroy(&pdu17);
-	pdu_destroy(&pdu42);
+	chan_destroy(&pdu17);
+	chan_destroy(&pdu42);
 	nh_destroy(&nh);
 	/* close pipes */
 	close(pfd[0]);
@@ -142,7 +142,7 @@ static void test_create_cb(void)
 	TEST_ASSERT(nh_reg_callback(nh, 42, &cbp, cb) == 0);
 
 	uint64_t val = 0xdeadbeef;
-	pdu_update(pdu42, 0, &val);
+	chan_update(pdu42, 0, &val);
 	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == 0);
 
 	/* Verify that callback has written data into pipe
@@ -188,7 +188,7 @@ static void test_create_tx_fifo(void)
 	TEST_ASSERT(test1_du->dst[2] == 0x5e);
 
 	uint64_t val = 32;
-	TEST_ASSERT(pdu_update(test1_du, 0, &val) == 0);
+	TEST_ASSERT(chan_update(test1_du, 0, &val) == 0);
 
 	/* Cleanup memory not needed, injected in standalone, nh_destroy will free*/
 }

@@ -31,8 +31,8 @@ void setUp(void)
 
 void tearDown(void)
 {
-	pdu_destroy(&pdu17);
-	pdu_destroy(&pdu42);
+	chan_destroy(&pdu17);
+	chan_destroy(&pdu42);
 	nh_destroy(&nh);
 
 	/* remember to destroy _nh when using standalone */
@@ -50,7 +50,7 @@ static void test_chan_create(void)
 	TEST_ASSERT(pdu != NULL);
 	TEST_ASSERT(pdu->pdu.stream_id == be64toh(43));
 	TEST_ASSERT(pdu->payload_size == 128);
-	pdu_destroy(&pdu);
+	chan_destroy(&pdu);
 	TEST_ASSERT(pdu == NULL);
 
 	printf("%s(): end\n", __func__);
@@ -104,16 +104,16 @@ static void test_payload_size_interval_combo(void)
 				"Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization");
 }
 
-static void test_pdu_update(void)
+static void test_chan_update(void)
 {
-	TEST_ASSERT(pdu_update(NULL, 1, NULL) == -ENOMEM);
+	TEST_ASSERT(chan_update(NULL, 1, NULL) == -ENOMEM);
 
 	/* Test failed update of data and that other fields have not been altered*/
 	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 
-	TEST_ASSERT(pdu_update(pdu17, 3, NULL) == -ENOMEM);
-	TEST_ASSERT(pdu_update(pdu17, 4, data17) == 0);
+	TEST_ASSERT(chan_update(pdu17, 3, NULL) == -ENOMEM);
+	TEST_ASSERT(chan_update(pdu17, 4, data17) == 0);
 	TEST_ASSERT(pdu17->pdu.avtp_timestamp == htonl(4));
 	TEST_ASSERT(pdu17->pdu.tv == 1);
 	TEST_ASSERT(pdu17->payload[0] == 0x17);
@@ -122,7 +122,7 @@ static void test_pdu_update(void)
 	/* Test payload */
 	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 	uint64_t val = 0xdeadbeef;
-	TEST_ASSERT(pdu_update(pdu42, 5, &val) == 0);
+	TEST_ASSERT(chan_update(pdu42, 5, &val) == 0);
 	TEST_ASSERT(pdu42->pdu.stream_id == be64toh(42));
 
 	TEST_ASSERT(pdu42->pdu.avtp_timestamp == htonl(5));
@@ -133,22 +133,22 @@ static void test_pdu_update(void)
 	TEST_ASSERT(pdu42->pdu.subtype == AVTP_SUBTYPE_NETCHAN);
 }
 
-static void test_pdu_get_payload(void)
+static void test_chan_get_payload(void)
 {
 	uint64_t val = 0xdeadbeef;
-	pdu_update(pdu42, 5, &val);
-	uint64_t *pl = pdu_get_payload(pdu42);
+	chan_update(pdu42, 5, &val);
+	uint64_t *pl = chan_get_payload(pdu42);
 	TEST_ASSERT(*pl == val);
-	TEST_ASSERT(pdu_get_payload(NULL) == NULL)
+	TEST_ASSERT(chan_get_payload(NULL) == NULL)
 }
 
-static void test_pdu_send(void)
+static void test_chan_send(void)
 {
-	TEST_ASSERT(pdu_send(NULL) == -ENOMEM);
+	TEST_ASSERT(chan_send(NULL) == -ENOMEM);
 
 	uint64_t val = 0xdeadbeef;
-	pdu_update(pdu42, 5, &val);
-	TEST_ASSERT(pdu_send(pdu42) == -EINVAL);
+	chan_update(pdu42, 5, &val);
+	TEST_ASSERT(chan_send(pdu42) == -EINVAL);
 
 }
 
@@ -227,14 +227,14 @@ static void test_add_anon_rx_pdu(void)
 	 * here (valgrind is happy) */
 }
 
-static void test_pdu_send_now(void)
+static void test_chan_send_now(void)
 {
 	uint64_t data = 0xa0a0a0a0;
 	NETCHAN_TX(test1);
 	TEST_ASSERT(test1_du->pdu.seqnr == 0xff);
 	TEST_ASSERT(test1_du->pdu.avtp_timestamp == htonl(0));
 
-	pdu_send_now(test1_du, &data);
+	chan_send_now(test1_du, &data);
 	TEST_ASSERT(test1_du > 0);
 	TEST_ASSERT(test1_du->pdu.seqnr == 0);
 }
@@ -249,12 +249,12 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_invalid_interval);
 	RUN_TEST(test_invalid_payload_size);
 	RUN_TEST(test_payload_size_interval_combo);
-	RUN_TEST(test_pdu_update);
-	RUN_TEST(test_pdu_get_payload);
-	RUN_TEST(test_pdu_send);
+	RUN_TEST(test_chan_update);
+	RUN_TEST(test_chan_get_payload);
+	RUN_TEST(test_chan_send);
 	RUN_TEST(test_create_standalone);
 	RUN_TEST(test_add_anon_pdu);
 	RUN_TEST(test_add_anon_rx_pdu);
-	RUN_TEST(test_pdu_send_now);
+	RUN_TEST(test_chan_send_now);
 	return UNITY_END();
 }

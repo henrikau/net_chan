@@ -410,7 +410,7 @@ struct channel *chan_create_standalone(char *name,
 
 	int pfd[2];
 	if (pipe(pfd) == -1) {
-		pdu_destroy(&ch);
+		chan_destroy(&ch);
 		return NULL;
 	}
 	ch->fd_r = pfd[0];
@@ -422,7 +422,7 @@ struct channel *chan_create_standalone(char *name,
 	if (res < 0) {
 		fprintf(stderr, "%s(): Failed to get interface index for socket %d, %s\n",
 			__func__, ch->nh->rx_sock, strerror(errno));
-		pdu_destroy(&ch);
+		chan_destroy(&ch);
 		return NULL;
 	}
 
@@ -436,7 +436,7 @@ struct channel *chan_create_standalone(char *name,
 		if (ch->tx_sock == -1) {
 			fprintf(stderr, "%s(): Failed creating tx-socket for channel (%lu) - %s\n",
 				__func__, be64toh(ch->pdu.stream_id), strerror(errno));
-			pdu_destroy(&ch);
+			chan_destroy(&ch);
 			return NULL;
 		}
 
@@ -452,7 +452,7 @@ struct channel *chan_create_standalone(char *name,
 
 		if (do_srp) {
 			if (!nc_srp_client_talker_setup(ch)) {
-				pdu_destroy(&ch);
+				chan_destroy(&ch);
 				return NULL;
 			}
 
@@ -478,7 +478,7 @@ struct channel *chan_create_standalone(char *name,
 		/* Rx SRP subscribe */
 		if (do_srp) {
 			if (!nc_srp_client_listener_setup(ch)) {
-				pdu_destroy(&ch);
+				chan_destroy(&ch);
 				return NULL;
 			}
 		}
@@ -496,7 +496,7 @@ struct channel *chan_create_standalone(char *name,
 		 */
 		ch->cbp = malloc(sizeof(struct cb_priv) + ch->payload_size);
 		if (!ch->cbp) {
-			pdu_destroy(&ch);
+			chan_destroy(&ch);
 			return NULL;
 		}
 		ch->cbp->fd = ch->fd_w;
@@ -518,78 +518,78 @@ struct channel *chan_create_standalone(char *name,
 	return ch;
 }
 
-void pdu_destroy(struct channel **pdu)
+void chan_destroy(struct channel **ch)
 {
-	if (!*pdu)
+	if (!*ch)
 		return;
 
 	if (do_srp)
-		nc_srp_client_destroy((*pdu));
+		nc_srp_client_destroy((*ch));
 
 	/* close down tx-threads */
-	if ((*pdu)->tx_tid > 0) {
-		(*pdu)->running = false;
+	if ((*ch)->tx_tid > 0) {
+		(*ch)->running = false;
 
 		/* make sure threads blocking on the pipe wakes up. */
-		unsigned char *d = malloc((*pdu)->payload_size);
-		memset(d, 0, (*pdu)->payload_size);
-		write((*pdu)->fd_w, d, (*pdu)->payload_size);
+		unsigned char *d = malloc((*ch)->payload_size);
+		memset(d, 0, (*ch)->payload_size);
+		write((*ch)->fd_w, d, (*ch)->payload_size);
 
 		usleep(1000);
-		pthread_join((*pdu)->tx_tid, NULL);
-		(*pdu)->tx_tid = 0;
+		pthread_join((*ch)->tx_tid, NULL);
+		(*ch)->tx_tid = 0;
 		free(d);
 	}
 
-	if ((*pdu)->fd_r >= 0)
-		close((*pdu)->fd_r);
-	if ((*pdu)->fd_w >= 0)
-		close((*pdu)->fd_w);
-	if ((*pdu)->tx_sock >= 0) {
-		close((*pdu)->tx_sock);
-		(*pdu)->tx_sock = -1;
+	if ((*ch)->fd_r >= 0)
+		close((*ch)->fd_r);
+	if ((*ch)->fd_w >= 0)
+		close((*ch)->fd_w);
+	if ((*ch)->tx_sock >= 0) {
+		close((*ch)->tx_sock);
+		(*ch)->tx_sock = -1;
 	}
-	if ((*pdu)->cbp)
-		free((*pdu)->cbp);
+	if ((*ch)->cbp)
+		free((*ch)->cbp);
 
-	free(*pdu);
-	*pdu = NULL;
+	free(*ch);
+	*ch = NULL;
 	if (verbose)
-		printf("%s(): PDU destroyed\n", __func__);
+		printf("%s(): Channel destroyed\n", __func__);
 }
 
-int pdu_update(struct channel *pdu, uint32_t ts, void *data)
+int chan_update(struct channel *ch, uint32_t ts, void *data)
 {
-	if (!pdu)
+	if (!ch)
 		return -ENOMEM;
 
 	if (!data)
 		return -ENOMEM;
-	pdu->pdu.seqnr++;
-	pdu->pdu.avtp_timestamp = htonl(ts);
-	pdu->pdu.tv = 1;
-	pdu->pdu.sdl = htons(pdu->payload_size);
-	memcpy(pdu->payload, data, pdu->payload_size);
+	ch->pdu.seqnr++;
+	ch->pdu.avtp_timestamp = htonl(ts);
+	ch->pdu.tv = 1;
+	ch->pdu.sdl = htons(ch->payload_size);
+	memcpy(ch->payload, data, ch->payload_size);
 	return 0;
 }
 
-int pdu_send(struct channel *du)
+int chan_send(struct channel *ch)
 {
-	if (!du)
+	if (!ch)
 		return -ENOMEM;
-	if (!du->nh)
+	if (!ch->nh)
 		return -EINVAL;
-	if (du->tx_sock == -1)
+	if (ch->tx_sock == -1)
 		return -EINVAL;
 
-	int txsz = sendto(du->tx_sock,
-			&du->pdu,
-			sizeof(struct avtpdu_cshdr) + du->payload_size,
+	int txsz = sendto(ch->tx_sock,
+			&ch->pdu,
+			sizeof(struct avtpdu_cshdr) + ch->payload_size,
 			0,
-			(struct sockaddr *) &du->sk_addr,
-			sizeof(du->sk_addr));
+			(struct sockaddr *) &ch->sk_addr,
+			sizeof(ch->sk_addr));
 	if (txsz < 0)
-		perror("pdu_send()");
+		perror("chan_send()");
 
 	return txsz;
 }
@@ -660,57 +660,57 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 	return error_cpu_ns;
 }
 
-int _pdu_send_now(struct channel *du, void *data, bool wait_class_delay)
+int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 {
-	uint64_t ts_ns = get_ptp_ts_ns(du->nh->ptp_fd);
-	if (pdu_update(du, tai_to_avtp_ns(ts_ns), data)) {
-		fprintf(stderr, "%s(): pdu_update failed\n", __func__);
+	uint64_t ts_ns = get_ptp_ts_ns(ch->nh->ptp_fd);
+	if (chan_update(ch, tai_to_avtp_ns(ts_ns), data)) {
+		fprintf(stderr, "%s(): chan_update failed\n", __func__);
 		return -1;
 	}
 
 	if (verbose)
 		printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
 	if (enable_logging)
-		log_tx(du->nh->logger, &du->pdu, ts_ns, ts_ns);
+		log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns);
 
-	int res = pdu_send(du);
+	int res = chan_send(ch);
 	int err_ns = 150000;
 
-	ts_ns += get_class_delay_bound_ns(du);
+	ts_ns += get_class_delay_bound_ns(ch);
 	while (wait_class_delay && err_ns > 50000) {
-		err_ns = _delay(du, ts_ns);
+		err_ns = _delay(ch, ts_ns);
 	}
 
 	return res;
 }
 
-int pdu_send_now(struct channel *du, void *data)
+int chan_send_now(struct channel *ch, void *data)
 {
-	return _pdu_send_now(du, data, false);
+	return _chan_send_now(ch, data, false);
 }
 
-int pdu_send_now_wait(struct channel *du, void *data)
+int chan_send_now_wait(struct channel *ch, void *data)
 {
-	return _pdu_send_now(du, data, true);
+	return _chan_send_now(ch, data, true);
 }
 
-int _pdu_read(struct channel *du, void *data, bool read_delay)
+int _chan_read(struct channel *ch, void *data, bool read_delay)
 {
-	size_t rpsz = sizeof(struct pipe_meta) + du->payload_size;
+	size_t rpsz = sizeof(struct pipe_meta) + ch->payload_size;
 
-	int res = read(du->fd_r, &du->cbp->meta, rpsz);
+	int res = read(ch->fd_r, &ch->cbp->meta, rpsz);
 
-	memcpy(data, &du->cbp->meta.payload, du->payload_size);
+	memcpy(data, &ch->cbp->meta.payload, ch->payload_size);
 
 	/* Reconstruct PTP capture timestamp from sender */
-	uint64_t lavtp = tai_to_avtp_ns(du->cbp->meta.ts_recv_ptp_ns);
-	if (lavtp < du->cbp->meta.avtp_timestamp) {
+	uint64_t lavtp = tai_to_avtp_ns(ch->cbp->meta.ts_recv_ptp_ns);
+	if (lavtp < ch->cbp->meta.avtp_timestamp) {
 		if (verbose)
 			printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
 		lavtp += ((uint64_t)1<<32)-1;
 	}
-	int64_t avtp_diff = lavtp - du->cbp->meta.avtp_timestamp;
-	uint64_t ptp_capture = du->cbp->meta.ts_recv_ptp_ns - avtp_diff;
+	int64_t avtp_diff = lavtp - ch->cbp->meta.avtp_timestamp;
+	uint64_t ptp_capture = ch->cbp->meta.ts_recv_ptp_ns - avtp_diff;
 
 	/* track E2E delay if --break is passed */
 	if (break_us > 0 && (avtp_diff/1000)  > break_us) {
@@ -727,7 +727,7 @@ int _pdu_read(struct channel *du, void *data, bool read_delay)
 	 * length of sleep before moving on.
 	 */
 	if (read_delay) {
-		switch (du->sc) {
+		switch (ch->sc) {
 		case CLASS_A:
 			ptp_capture += 2 * NS_IN_MS;
 			break;
@@ -735,7 +735,7 @@ int _pdu_read(struct channel *du, void *data, bool read_delay)
 			ptp_capture += 50 * NS_IN_MS;
 			break;
 		}
-		int64_t err = _delay(du, ptp_capture);
+		int64_t err = _delay(ch, ptp_capture);
 
 		if (verbose) {
 			printf("%s() Sample spent %ld ns from capture to recvmsg()\n",
@@ -750,21 +750,21 @@ int _pdu_read(struct channel *du, void *data, bool read_delay)
 	return res;
 }
 
-int pdu_read(struct channel *du, void *data)
+int chan_read(struct channel *ch, void *data)
 {
-	return _pdu_read(du, data, false);
+	return _chan_read(ch, data, false);
 }
 
-int pdu_read_wait(struct channel *du, void *data)
+int chan_read_wait(struct channel *ch, void *data)
 {
-	return _pdu_read(du, data, true);
+	return _chan_read(ch, data, true);
 }
 
-void * pdu_get_payload(struct channel *pdu)
+void * chan_get_payload(struct channel *ch)
 {
-	if (!pdu)
+	if (!ch)
 		return NULL;
-	return (void *)pdu->payload;
+	return (void *)ch->payload;
 }
 
 
@@ -1216,16 +1216,16 @@ void nh_destroy(struct nethandler **nh)
 
 		/* clean up TX PDUs */
 		while ((*nh)->du_tx_head) {
-			struct channel *pdu = (*nh)->du_tx_head;
+			struct channel *ch = (*nh)->du_tx_head;
 			(*nh)->du_tx_head = (*nh)->du_tx_head->next;
-			pdu_destroy(&pdu);
+			chan_destroy(&ch);
 		}
 
 		/* clean up Rx PDUs */
 		while ((*nh)->du_rx_head) {
-			struct channel *pdu = (*nh)->du_rx_head;
+			struct channel *ch = (*nh)->du_rx_head;
 			(*nh)->du_rx_head = (*nh)->du_rx_head->next;
-			pdu_destroy(&pdu);
+			chan_destroy(&ch);
 		}
 
 		/* Free memory */

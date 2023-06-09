@@ -45,10 +45,10 @@ extern "C" {
 		chan_create_standalone(#x, 1, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
 
-#define WRITE(x,v) pdu_send_now(x ## _du, v)
-#define WRITE_WAIT(x,v) pdu_send_now_wait(x ## _du, v)
-#define READ(x,v) pdu_read(x ## _du, v)
-#define READ_WAIT(x,v) pdu_read_wait(x ## _du, v)
+#define WRITE(x,v) chan_send_now(x ## _du, v)
+#define WRITE_WAIT(x,v) chan_send_now_wait(x ## _du, v)
+#define READ(x,v) chan_read(x ## _du, v)
+#define READ_WAIT(x,v) chan_read_wait(x ## _du, v)
 
 #define CLEANUP() nh_destroy_standalone()
 
@@ -331,94 +331,96 @@ struct channel *chan_create_standalone(char *name,
 				int arr_size);
 
 /**
- * pdu_get_payload
+ * chan_destroy : clean up and destroy a channel
  *
- * @param pdu AVTP dataunit
- * @returns pointer to payload
+ * @param ch: pointer to channel
  */
-void * pdu_get_payload(struct channel *pdu);
+void chan_destroy(struct channel **ch);
 
 /**
- * pdu_destroy : clean up and destroy a pdu
- *
- * @param pdu: pointer to pdu
- */
-void pdu_destroy(struct channel **pdu);
-
-/**
- * pdu_update : take an existing PDU and update timestamp and data and make it ready for Tx
+ * chan_update : take an existing channel and update timestamp and data and make it ready for Tx
  *
  * The function expects the size of data to be the same size as when it was created
  *
- * @param pdu: pdu to update
+ * @param ch: channel to update
  * @param ts: avtp timestamp (lower 32 bit of PTP timestamp)
  * @param data: data to copy into payload (size is fixed from chan_create())
  *
  * @returns 0 on success, errno on failure.
  */
-int pdu_update(struct channel *pdu, uint32_t ts, void *data);
+int chan_update(struct channel *ch, uint32_t ts, void *data);
+
 
 /**
- * pdu_send : send payload of netchan data unit
+ * chan_get_payload : Return a pointer to the most recent payload in the channel
  *
- * This will extract the AVTP payload from the PDU and send it to the
+ * @param pdu AVTP dataunit
+ * @returns pointer to payload
+ */
+void * chan_get_payload(struct channel *);
+
+
+/**
+ * chan_send : send current payload of netchan data unit
+ *
+ * This will extract the AVTP payload from the PDU managed by channel and send it to the
  * correct destination MAC.
  *
- * @params: pdu
+ * @params: ch
  * @returns: 0 on success negative value on error.
  */
-int pdu_send(struct channel *pdu);
+int chan_send(struct channel *ch);
 
 /**
- * pdu_send_now: update and send pdu *now*
+ * chan_send_now: update and send data *now*
  *
- * This helper function will take a DU, increment seqnr, set timestamp
- * to time *now* and send it.
+ * This helper function will take a channel, increment seqnr, set timestamp
+ * to time *now* and send the currently active PDU maintained by the channel.
  *
- * @param pdu: data container to send
+ * @param chan: channel to send from
  * @param data: new data to copy into field and send.
  *
  * @return 0 on success, negative on error
  */
-int pdu_send_now(struct channel *du, void *data);
+int chan_send_now(struct channel *ch, void *data);
 
 /**
- * pdu_send_now_wait - update and send PDU, and wait for class delay
+ * chan_send_now_wait - update and send PDU from channel, and wait for class delay
  *
  * When using this function, caller will be blocked for 2ms or 50ms
- * depending on class before continuing. This gives a synchronized wait
+ * depending on stream class before continuing. This gives a synchronized wait
  * approach to the semantics.
  *
- * @param pdu: data container to send
+ * @param chan: active channel
  * @param data: new data to copy into field and send.
  *
  * @return 0 on success, negative on error
  */
-int pdu_send_now_wait(struct channel *du, void *data);
+int chan_send_now_wait(struct channel *ch, void *data);
 
 /**
- * pdu_read : read data from incoming pipe attached to DU
+ * chan_read : read data from incoming channel.
  *
- * @param du: data container
+ * @param ch: channel
  * @param data: memory to store received data to
  *
  * @return bytes received or -1 on error
  */
-int pdu_read(struct channel *du, void *data);
+int chan_read(struct channel *ch, void *data);
 
 /**
- * pdu_read_wait : read data from incoming pipe attached to DU and wait for class delay
+ * chan_read_wait : read data from incoming channel and wait for class delay before returning.
  *
  * When using this function, caller will be delayed until capture time +
  * class delay has passed. This expects the clocks for both writer and
  * reader to be synchronized properly.
  *
- * @param du: data container
+ * @param ch: channel
  * @param data: memory to store received data to
  *
  * @return bytes received or -1 on error
  */
-int pdu_read_wait(struct channel *du, void *data);
+int chan_read_wait(struct channel *ch, void *data);
 
 /**
  * nh_create_init - create and initialize nethandler

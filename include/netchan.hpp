@@ -68,13 +68,13 @@ public:
             printf("_ch not set\n");
             return false;
         }
-        return pdu_send_now(_ch, data);
+        return chan_send_now(_ch, data);
     }
 
     bool write_wait(void *data) {
         if (!_ch)
             return false;
-        return pdu_send_now_wait(_ch, data);
+        return chan_send_now_wait(_ch, data);
     }
 };
 
@@ -89,12 +89,12 @@ public:
     bool read(void *data) {
         if (!_ch)
             return false;
-        return pdu_read(_ch, data);
+        return chan_read(_ch, data);
     }
 
     bool read_wait(void *data) {
         if (!_ch)
             return false;
-        return pdu_read_wait(_ch, data);
+        return chan_read_wait(_ch, data);
     }
 };
