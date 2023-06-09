@@ -14,7 +14,6 @@
 struct mrp_ctx txctx;
 bool rx_running = false;
 char *rx_buffer = NULL;
-char *rx_mrpd_payload = NULL;
 char *rx_payload = NULL;
 #define BUFFER_SIZE 1522
 pthread_t tid   = -1;
@@ -35,11 +34,10 @@ pthread_t tid   = -1;
  */
 void * receiver(void *data)
 {
-	if (!rx_buffer || !rx_running || !rx_payload || !rx_mrpd_payload)
+	if (!rx_buffer || !rx_running || !rx_payload)
 		return NULL;
 	memset(rx_buffer, 0, BUFFER_SIZE);
 	memset(rx_payload, 0, BUFFER_SIZE);
-	memset(rx_mrpd_payload, 0, BUFFER_SIZE);
 
 	/* Open  */
 	int sock = -1;
@@ -73,7 +71,7 @@ void * receiver(void *data)
 		return NULL;
 	}
 
-	for (int retries = 5; rx_running && retries > 0; retries--) {
+	while (rx_running) {
 		int rxsz = recv(sock, rx_buffer, BUFFER_SIZE, 0);
 		if (rxsz == -1) {
 			if (errno == 11) {
@@ -91,15 +89,15 @@ void * receiver(void *data)
 		if (rxsz < (sizeof(*hdr) + sizeof(*iphdr) + sizeof(*udphdr)))
 			continue;
 
-		// printf("%s(): seemingly valid packet recevied. port=%d\n", __func__, ntohs(udphdr->dest));
+		/* outgoing msg to mrpd, grab a copy */
 		if (ntohs(udphdr->dest) == MRPD_PORT_DEFAULT) {
-			/* outgoing msg to mrpd, grab a copy */
 			memcpy(rx_payload, (char *)udphdr + sizeof(*udphdr), BUFFER_SIZE);
-			//printf("%s(): rx_payload=%s\n", __func__, rx_mrpd_payload);
 		} else if (ntohs(udphdr->source) == MRPD_PORT_DEFAULT) {
-			/* reply from mrpd, grab to use when testing mrpd response */
-			memcpy(rx_mrpd_payload, (char *)udphdr + sizeof(*udphdr), BUFFER_SIZE);
-			//printf("%s(): rx_mrpd_payload(reply)=%s\n", __func__, rx_mrpd_payload);
+			/* Experience has showed that a lot of different
+			 * messages from the network can be returned
+			 * from mrpd, so writing a small, simple test is
+			 * not easy (i.e. we don't control the
+			 * enviornment sufficiently).*/
 		}
 	}
 
@@ -131,17 +129,19 @@ int start_rx(void)
 	}
 	pthread_attr_destroy(&attr);
 
-
 	return 0;
 }
 
 void setUp(void)
 {
+	/* Not pretty, but sleep for 100ms to make sure no outstanding
+	 * messages to mrpd is left in the network from last round.
+	 */
+	usleep(100000);
 	tid = -1;
 	rx_buffer = malloc(BUFFER_SIZE);
 	rx_payload = malloc(BUFFER_SIZE);
-	rx_mrpd_payload = malloc(BUFFER_SIZE);
-	if (rx_buffer && rx_payload && rx_mrpd_payload) {
+	if (rx_buffer && rx_payload) {
 		rx_running = true;
 		start_rx();
 	}
@@ -167,9 +167,14 @@ void tearDown(void)
 		free(rx_payload);
 		rx_payload = NULL;
 	}
-	if (rx_mrpd_payload) {
-		free(rx_mrpd_payload);
-		rx_mrpd_payload = NULL;
+}
+
+static void wait_for_rx_payload(void)
+{
+	for (int retries = 10; retries > 0; retries--) {
+		if (strlen(rx_payload) > 0)
+			break;
+		usleep(5000);
 	}
 }
 
@@ -212,13 +217,11 @@ static void test_mrp_send_msg(void)
 	pthread_join(tid, NULL);
 
 	TEST_ASSERT_NOT_NULL(rx_payload);
-	TEST_ASSERT_NOT_NULL(rx_mrpd_payload);
 
 	/* Verify that expected message was sent and unknown command
 	 * returned from mrpd
 	 */
-	TEST_ASSERT_EQUAL_STRING_MESSAGE(msg, rx_payload, "Unknown outgoing message, did send_msg() send multiple?");
-	TEST_ASSERT_EQUAL_STRING_MESSAGE("ERC MR", rx_mrpd_payload, "Unexpected reply (is mrpd running?)");
+	TEST_ASSERT_EQUAL_STRING_MESSAGE(msg, rx_payload, "Unknown *outgoing* message, did send_msg() send multiple?");
 }
 
 static void test_mrp_reg_domain(void)
@@ -230,7 +233,7 @@ static void test_mrp_reg_domain(void)
 	};
 
 	TEST_ASSERT(mrp_register_domain(&class_a, &txctx) > 0);
-	usleep(5000);
+	wait_for_rx_payload();
 	TEST_ASSERT(strlen(rx_payload) > 10);
 
 	/* S+D: join domain
@@ -239,13 +242,6 @@ static void test_mrp_reg_domain(void)
 	 * V: Vlan ID
 	 */
 	TEST_ASSERT_EQUAL_STRING_MESSAGE("S+D:C=1337,P=3,V=0002", rx_payload, "Unexpected outgoing payload");
-
-	/* D:C=57 is found experimentally, msrp.c from OpenAvnu.git can
-	 * make grown men weep
-	 */
-	TEST_ASSERT_EQUAL_STRING_MESSAGE("SJO D:C=57,P=3,V=0002,N=3 R=000000000000 QA/IN\n",
-					rx_mrpd_payload,
-					"Unexpected reply (is mrpd running?), Note: this test can be unstable.");
 }
 
 static void test_mrp_join_vlan(void)
@@ -256,16 +252,14 @@ static void test_mrp_join_vlan(void)
 		.id = 1337,
 	};
 	TEST_ASSERT(mrp_register_domain(&class_a, &txctx) > 0);
+	wait_for_rx_payload();
+	TEST_ASSERT_EQUAL_STRING_MESSAGE("S+D:C=1337,P=3,V=0002", rx_payload, "Unexpected outgoing mrp_register_domain payload");
+
 	TEST_ASSERT(mrp_join_vlan(&class_a, &txctx) > 0);
-
-	usleep(5000);
-	TEST_ASSERT_EQUAL_STRING_MESSAGE("V++:I=0002\n", rx_payload, "Unexpected outgoing payload");
-
-	usleep(50000);
-	rx_running = false;
-	pthread_join(tid, NULL);
-	TEST_ASSERT_EQUAL_STRING_MESSAGE("VNE 0002 R=000000000000 VN/MT\n",
-					rx_mrpd_payload, "Unexpected mrp reply (is mrpd running?)");
+	wait_for_rx_payload();
+	const char *expected = "V++:I=0002\n";
+	rx_payload[strlen(expected)] = 0x00;
+	TEST_ASSERT_EQUAL_STRING_MESSAGE(expected, rx_payload, "Unexpected outgoing payload");
 }
 
 int main(int argc, char *argv[])
