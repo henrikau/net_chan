@@ -526,12 +526,6 @@ void nh_destroy(struct nethandler **nh);
 void nh_destroy_standalone();
 
 /**
- * srp_client_setup() SRP setup helpers
- */
-bool srp_client_setup(struct netchan_avtp *pdu);
-void srp_client_destroy(struct netchan_avtp *pdu);
-
-/**
  * get_class_delay_ns(): get the correct delay offset for the current class
  *
  * class A: 2 ms

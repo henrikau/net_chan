@@ -347,7 +347,7 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 
 	/* SRP common setup */
 	if (do_srp)
-		srp_client_setup(du);
+		nc_srp_client_setup(du);
 
 	/* if tx, create socket  */
 	if (tx_update) {
@@ -370,110 +370,15 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
 
 		if (do_srp) {
-			/* common setup  */
-			du->sidw.s64 = du->pdu.stream_id;
-
-			int res = mrp_ctx_init(du->ctx);
-			if (res == -1) {
-				fprintf(stderr, "%s(): CTX init failed (%d; %s)\n",
-					__func__, errno, strerror(errno));
+			if (!nc_srp_client_talker_setup(du)) {
 				pdu_destroy(&du);
 				return NULL;
 			}
 
-			res = mrp_connect(du->ctx);
-			if (res == -1) {
-				fprintf(stderr, "%s(): mrp_connect() failed (%d; %s)\n",
-					__func__, errno, strerror(errno));
-				pdu_destroy(&du);
-				return NULL;
-			}
-			res = mrp_get_domain(du->ctx, du->class_a, du->class_b);
-			if (res == -1) {
-				fprintf(stderr, "%s(): mrp_get_domaion() failed (%d; %s)\n",
-					__func__, errno, strerror(errno));
-				pdu_destroy(&du);
-				return NULL;
-			}
-			res = mrp_register_domain(du->class_a, du->ctx);
-			if (res == -1) {
-				fprintf(stderr, "%s(): register-domain failed (%d; %s)\n",
-					__func__, errno, strerror(errno));
-				pdu_destroy(&du);
-				return NULL;
-			}
-			res = mrp_join_vlan(du->class_a, du->ctx);
-			if (res == -1) {
-				fprintf(stderr, "%s(): join VLAN failed (%d; %s)\n",
-					__func__, errno, strerror(errno));
-				pdu_destroy(&du);
-				return NULL;
-			}
-
-			if (verbose) {
-				printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
-					__func__,
-					du->class_a->priority,
-					du->class_b->priority,
-					du->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
-			}
-
-			switch (du->sc) {
-			case CLASS_A:
-				du->socket_prio = du->class_a->priority;
-				break;
-			case CLASS_B:
-				du->socket_prio = du->class_b->priority;
-				break;
-			}
-
-			/* FIXME: find correct values for the stream and
-			 * send to MRP here
-			 *
-			 * Currently we use 84 bytes/frame and allow for
-			 * 8kHz inter frame gap (even if the actual freq
-			 * is 50Hz rather than 8kHz)
-			 *
-			 * This yields a 5376kbit/sec BW
-			 *
-			 * tsn2.sumad.sintef.no#show avb stream
-			 *    Stream ID:        0000.0000.0000:42    Incoming Interface:   Gi1/0/12
-			 *    Destination  : 0100.5E00.0000
-			 *    Class        : A
-			 *    Rank         : 0
-			 *    Bandwidth    : 5376 Kbit/s
-			 */
-			res = mrp_advertise_stream(du->sidw.s8, du->dst,
-						84,
-						125000 / 125000,
-						3900, du->ctx);
-			if (verbose)
-				printf("%s(): advertised stream: %d\n", __func__, res);
-
-			/*
-			 * WARNING: mrp-awai_listener BLOCKS
-			 */
-			res = mrp_await_listener(du->sidw.s8, du->ctx);
-			if (res) {
-				printf("%s(): mrp_await_listener failed\n", __func__);
-				pdu_destroy(&du);
-				return NULL;
-			}
 		}
-
-		if (setsockopt(du->tx_sock,
-				SOL_SOCKET,
-				SO_PRIORITY,
-				&du->socket_prio,
-				sizeof(du->socket_prio)) < 0) {
-			fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
-				__func__, errno, strerror(errno));
-		}
-		if (verbose)
-			printf("%s(): socket prio set to %d\n", __func__, du->socket_prio);
-
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(du->nh, du);
+		printf("%s(): new du added to nethandler\n", __func__);
 	} else {
 
 		/* if dst is multicast, add membership */
@@ -492,18 +397,10 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 		}
 		/* Rx SRP subscribe */
 		if (do_srp) {
-			if (verbose)
-				printf("%s() first Rx SRP setup\n", __func__);
-
-			/* FIXME: check return from mrp */
-			mrp_ctx_init(du->ctx);
-			create_socket(du->ctx);
-			mrp_listener_monitor(du->ctx);
-			mrp_get_domain(du->ctx, du->class_a, du->class_b);
-			report_domain_status(du->class_a, du->ctx);
-			mrp_join_vlan(du->class_a, du->ctx);
-			if (verbose)
-				printf("%s() Rx first SRP setup done\n", __func__);
+			if (!nc_srp_client_listener_setup(du)) {
+				pdu_destroy(&du);
+				return NULL;
+			}
 		}
 
 		/* Add ref to internal list for memory mgmt */
@@ -545,14 +442,15 @@ void pdu_destroy(struct netchan_avtp **pdu)
 {
 	if (!*pdu)
 		return;
-	printf("%s(): destroying pdu\n", __func__);
 
 	if (do_srp)
-		srp_client_destroy(*pdu);
+		nc_srp_client_destroy((*pdu));
 
 	/* close down tx-threads */
 	if ((*pdu)->tx_tid > 0) {
 		(*pdu)->running = false;
+
+		/* make sure threads blocking on the pipe wakes up. */
 		unsigned char *d = malloc((*pdu)->payload_size);
 		memset(d, 0, (*pdu)->payload_size);
 		write((*pdu)->fd_w, d, (*pdu)->payload_size);
@@ -1230,51 +1128,6 @@ void nh_destroy_standalone()
 {
 	if (_nh)
 		nh_destroy(&_nh);
-}
-
-
-bool srp_client_setup(struct netchan_avtp *pdu)
-{
-	pdu->ctx = malloc(sizeof(*pdu->ctx));
-	pdu->class_a = malloc(sizeof(*pdu->class_a));
-	pdu->class_b = malloc(sizeof(*pdu->class_b));
-
-	if (!pdu->ctx || !pdu->class_a || !pdu->class_b) {
-		fprintf(stderr, "%s(): memory allocation for SRP structs failed\n", __func__);
-		return false;
-	}
-	return true;
-}
-
-void srp_client_destroy(struct netchan_avtp *pdu)
-{
-	if (!pdu)
-		return;
-
-	if (pdu->tx_sock != -1) {
-		int pktsz = pdu->payload_size + 22 + 20 + sizeof(struct ether_addr);
-		int interval = 125000/125000;
-		int res = mrp_unadvertise_stream(pdu->sidw.s8, pdu->dst,
-						pktsz,
-						interval,
-						3900, pdu->ctx);
-		if (verbose)
-			printf("%s(): unadvertise stream %s\n", __func__, res == 0 ? "OK" : "FAILED");
-
-	} else {
-		send_leave(pdu->ctx);
-	}
-
-	int res = mrp_disconnect(pdu->ctx);
-	if (verbose)
-		printf("%s(): MRP disconnect stream %s\n", __func__, res == -1 ? "FAILED" : "OK");
-
-	if (pdu->ctx)
-		free(pdu->ctx);
-	if (pdu->class_a)
-		free(pdu->class_a);
-	if (pdu->class_b)
-		free(pdu->class_b);
 }
 
 uint64_t get_class_delay_bound_ns(struct netchan_avtp *du)

@@ -26,10 +26,11 @@ mrplibso = library('mrp',
 		       )
 
 netchan = static_library('netchan',
-			     'src/netchan.c',
-			     'src/ptp_getclock.c',
-			     'src/tracebuffer.c',
-			     'src/logger.c',
+			 'src/netchan.c',
+			 'src/ptp_getclock.c',
+			 'src/netchan_srp_client.c',
+			 'src/tracebuffer.c',
+			 'src/logger.c',
 			include_directories: include_directories('include'),
 			dependencies: deps,
 			link_with: mrplib,
@@ -37,15 +38,16 @@ netchan = static_library('netchan',
 		       )
 
 netchan_so = library('netchan',
-				'src/netchan.c',
-				'src/ptp_getclock.c',
-				'src/tracebuffer.c',
-				'src/logger.c',
-				include_directories: include_directories('include'),
-				dependencies: deps,
-				link_with: mrplib,
-				install: true
-			       )
+		     'src/netchan.c',
+		     'src/ptp_getclock.c',
+		     'src/tracebuffer.c',
+		     'src/logger.c',
+		     'src/netchan_srp_client.c',
+		     include_directories: include_directories('include'),
+		     dependencies: deps,
+		     link_with: mrplibso,
+		     install: true
+		    )
 
 install_headers(['include/netchan.h', 'include/netchan.hpp', 'include/ptp_getclock.h'])
 install_subdir('include/srp', install_dir: 'include/')
@@ -70,7 +72,8 @@ executable(
 
 # includes netchan.c directly to test internals
 t_pdu = executable('testpdu',
-	       'test/test_pdu.c',
+		   'test/test_pdu.c',
+		   'src/netchan_srp_client.c',
 	       'src/ptp_getclock.c',
 	       'src/tracebuffer.c',
 	       'src/terminal.c',
@@ -78,13 +81,14 @@ t_pdu = executable('testpdu',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplib,
+	       link_with : mrplibso,
 	       dependencies: deps
 	      )
 
 # includes netchan.c directly to test internals
-t_nh = executable('testprog',
+t_nh = executable('testnh',
 	       'test/test_nh.c',
+	       'src/netchan_srp_client.c',
 	       'src/ptp_getclock.c',
 	       'src/tracebuffer.c',
 	       'src/terminal.c',
@@ -92,13 +96,14 @@ t_nh = executable('testprog',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplib,
+	       link_with : mrplibso,
 	       dependencies: deps
 	      )
 
 # includes netchan.c directly to test internals
 t_net_fifo = executable('testnetfifo',
 	       'test/test_net_fifo.c',
+	       'src/netchan_srp_client.c',
 	       'src/ptp_getclock.c',
 	       'src/tracebuffer.c',
 	       'src/terminal.c',
@@ -106,7 +111,7 @@ t_net_fifo = executable('testnetfifo',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplib,
+	       link_with : mrplibso,
 	       dependencies: deps
 	      )
 
@@ -116,7 +121,7 @@ t_nf_macro = executable('testnfmacro',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
 	       dependencies: deps,
-	       link_with : netchan)
+	       link_with : netchan_so)
 
 t_mrp =  executable('testmrp',
 	       'test/test_mrp.c',
@@ -124,7 +129,7 @@ t_mrp =  executable('testmrp',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
 	       dependencies: deps,
-	       link_with : mrplib)
+	       link_with : mrplibso)
 
 test('pdu test', t_pdu)
 test('nh test', t_nh)
