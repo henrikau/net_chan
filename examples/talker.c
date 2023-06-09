@@ -30,17 +30,26 @@ int main(int argc, char *argv[])
 	running = 1;
 
 	signal(SIGINT, sighandler);
-	for (int64_t i = 0; i < (50*60*60*6) && running; i++) {
+	int freq = 1e9 / net_fifo_chans[0].interval_ns;
+
+	for (int64_t i = 0; i < (freq*60*60*6) && running; i++) {
+
+		struct timespec ts_cpu = {0};
+		if (clock_gettime(CLOCK_MONOTONIC, &ts_cpu) == -1) {
+			fprintf(stderr, "%s() FAILED (%d, %s)\n", __func__, errno, strerror(errno));
+			return -1;
+		}
+		ts_cpu.tv_nsec += net_fifo_chans[0].interval_ns;
+		ts_normalize(&ts_cpu);
+
 		WRITE_WAIT(mcast42, &i);
 		if (!(i%50))
 			printf("%lu: written\n", i);
 
-		/* Take freq and subtract expected wait from class to
-		 * get roughly right delay
-		 */
-		int udel = 1000000 / net_fifo_chans[0].freq - (net_fifo_chans[0].sc == CLASS_A ? 2*US_IN_MS : 50*US_IN_MS);
-		usleep(udel);
+		if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts_cpu, NULL) == -1)
+			printf("%s() clock_nanosleep() failed: %s\n", __func__, strerror(errno));
 	}
+
 	int64_t marker = -1;
 	printf("%s() Attempting to stop remote, sending magic marker\n", __func__);
 	WRITE_WAIT(mcast42, &marker);
