@@ -10,11 +10,11 @@
 
 #define DATA17SZ 32
 char data17[DATA17SZ] = {0};
-struct netchan_avtp *pdu17;
+struct channel *pdu17;
 
 #define DATA42SZ 8
 char data42[DATA42SZ] = {0};
-struct netchan_avtp *pdu42;
+struct channel *pdu42;
 
 struct nethandler *nh;
 
@@ -41,7 +41,7 @@ void tearDown(void)
 static void test_pdu_create(void)
 {
 	printf("%s(): start\n", __func__);
-	struct netchan_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128);
+	struct channel *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128);
 	TEST_ASSERT(pdu != NULL);
 	TEST_ASSERT(pdu->pdu.stream_id == be64toh(43));
 	TEST_ASSERT(pdu->payload_size == 128);
@@ -107,7 +107,7 @@ static void test_create_standalone(void)
 	NETCHAN_RX(missing);
 	TEST_ASSERT(missing_du == NULL);
 
-	struct netchan_avtp *pdu;
+	struct channel *pdu;
 	pdu = pdu_create_standalone("test1", false, net_fifo_chans, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
 
@@ -127,10 +127,10 @@ static void test_create_standalone(void)
 
 static void test_add_anon_pdu(void)
 {
-	//struct netchan_avtp *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 128);
+	//struct channel *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, 128);
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
 	TEST_ASSERT_NULL(nh->du_tx_head);
-	struct netchan_avtp *du = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8);
+	struct channel *du = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8);
 	TEST_ASSERT_NOT_NULL(du);
 	TEST_ASSERT(nh_add_tx(NULL, du) == -EINVAL);
 	TEST_ASSERT(nh_add_tx(nh, NULL) == -EINVAL);
@@ -140,7 +140,7 @@ static void test_add_anon_pdu(void)
 	TEST_ASSERT(nh->du_tx_tail == du);
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 
-	struct netchan_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:43", 43, CLASS_A, 8);
+	struct channel *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:43", 43, CLASS_A, 8);
 	TEST_ASSERT(nh_add_tx(nh, du2) == 0);
 	TEST_ASSERT(nh_get_num_tx(nh) == 2);
 	TEST_ASSERT(nh->du_tx_head == du);
@@ -153,10 +153,10 @@ static void test_add_anon_pdu(void)
 
 static void test_add_anon_rx_pdu(void)
 {
-	struct netchan_avtp *du1 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
-	struct netchan_avtp *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
-	struct netchan_avtp *du3 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
-	struct netchan_avtp *du4 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct channel *du1 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct channel *du2 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct channel *du3 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
+	struct channel *du4 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8);
 
 	TEST_ASSERT(nh_get_num_rx(nh) == 0);
 	TEST_ASSERT(nh_add_rx(NULL, du1) == -EINVAL);

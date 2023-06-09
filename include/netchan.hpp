@@ -48,7 +48,7 @@ protected:
         return false;
     }
 
-    struct netchan_avtp *_ch;
+    struct channel *_ch;
     std::string channel_name;
     struct net_fifo *net_fifo_chans;
     int nfc_sz;

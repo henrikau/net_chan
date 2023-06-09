@@ -71,11 +71,11 @@ struct cb_entity {
 };
 
 struct nethandler {
-	struct netchan_avtp *du_tx_head;
-	struct netchan_avtp *du_tx_tail;
+	struct channel *du_tx_head;
+	struct channel *du_tx_tail;
 
-	struct netchan_avtp *du_rx_head;
-	struct netchan_avtp *du_rx_tail;
+	struct channel *du_rx_head;
+	struct channel *du_rx_tail;
 
 	/*
 	 * We have one Rx socket, but each datastream will have its own
@@ -251,29 +251,32 @@ const struct net_fifo * nf_get_chan_ref(char *name, const struct net_fifo *arr, 
 
 int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
-	struct netchan_avtp *du = pdu_create_standalone(name, 0, arr, arr_size);
+	struct channel *du = pdu_create_standalone(name, 0, arr, arr_size);
 	if (!du)
 		return -1;
 
 	return du->fd_r;
 }
 
-struct netchan_avtp * pdu_create(struct nethandler *nh,
+struct channel * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
 				enum stream_class sc,
 				uint16_t sz)
 {
-	struct netchan_avtp *pdu = malloc(sizeof(*pdu) + sz);
+	struct channel *pdu = malloc(sizeof(*pdu) + sz);
 	if (!pdu)
 		return NULL;
 
 	memset(pdu, 0, sizeof(*pdu));
 	pdu->pdu.subtype = AVTP_SUBTYPE_NETCHAN;
 	pdu->pdu.stream_id = htobe64(stream_id);
+	pdu->sidw.s64 = pdu->pdu.stream_id;
 	pdu->pdu.sv = 1;
 	pdu->pdu.seqnr = 0xff;
 	pdu->payload_size = sz;
+
+	/* FIXME: missing freq */
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
@@ -298,7 +301,7 @@ struct netchan_avtp * pdu_create(struct nethandler *nh,
 	return pdu;
 }
 
-struct netchan_avtp *pdu_create_standalone(char *name,
+struct channel *pdu_create_standalone(char *name,
 					bool tx_update,
 					struct net_fifo *arr,
 					int arr_size)
@@ -319,9 +322,7 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 	if (!_nh)
 		return NULL;
 
-	if (verbose)
-		printf("%s(): creating new DU, idx=%d, dst=%s\n", __func__, idx, ether_ntoa((const struct ether_addr *)arr[idx].dst));
-	struct netchan_avtp * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size);
+	struct channel * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size);
 	if (!du)
 		return NULL;
 
@@ -438,7 +439,7 @@ struct netchan_avtp *pdu_create_standalone(char *name,
 	return du;
 }
 
-void pdu_destroy(struct netchan_avtp **pdu)
+void pdu_destroy(struct channel **pdu)
 {
 	if (!*pdu)
 		return;
@@ -478,7 +479,7 @@ void pdu_destroy(struct netchan_avtp **pdu)
 		printf("%s(): PDU destroyed\n", __func__);
 }
 
-int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data)
+int pdu_update(struct channel *pdu, uint32_t ts, void *data)
 {
 	if (!pdu)
 		return -ENOMEM;
@@ -493,7 +494,7 @@ int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data)
 	return 0;
 }
 
-int pdu_send(struct netchan_avtp *du)
+int pdu_send(struct channel *du)
 {
 	if (!du)
 		return -ENOMEM;
@@ -520,7 +521,7 @@ int pdu_send(struct netchan_avtp *du)
  *
  * ptp_target_delay_ns is adjusted for correct class
  */
-int64_t _delay(struct netchan_avtp *du, uint64_t ptp_target_delay_ns)
+int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 {
 	/* Calculate delay
 	 * - take CLOCK_MONOTONIC ts and current PTP Time, find diff between the 2
@@ -580,7 +581,7 @@ int64_t _delay(struct netchan_avtp *du, uint64_t ptp_target_delay_ns)
 	return error_cpu_ns;
 }
 
-int _pdu_send_now(struct netchan_avtp *du, void *data, bool wait_class_delay)
+int _pdu_send_now(struct channel *du, void *data, bool wait_class_delay)
 {
 	uint64_t ts_ns = get_ptp_ts_ns(du->nh->ptp_fd);
 	if (pdu_update(du, tai_to_avtp_ns(ts_ns), data)) {
@@ -604,17 +605,17 @@ int _pdu_send_now(struct netchan_avtp *du, void *data, bool wait_class_delay)
 	return res;
 }
 
-int pdu_send_now(struct netchan_avtp *du, void *data)
+int pdu_send_now(struct channel *du, void *data)
 {
 	return _pdu_send_now(du, data, false);
 }
 
-int pdu_send_now_wait(struct netchan_avtp *du, void *data)
+int pdu_send_now_wait(struct channel *du, void *data)
 {
 	return _pdu_send_now(du, data, true);
 }
 
-int _pdu_read(struct netchan_avtp *du, void *data, bool read_delay)
+int _pdu_read(struct channel *du, void *data, bool read_delay)
 {
 	size_t rpsz = sizeof(struct pipe_meta) + du->payload_size;
 
@@ -670,17 +671,17 @@ int _pdu_read(struct netchan_avtp *du, void *data, bool read_delay)
 	return res;
 }
 
-int pdu_read(struct netchan_avtp *du, void *data)
+int pdu_read(struct channel *du, void *data)
 {
 	return _pdu_read(du, data, false);
 }
 
-int pdu_read_wait(struct netchan_avtp *du, void *data)
+int pdu_read_wait(struct channel *du, void *data)
 {
 	return _pdu_read(du, data, true);
 }
 
-void * pdu_get_payload(struct netchan_avtp *pdu)
+void * pdu_get_payload(struct channel *pdu)
 {
 	if (!pdu)
 		return NULL;
@@ -1033,7 +1034,7 @@ void nf_stop_rx(struct nethandler *nh)
 	}
 }
 
-int _nh_get_len(struct netchan_avtp *head)
+int _nh_get_len(struct channel *head)
 {
 	if (!head)
 		return 0;
@@ -1054,7 +1055,7 @@ int nh_get_num_rx(struct nethandler *nh)
 	return _nh_get_len(nh->du_rx_head);
 }
 
-int nh_add_tx(struct nethandler *nh, struct netchan_avtp *du)
+int nh_add_tx(struct nethandler *nh, struct channel *du)
 {
 	if (!nh || !du)
 		return -EINVAL;
@@ -1068,7 +1069,7 @@ int nh_add_tx(struct nethandler *nh, struct netchan_avtp *du)
 	return 0;
 }
 
-int nh_add_rx(struct nethandler *nh, struct netchan_avtp *du)
+int nh_add_rx(struct nethandler *nh, struct channel *du)
 {
 	if (!nh || !du)
 		return -EINVAL;
@@ -1106,14 +1107,14 @@ void nh_destroy(struct nethandler **nh)
 
 		/* clean up TX PDUs */
 		while ((*nh)->du_tx_head) {
-			struct netchan_avtp *pdu = (*nh)->du_tx_head;
+			struct channel *pdu = (*nh)->du_tx_head;
 			(*nh)->du_tx_head = (*nh)->du_tx_head->next;
 			pdu_destroy(&pdu);
 		}
 
 		/* clean up Rx PDUs */
 		while ((*nh)->du_rx_head) {
-			struct netchan_avtp *pdu = (*nh)->du_rx_head;
+			struct channel *pdu = (*nh)->du_rx_head;
 			(*nh)->du_rx_head = (*nh)->du_rx_head->next;
 			pdu_destroy(&pdu);
 		}
@@ -1130,7 +1131,7 @@ void nh_destroy_standalone()
 		nh_destroy(&_nh);
 }
 
-uint64_t get_class_delay_bound_ns(struct netchan_avtp *du)
+uint64_t get_class_delay_bound_ns(struct channel *du)
 {
 	if (!du)
 		return 0;

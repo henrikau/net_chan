@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-bool nc_srp_client_setup(struct netchan_avtp *pdu)
+bool nc_srp_client_setup(struct channel *pdu)
 {
 	pdu->ctx = malloc(sizeof(*pdu->ctx));
 	pdu->class_a = malloc(sizeof(*pdu->class_a));
@@ -19,7 +19,7 @@ bool nc_srp_client_setup(struct netchan_avtp *pdu)
 	return true;
 }
 
-static bool _set_socket_prio(struct netchan_avtp *pdu)
+static bool _set_socket_prio(struct channel *pdu)
 {
 	switch (pdu->sc) {
 	case CLASS_A:
@@ -49,7 +49,7 @@ static bool _set_socket_prio(struct netchan_avtp *pdu)
 	return true;
 }
 
-bool nc_srp_client_listener_setup(struct netchan_avtp *pdu)
+bool nc_srp_client_listener_setup(struct channel *pdu)
 {
 	if (create_socket(pdu->ctx) < 0) {
 		fprintf(stderr, "Failed creating MRP CTX socket\n");
@@ -74,7 +74,7 @@ bool nc_srp_client_listener_setup(struct netchan_avtp *pdu)
 	return true;
 }
 
-bool nc_srp_client_talker_setup(struct netchan_avtp *pdu)
+bool nc_srp_client_talker_setup(struct channel *pdu)
 {
 	int res = mrp_ctx_init(pdu->ctx);
 	if (res == -1) {
@@ -153,7 +153,7 @@ bool nc_srp_client_talker_setup(struct netchan_avtp *pdu)
 	return true;
 }
 
-void nc_srp_client_destroy(struct netchan_avtp *pdu)
+void nc_srp_client_destroy(struct channel *pdu)
 {
 	if (!pdu)
 		return;

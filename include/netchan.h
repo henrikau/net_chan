@@ -38,10 +38,10 @@ extern "C" {
  * are concerned with interference from other threads, then avoid the
  * macros and use the non-standalone functions.
  */
-#define NETCHAN_RX(x) struct netchan_avtp * x ## _du = \
+#define NETCHAN_RX(x) struct channel * x ## _du = \
 		pdu_create_standalone(#x, 0, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
-#define NETCHAN_TX(x) struct netchan_avtp * x ## _du = \
+#define NETCHAN_TX(x) struct channel * x ## _du = \
 		pdu_create_standalone(#x, 1, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
 
@@ -171,10 +171,10 @@ struct avtpdu_cshdr {
  * @payload_size: num bytes for the payload
  * @payload: grows at the end of the struct
  */
-struct netchan_avtp
+struct channel
 {
 	struct nethandler *nh;
-	struct netchan_avtp *next;
+	struct channel *next;
 
 
 	bool running;
@@ -279,7 +279,7 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size);
  *
  * @returns the new PDU or NULL upon failure.
  */
-struct netchan_avtp * pdu_create(struct nethandler *nh,
+struct channel * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
 				enum stream_class sc,
@@ -299,7 +299,7 @@ struct netchan_avtp * pdu_create(struct nethandler *nh,
  *
  * @returns new pdu, NULL on error
  */
-struct netchan_avtp *pdu_create_standalone(char *name,
+struct channel *pdu_create_standalone(char *name,
 					bool tx,
 					struct net_fifo *arr,
 					int arr_size);
@@ -310,14 +310,14 @@ struct netchan_avtp *pdu_create_standalone(char *name,
  * @param pdu AVTP dataunit
  * @returns pointer to payload
  */
-void * pdu_get_payload(struct netchan_avtp *pdu);
+void * pdu_get_payload(struct channel *pdu);
 
 /**
  * pdu_destroy : clean up and destroy a pdu
  *
  * @param pdu: pointer to pdu
  */
-void pdu_destroy(struct netchan_avtp **pdu);
+void pdu_destroy(struct channel **pdu);
 
 /**
  * pdu_update : take an existing PDU and update timestamp and data and make it ready for Tx
@@ -330,7 +330,7 @@ void pdu_destroy(struct netchan_avtp **pdu);
  *
  * @returns 0 on success, errno on failure.
  */
-int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data);
+int pdu_update(struct channel *pdu, uint32_t ts, void *data);
 
 /**
  * pdu_send : send payload of netchan data unit
@@ -341,7 +341,7 @@ int pdu_update(struct netchan_avtp *pdu, uint32_t ts, void *data);
  * @params: pdu
  * @returns: 0 on success negative value on error.
  */
-int pdu_send(struct netchan_avtp *pdu);
+int pdu_send(struct channel *pdu);
 
 /**
  * pdu_send_now: update and send pdu *now*
@@ -354,7 +354,7 @@ int pdu_send(struct netchan_avtp *pdu);
  *
  * @return 0 on success, negative on error
  */
-int pdu_send_now(struct netchan_avtp *du, void *data);
+int pdu_send_now(struct channel *du, void *data);
 
 /**
  * pdu_send_now_wait - update and send PDU, and wait for class delay
@@ -368,7 +368,7 @@ int pdu_send_now(struct netchan_avtp *du, void *data);
  *
  * @return 0 on success, negative on error
  */
-int pdu_send_now_wait(struct netchan_avtp *du, void *data);
+int pdu_send_now_wait(struct channel *du, void *data);
 
 /**
  * pdu_read : read data from incoming pipe attached to DU
@@ -378,7 +378,7 @@ int pdu_send_now_wait(struct netchan_avtp *du, void *data);
  *
  * @return bytes received or -1 on error
  */
-int pdu_read(struct netchan_avtp *du, void *data);
+int pdu_read(struct channel *du, void *data);
 
 /**
  * pdu_read_wait : read data from incoming pipe attached to DU and wait for class delay
@@ -392,7 +392,7 @@ int pdu_read(struct netchan_avtp *du, void *data);
  *
  * @return bytes received or -1 on error
  */
-int pdu_read_wait(struct netchan_avtp *du, void *data);
+int pdu_read_wait(struct channel *du, void *data);
 
 /**
  * nh_create_init - create and initialize nethandler
@@ -507,8 +507,8 @@ int nh_get_num_rx(struct nethandler *nh);
  * @param: nh nethandler container
  * @param: du: new NetChan Data-unit
  */
-int nh_add_tx(struct nethandler *nh, struct netchan_avtp *du);
-int nh_add_rx(struct nethandler *nh, struct netchan_avtp *du);
+int nh_add_tx(struct nethandler *nh, struct channel *du);
+int nh_add_rx(struct nethandler *nh, struct channel *du);
 
 /**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.
@@ -535,7 +535,7 @@ void nh_destroy_standalone();
  * @param du: NetChan data unit container
  * @returns: guaranteed delay bound
  */
-uint64_t get_class_delay_bound_ns(struct netchan_avtp *du);
+uint64_t get_class_delay_bound_ns(struct channel *du);
 
 #ifdef __cplusplus
 }
