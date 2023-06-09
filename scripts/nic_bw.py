@@ -7,7 +7,7 @@ VERBOSE = False
 ETHER = 18 + 4  # Ethernet header + CRC + VLAN
 L1 = 7 + 1 + 12 # Preamble, start, IPG
 CSHDR = 24
-MIN_PAYLOAD = 46
+MIN_PAYLOAD = ETHER+CSHDR
 
 def do_print(line):
     if VERBOSE:
