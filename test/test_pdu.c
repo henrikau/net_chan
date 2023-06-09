@@ -43,6 +43,9 @@ void tearDown(void)
 static void test_pdu_create(void)
 {
 	printf("%s(): start\n", __func__);
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(NULL, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128, INT_50HZ),
+				"Cannot create PDU and assign to non-existant nethandler!");
+
 	struct channel *pdu = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128, INT_50HZ);
 	TEST_ASSERT(pdu != NULL);
 	TEST_ASSERT(pdu->pdu.stream_id == be64toh(43));
@@ -51,6 +54,54 @@ static void test_pdu_create(void)
 	TEST_ASSERT(pdu == NULL);
 
 	printf("%s(): end\n", __func__);
+}
+
+static void test_invalid_interval(void)
+{
+	/* 0 */
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 0),
+				"Invalid period (0)");
+
+	/* shorter than minimum time to send smallest possible payload
+	 * on link capacity.
+	 * For test, we use lo, which sets the capacity to 1 Gbps, i.e 1ns pr bit
+	 */
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 66),
+				"Invalid period (66 bits)");
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 66*8),
+				"Invalid period (528 ns (66 bytes on 1 Gbps link)");
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 66*8-1),
+				"Invalid period (527 ns (66 bytes -1 bit on 1 Gbps link)");
+	TEST_ASSERT_NOT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 74*8+1),
+				"Failed for a valid period (time for 8 bytes payload (+ headers) + 1 bit)");
+
+	/* larger than one hour (why would you need this?) */
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 1e9*3600),
+				"Too long period (> 1 hour)");
+}
+
+static void test_invalid_payload_size(void)
+{
+	/* payload 0 */
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 0, 50*NS_IN_MS),
+				"Invalid size (0 bytes)");
+
+	/* payload -> exceed MTU */
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 2048, 50*NS_IN_MS),
+				"Invalid size (2k bytes)");
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1500, 50*NS_IN_MS),
+				"Invalid size (1500B payload, forgetting AVTP header)");
+	TEST_ASSERT_NOT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1476, 50*NS_IN_MS),
+				"Just about valid size (1476 B payload, adding AVTP header -> 1500)");
+}
+
+static void test_payload_size_interval_combo(void)
+{
+	/* 1 Gbps needs 1522 ns to send 1476 payload when adding headers and IPG/preamble*/
+	TEST_ASSERT_NOT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 1500),
+				"Invalid size (8) interval (1500ns)");
+	TEST_ASSERT_NULL_MESSAGE(pdu_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1476, 1500),
+				"Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization");
 }
 
 static void test_pdu_update(void)
@@ -195,6 +246,9 @@ int main(int argc, char *argv[])
 	nf_set_nic("lo");
 
 	RUN_TEST(test_pdu_create);
+	RUN_TEST(test_invalid_interval);
+	RUN_TEST(test_invalid_payload_size);
+	RUN_TEST(test_payload_size_interval_combo);
 	RUN_TEST(test_pdu_update);
 	RUN_TEST(test_pdu_get_payload);
 	RUN_TEST(test_pdu_send);

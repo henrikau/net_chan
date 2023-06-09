@@ -14,6 +14,10 @@
 #include <linux/if_packet.h>
 #include <linux/net_tstamp.h>
 #include <netinet/ether.h>
+
+#include <linux/ethtool.h>
+#include <linux/sockios.h>
+
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <signal.h>
@@ -82,6 +86,7 @@ struct nethandler {
 	 * SRP context, look to netchan_avtp for SRP related fields.
 	 */
 	int rx_sock;
+	unsigned int link_speed;
 
 	struct sockaddr_ll sk_addr;
 	char ifname[IFNAMSIZ];
@@ -258,6 +263,47 @@ int nf_rx_create(char *name, struct net_fifo *arr, int arr_size)
 	return du->fd_r;
 }
 
+static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_t sz)
+{
+	/* Smallest possible unit to send: no payload, only headers, IPG etc
+	 * PREAMBLE+start 7+1
+	 * Ether + CRC: 22
+	 * AVTP: 24
+	 * IPG: 12
+	 */
+	size_t min_sz = 8 * (sizeof(struct avtpdu_cshdr) + 22 + 12 + 7 + 1);
+	size_t tx_sz = min_sz + sz*8;
+
+	int ns_to_tx = min_sz * 1e9 / nh->link_speed;
+	if (interval_ns <= ns_to_tx) {
+		if (verbose)
+			printf("Requested interval too short: %zd, minimum ns_to_tx: %d\n", interval_ns, ns_to_tx);
+		return false;
+	}
+	if (interval_ns >= NS_IN_HOUR)
+		return false;
+
+	/* Test utilization */
+	if ((tx_sz * 1e9/nh->link_speed) > interval_ns) {
+		printf("Cannot send %zu bits (%d) in %lu ns\n", tx_sz, sz, interval_ns);
+		return false;
+	}
+	return true;
+}
+
+static bool _valid_size(struct nethandler *nh, uint16_t sz)
+{
+	if (sz == 0)
+		return false;
+
+	if ((sz + 24 + 22) > 1522) {
+		if (verbose)
+			printf("Requested size too large (%d yields total framesize > MTU of 1522)\n", sz);
+		return false;
+	}
+	return true;
+}
+
 struct channel * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
@@ -265,6 +311,13 @@ struct channel * pdu_create(struct nethandler *nh,
 			uint16_t sz,
 			uint64_t interval_ns)
 {
+	/* Validate */
+	if (!nh || !dst)
+		return NULL;
+	if (!_valid_size(nh, sz) || !_valid_interval(nh, interval_ns, sz))
+		return NULL;
+
+
 	struct channel *pdu = malloc(sizeof(*pdu) + sz);
 	if (!pdu)
 		return NULL;
@@ -407,7 +460,6 @@ struct channel *pdu_create_standalone(char *name,
 		}
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(du->nh, du);
-		printf("%s(): new du added to nethandler\n", __func__);
 	} else {
 
 		/* if dst is multicast, add membership */
@@ -763,6 +815,28 @@ static int _nh_socket_setup_common(struct nethandler *nh)
 	return sock;
 }
 
+static unsigned int _get_link_speed_Mbps(int socket, const char *ifname)
+{
+	struct ifreq ifr;
+	struct ethtool_cmd data;
+
+	/* If we are opening lo, speed does not make sense, so just
+	 * pretend it has 1 Gbps capacity. */
+	if (strcmp(ifname, "lo") == 0) {
+		return 1000;
+	}
+
+	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+	ifr.ifr_data = &data;
+	data.cmd = ETHTOOL_GSET;
+
+	if (ioctl(socket, SIOCETHTOOL, &ifr) < 0) {
+		fprintf(stderr, "Failed reading ethtool data (%s)\n", strerror(errno));
+		return -1;
+	}
+	return (unsigned int)ethtool_cmd_speed(&data);
+}
+
 struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile)
 {
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
@@ -832,6 +906,11 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 		if (nh->ptp_fd < 0)
 			fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
 	}
+
+	/* query link speed (need this to ensure that Tx-channels does
+	 * not have too short periods)
+	 */
+	nh->link_speed = _get_link_speed_Mbps(nh->rx_sock, nh->ifname) * 1e6;
 
 	/* if (strlen(nf_termdevice) > 0) */
 	/* 	nh->ttys = term_open(nf_termdevice); */
