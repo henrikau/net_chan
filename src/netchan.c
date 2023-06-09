@@ -826,10 +826,12 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	 * FIXME: properly handle error when opening (assume caller
 	 * knows their hardware?)
 	 */
-	nh->ptp_fd = get_ptp_fd(ifname);
-	if (nh->ptp_fd < 0)
-		fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
-
+	nh->ptp_fd = -1;
+	if (strncmp(nh->ifname, "lo", 2) != 0) {
+		nh->ptp_fd = get_ptp_fd(ifname);
+		if (nh->ptp_fd < 0)
+			fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
+	}
 
 	/* if (strlen(nf_termdevice) > 0) */
 	/* 	nh->ttys = term_open(nf_termdevice); */
