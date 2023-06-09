@@ -115,14 +115,6 @@ t_net_fifo = executable('testnetfifo',
 	       dependencies: deps
 	      )
 
-t_nf_macro = executable('testnfmacro',
-	       'test/test_macro.c',
-	       'test/unity.c',
-	       include_directories: include_directories('include'),
-	       build_by_default: true,
-	       dependencies: deps,
-	       link_with : netchan_so)
-
 t_mrp =  executable('testmrp',
 	       'test/test_mrp.c',
 	       'test/unity.c',
