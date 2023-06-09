@@ -256,11 +256,11 @@ const struct net_fifo * nc_get_chan_ref(char *name, const struct net_fifo *arr, 
 
 int nc_rx_create(char *name, struct net_fifo *arr, int arr_size)
 {
-	struct channel *du = pdu_create_standalone(name, 0, arr, arr_size);
-	if (!du)
+	struct channel *chan = chan_create_standalone(name, 0, arr, arr_size);
+	if (!chan)
 		return -1;
 
-	return du->fd_r;
+	return chan->fd_r;
 }
 
 static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_t sz)
@@ -304,10 +304,10 @@ static bool _valid_size(struct nethandler *nh, uint16_t sz)
 	return true;
 }
 
-struct channel * pdu_create(struct nethandler *nh,
-				unsigned char *dst,
-				uint64_t stream_id,
-				enum stream_class sc,
+struct channel * chan_create(struct nethandler *nh,
+			unsigned char *dst,
+			uint64_t stream_id,
+			enum stream_class sc,
 			uint16_t sz,
 			uint64_t interval_ns)
 {
@@ -318,54 +318,53 @@ struct channel * pdu_create(struct nethandler *nh,
 		return NULL;
 
 
-	struct channel *pdu = malloc(sizeof(*pdu) + sz);
-	if (!pdu)
+	struct channel *ch = calloc(1, sizeof(*ch) + sz);
+	if (!ch)
 		return NULL;
 
-	memset(pdu, 0, sizeof(*pdu));
-	pdu->pdu.subtype = AVTP_SUBTYPE_NETCHAN;
-	pdu->pdu.stream_id = htobe64(stream_id);
-	pdu->sidw.s64 = pdu->pdu.stream_id;
-	pdu->pdu.sv = 1;
-	pdu->pdu.seqnr = 0xff;
-	pdu->payload_size = sz;
+	ch->pdu.subtype = AVTP_SUBTYPE_NETCHAN;
+	ch->pdu.stream_id = htobe64(stream_id);
+	ch->sidw.s64 = ch->pdu.stream_id;
+	ch->pdu.sv = 1;
+	ch->pdu.seqnr = 0xff;
+	ch->payload_size = sz;
 
 	/* It does not make sense to set the next-ts (socket is not
 	 * fully configured) just yet.
 	 *
 	 * As long as it is 'sufficienty in the past', the first frame
 	 * arriving should fly straight through. */
-	pdu->next_tx_ns = 0;
-	pdu->interval_ns = interval_ns;
+	ch->next_tx_ns = 0;
+	ch->interval_ns = interval_ns;
 
-	pdu->nh = nh;
-	memcpy(pdu->dst, dst, ETH_ALEN);
+	ch->nh = nh;
+	memcpy(ch->dst, dst, ETH_ALEN);
 
-	pdu->sidw.s64 = stream_id;
-	pdu->sc = sc;
-	pdu->tx_tid = 0;
-	pdu->tx_sock = -1;
-	pdu->running = false;
+	ch->sidw.s64 = stream_id;
+	ch->sc = sc;
+	ch->tx_tid = 0;
+	ch->tx_sock = -1;
+	ch->running = false;
 
 	/* Set default values, if we run with SRP, it will be updated
 	 * once we've connected to mrpd
 	 */
-	switch (pdu->sc) {
+	switch (ch->sc) {
 	case CLASS_A:
-		pdu->socket_prio = DEFAULT_CLASS_A_PRIO;
+		ch->socket_prio = DEFAULT_CLASS_A_PRIO;
 		break;
 	case CLASS_B:
-		pdu->socket_prio = DEFAULT_CLASS_B_PRIO;
+		ch->socket_prio = DEFAULT_CLASS_B_PRIO;
 		break;
 	}
 
-	return pdu;
+	return ch;
 }
 
-struct channel *pdu_create_standalone(char *name,
-					bool tx_update,
-					struct net_fifo *arr,
-					int arr_size)
+struct channel *chan_create_standalone(char *name,
+				bool tx_update,
+				struct net_fifo *arr,
+				int arr_size)
 {
 	if (!name || !arr || arr_size <= 0) {
 		fprintf(stderr, "%s() no name, arr or arr_size sub-zero, aborting\n", __func__);
@@ -403,67 +402,67 @@ struct channel *pdu_create_standalone(char *name,
 	if (verbose)
 		printf("%s(): freq: %f (interval_ns=%lu)\n", __func__, freq, arr[idx].interval_ns);
 
-	struct channel * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size, arr[idx].interval_ns);
-	if (!du)
+	struct channel * ch = chan_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size, arr[idx].interval_ns);
+	if (!ch)
 		return NULL;
 
-	strncpy(du->name, name, 32);
+	strncpy(ch->name, name, 32);
 
 	int pfd[2];
 	if (pipe(pfd) == -1) {
-		pdu_destroy(&du);
+		pdu_destroy(&ch);
 		return NULL;
 	}
-	du->fd_r = pfd[0];
-	du->fd_w = pfd[1];
+	ch->fd_r = pfd[0];
+	ch->fd_w = pfd[1];
 
 	struct ifreq req;
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", _nh->ifname);
-	int res = ioctl(du->nh->rx_sock, SIOCGIFINDEX, &req);
+	int res = ioctl(ch->nh->rx_sock, SIOCGIFINDEX, &req);
 	if (res < 0) {
 		fprintf(stderr, "%s(): Failed to get interface index for socket %d, %s\n",
-			__func__, du->nh->rx_sock, strerror(errno));
-		pdu_destroy(&du);
+			__func__, ch->nh->rx_sock, strerror(errno));
+		pdu_destroy(&ch);
 		return NULL;
 	}
 
 	/* SRP common setup */
 	if (do_srp)
-		nc_srp_client_setup(du);
+		nc_srp_client_setup(ch);
 
 	/* if tx, create socket  */
 	if (tx_update) {
-		du->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
-		if (du->tx_sock == -1) {
-			fprintf(stderr, "%s(): Failed creating tx-socket for PDU (%lu) - %s\n",
-				__func__, be64toh(du->pdu.stream_id), strerror(errno));
-			pdu_destroy(&du);
+		ch->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
+		if (ch->tx_sock == -1) {
+			fprintf(stderr, "%s(): Failed creating tx-socket for channel (%lu) - %s\n",
+				__func__, be64toh(ch->pdu.stream_id), strerror(errno));
+			pdu_destroy(&ch);
 			return NULL;
 		}
 
 		/* Set destination address for outgoing traffict this DU */
-		struct sockaddr_ll *sk_addr = &du->sk_addr;
+		struct sockaddr_ll *sk_addr = &ch->sk_addr;
 		sk_addr->sll_family = AF_PACKET;
 		sk_addr->sll_protocol = htons(ETH_P_TSN);
 		sk_addr->sll_halen = ETH_ALEN;
 		sk_addr->sll_ifindex = req.ifr_ifindex;
-		memcpy(sk_addr->sll_addr, du->dst, ETH_ALEN);
+		memcpy(sk_addr->sll_addr, ch->dst, ETH_ALEN);
 		if (verbose)
-			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&du->dst));
+			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
 
 		if (do_srp) {
-			if (!nc_srp_client_talker_setup(du)) {
-				pdu_destroy(&du);
+			if (!nc_srp_client_talker_setup(ch)) {
+				pdu_destroy(&ch);
 				return NULL;
 			}
 
 		}
 		/* Add ref to internal list for memory mgmt */
-		nh_add_tx(du->nh, du);
+		nh_add_tx(ch->nh, ch);
 	} else {
 
 		/* if dst is multicast, add membership */
-		if (du->dst[0] == 0x01 && du->dst[1] == 0x00 && du->dst[2] == 0x5E) {
+		if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
 			if (verbose)
 				printf("%s() receive data on a multicast group, adding membership\n", __func__);
 
@@ -471,21 +470,21 @@ struct channel *pdu_create_standalone(char *name,
 			memset(&mr, 0, sizeof(mr));
 			mr.mr_ifindex = req.ifr_ifindex;
 			mr.mr_type = PACKET_MR_PROMISC;
-			if (setsockopt(du->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
+			if (setsockopt(ch->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
 				fprintf(stderr, "%s(): failed setting multicast membership, may not receive frames! => %s\n",
 					__func__, strerror(errno));
 			}
 		}
 		/* Rx SRP subscribe */
 		if (do_srp) {
-			if (!nc_srp_client_listener_setup(du)) {
-				pdu_destroy(&du);
+			if (!nc_srp_client_listener_setup(ch)) {
+				pdu_destroy(&ch);
 				return NULL;
 			}
 		}
 
 		/* Add ref to internal list for memory mgmt */
-		nh_add_rx(du->nh, du);
+		nh_add_rx(ch->nh, ch);
 
 		/* trigger on incoming DUs and attach a generic callback
 		 * and write data into correct pipe.
@@ -495,14 +494,14 @@ struct channel *pdu_create_standalone(char *name,
 		 * payload, we need additional fields - thus a temp buffer that
 		 * follows the pdu.
 		 */
-		du->cbp = malloc(sizeof(struct cb_priv) + du->payload_size);
-		if (!du->cbp) {
-			pdu_destroy(&du);
+		ch->cbp = malloc(sizeof(struct cb_priv) + ch->payload_size);
+		if (!ch->cbp) {
+			pdu_destroy(&ch);
 			return NULL;
 		}
-		du->cbp->fd = du->fd_w;
-		du->cbp->sz = du->payload_size;
-		nh_reg_callback(du->nh, arr[idx].stream_id, du->cbp, nh_std_cb);
+		ch->cbp->fd = ch->fd_w;
+		ch->cbp->sz = ch->payload_size;
+		nh_reg_callback(ch->nh, arr[idx].stream_id, ch->cbp, nh_std_cb);
 
 		/* Rx thread ready, wait for talker to start sending
 		 *
@@ -511,12 +510,12 @@ struct channel *pdu_create_standalone(char *name,
 		if (do_srp) {
 			printf("%s(): Awaiting talker\n", __func__);
 			fflush(stdout);
-			await_talker(du->ctx);
-			send_ready(du->ctx);
+			await_talker(ch->ctx);
+			send_ready(ch->ctx);
 		}
 	}
 
-	return du;
+	return ch;
 }
 
 void pdu_destroy(struct channel **pdu)

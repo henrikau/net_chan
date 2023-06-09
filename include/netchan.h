@@ -39,10 +39,10 @@ extern "C" {
  * macros and use the non-standalone functions.
  */
 #define NETCHAN_RX(x) struct channel * x ## _du = \
-		pdu_create_standalone(#x, 0, net_fifo_chans, \
+		chan_create_standalone(#x, 0, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
 #define NETCHAN_TX(x) struct channel * x ## _du = \
-		pdu_create_standalone(#x, 1, net_fifo_chans, \
+		chan_create_standalone(#x, 1, net_fifo_chans, \
 		ARRAY_SIZE(net_fifo_chans))
 
 #define WRITE(x,v) pdu_send_now(x ## _du, v)
@@ -283,12 +283,12 @@ int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
 #define NC_GET_REF(x) (nc_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
 /**
- * pdu_create - create and initialize a new PDU.
+ * chan_create - create and initialize a new channel.
  *
- * The common workflow is that a PDU is created once for a stream and
+ * The common workflow is that a channel is created once for a stream and
  * then updated before sending. If the traffic is so dense that the
  * network layer has not finished with it before a new must be
- * assembled, caller should create multiple PDUs.
+ * assembled, caller should create multiple channels..
  *
  * For convenience, the flow is more like:
  * CREATE
@@ -297,23 +297,23 @@ int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
  * DESTROY
  *
  * @param nh nethandler container
- * @param dst destination address for this PDU
+ * @param dst destination address for this channel
  * @param stream_id 64 bit unique value for the stream allotted to our channel.
  * @param cl: stream class this stream belongs to, required to set correct socket prio
  * @param sz: size of data to transmit
  * @param interval_ns: the minimum time between subsequent frames (1/freq)
  *
- * @returns the new PDU or NULL upon failure.
+ * @returns the new channel or NULL upon failure.
  */
-struct channel * pdu_create(struct nethandler *nh,
-				unsigned char *dst,
-				uint64_t stream_id,
-				enum stream_class sc,
-				uint16_t sz,
-				uint64_t interval_ns);
+struct channel * chan_create(struct nethandler *nh,
+			unsigned char *dst,
+			uint64_t stream_id,
+			enum stream_class sc,
+			uint16_t sz,
+			uint64_t interval_ns);
 
 /**
- * pdu_create_standalone - create pdu using internal refs as much as possible
+ * chan_create_standalone - create a new channel using internal refs as much as possible
  *
  * Intended to be used when retrieving values from struct net_fifo and
  * other magic constants in net_fifo.h
@@ -323,12 +323,12 @@ struct channel * pdu_create(struct nethandler *nh,
  * @param arr : net_fifo array of values
  * @param arr_size : size of net_fifo array
  *
- * @returns new pdu, NULL on error
+ * @returns new channel, NULL on error
  */
-struct channel *pdu_create_standalone(char *name,
-					bool tx,
-					struct net_fifo *arr,
-					int arr_size);
+struct channel *chan_create_standalone(char *name,
+				bool tx,
+				struct net_fifo *arr,
+				int arr_size);
 
 /**
  * pdu_get_payload
@@ -352,7 +352,7 @@ void pdu_destroy(struct channel **pdu);
  *
  * @param pdu: pdu to update
  * @param ts: avtp timestamp (lower 32 bit of PTP timestamp)
- * @param data: data to copy into payload (size is fixed from pdu_create())
+ * @param data: data to copy into payload (size is fixed from chan_create())
  *
  * @returns 0 on success, errno on failure.
  */

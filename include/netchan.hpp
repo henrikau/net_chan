@@ -41,7 +41,7 @@ public:
 protected:
     void set_nic(std::string nic = "lo") { nc_set_nic((char *)nic.c_str()); };
     bool connect() {
-        _ch = pdu_create_standalone((char *)channel_name.c_str(), tx, net_fifo_chans, nfc_sz);
+        _ch = chan_create_standalone((char *)channel_name.c_str(), tx, net_fifo_chans, nfc_sz);
         if (_ch)
             return true;
         printf("failed creating stdandalone pdu\n");
