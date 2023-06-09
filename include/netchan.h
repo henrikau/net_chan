@@ -27,8 +27,9 @@ extern "C" {
 #include <stdbool.h>
 #include <linux/if_ether.h>
 
-#include <srp/mrp_client.h>
 #include <ptp_getclock.h>
+
+#include <linux/if_packet.h>	/* sk_addr */
 
 /* --------------------------
  * Main NetChan Macros
@@ -65,6 +66,13 @@ enum {
 enum stream_class {
 	CLASS_A,
 	CLASS_B
+};
+
+
+/* StreamID u64 to bytearray wrapper */
+union stream_id_wrapper {
+	uint64_t s64;
+	uint8_t s8[8];
 };
 
 /**
@@ -152,8 +160,76 @@ struct avtpdu_cshdr {
 	uint16_t fsd_3;
 } __attribute__((packed));
 
-struct netchan_avtp;
+
+/**
+ * netchan_avtp - Container for fifo/lvchan over TSN/AVB
+ *
+ * Internal bits including the payload itself that a channel will send
+ * between tasks.
+ *
+ * @pdu: wrapper to AVTP Data Unit, common header
+ * @payload_size: num bytes for the payload
+ * @payload: grows at the end of the struct
+ */
+struct netchan_avtp
+{
+	struct nethandler *nh;
+	struct netchan_avtp *next;
+
+
+	bool running;
+
+	struct sockaddr_ll sk_addr;
+	uint8_t dst[ETH_ALEN];
+
+	/* iface name */
+	char name[32];
+
+
+	/*
+	 * Each outgoing stream has its own socket, with corresponding
+	 * SRP attributes etc.
+	 */
+	int tx_sock;
+	pthread_t tx_tid;
+
+	/*
+	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need
+	 * it as a byte array for mrp, so keep an easy ref to it here
+	 */
+	union stream_id_wrapper sidw;
+
+	/*
+	 * Each outgoing stream is mapped ot its own socket, so it makes
+	 * sense to keep track of this here. Similarly, each incoming
+	 * stream has to keep track of which talker to subscribe to, so
+	 * keep context for this here..
+	 *
+	 * MRP client has its own section for talker and listener, with
+	 * dedicated fields for strem_id, mac etc.
+	 */
+	struct mrp_ctx *ctx;
+	struct mrp_domain_attr *class_a;
+	struct mrp_domain_attr *class_b;
+	enum stream_class sc;
+	int socket_prio;
+
+	/* private area for callback, embed directly i not struct to
+	 * ease memory management. */
+	struct cb_priv *cbp;
+	int fd_w;
+	int fd_r;
+
+	/* payload size */
+	uint16_t payload_size;
+	/* FIXME: missing freq */
+
+
+	struct avtpdu_cshdr pdu;
+	unsigned char payload[0];
+};
 struct nethandler;
+
 
 int nf_set_nic(char *nic);
 void nf_keep_cstate();

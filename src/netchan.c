@@ -19,14 +19,15 @@
 #include <signal.h>
 #include <unistd.h>
 #include <time.h>
-#include <srp/mrp_client.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <netchan_srp_client.h>
 #include <logger.h>
 #include <tracebuffer.h>
+
 /* #include <terminal.h> */
 
 struct pipe_meta {
@@ -56,81 +57,6 @@ struct cb_priv
 
 	/* meta-info about the stream  */
 	struct pipe_meta meta;
-};
-
-/* StreamID u64 to bytearray wrapper */
-union stream_id_wrapper {
-	uint64_t s64;
-	uint8_t s8[8];
-};
-
-/**
- * netchan_avtp - Container for fifo/lvchan over TSN/AVB
- *
- * Internal bits including the payload itself that a channel will send
- * between tasks.
- *
- * @pdu: wrapper to AVTP Data Unit, common header
- * @payload_size: num bytes for the payload
- * @payload: grows at the end of the struct
- */
-struct netchan_avtp
-{
-	struct nethandler *nh;
-	struct netchan_avtp *next;
-
-
-	bool running;
-
-	struct sockaddr_ll sk_addr;
-	uint8_t dst[ETH_ALEN];
-
-	/* iface name */
-	char name[32];
-
-
-	/*
-	 * Each outgoing stream has its own socket, with corresponding
-	 * SRP attributes etc.
-	 *
-	 * This is managed by a seperate thread that blocks on a pipe
-	 * that the task thread is writing into when sending the data.
-	 */
-	int tx_sock;
-	pthread_t tx_tid;
-
-	/*
-	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need
-	 * it as a byte array for mrp, so keep an easy ref to it here
-	 */
-	union stream_id_wrapper sidw;
-
-	/*
-	 * Each outgoing stream is mapped ot its own socket, so it makes
-	 * sense to keep track of this here. Similarly, each incoming
-	 * stream has to keep track of which talker to subscribe to, so
-	 * keep context for this here..
-	 *
-	 * MRP client has its own section for talker and listener, with
-	 * dedicated fields for strem_id, mac etc.
-	 */
-	struct mrp_ctx *ctx;
-	struct mrp_domain_attr *class_a;
-	struct mrp_domain_attr *class_b;
-	enum stream_class sc;
-	int socket_prio;
-
-	/* private area for callback, embed directly i not struct to
-	 * ease memory management. */
-	struct cb_priv *cbp;
-	int fd_w;
-	int fd_r;
-
-	/* payload size */
-	uint16_t payload_size;
-
-	struct avtpdu_cshdr pdu;
-	unsigned char payload[0];
 };
 
 /**
