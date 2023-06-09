@@ -36,9 +36,10 @@ uint64_t get_ptp_ts_ns(int ptp_fd);
  */
 uint32_t tai_to_avtp_ns(uint64_t tai_ns);
 
-#define US_IN_MS (1000)
-#define NS_IN_MS (1000 * US_IN_MS)
-#define NS_IN_SEC (1000 * NS_IN_MS)
+#define US_IN_MS   (1000L)
+#define NS_IN_MS   (1000L * US_IN_MS)
+#define NS_IN_SEC  (1000L * NS_IN_MS)
+#define NS_IN_HOUR (3600L * NS_IN_SEC)
 
 static inline void ts_normalize(struct timespec *ts)
 {
