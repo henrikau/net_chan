@@ -1,5 +1,7 @@
 #pragma once
 #include <netchan.h>
+#define INT_10HZ 100000000L
+#define INT_50HZ  20000000L
 
 struct net_fifo net_fifo_chans[] = {
 	{
@@ -7,7 +9,7 @@ struct net_fifo net_fifo_chans[] = {
 		.stream_id = 42,
 		.sc        = CLASS_A,
 		.size      = 8,
-		.freq      = 50,
+		.interval_ns      = INT_50HZ,
 		.name      = "test1"
 	},
 	{
@@ -15,7 +17,7 @@ struct net_fifo net_fifo_chans[] = {
 		.stream_id = 43,
 		.sc        = CLASS_A,
 		.size      = 8,
-		.freq      = 10,
+		.interval_ns = INT_10HZ,
 		.name      = "test2"
 	},
 	{
@@ -23,7 +25,7 @@ struct net_fifo net_fifo_chans[] = {
 		.stream_id = 11,
 		.sc        = CLASS_B,
 		.size      = 8,
-		.freq      = 10,
+		.interval_ns = INT_10HZ,
 		.name      = "macro11"
 
 	}

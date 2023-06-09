@@ -37,7 +37,7 @@ static void test_arr_idx(void)
 	TEST_ASSERT_MESSAGE(strncmp(nf->name, "test1", 5) == 0, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->size == 8, "wrong net_fifo returned");
-	TEST_ASSERT_MESSAGE(nf->freq == 50, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->interval_ns == INT_50HZ, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->dst[2] == 0x5e, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf != &(net_fifo_chans[0]), "Expected copy to be returned, not ref");
 	if (nf)
@@ -55,7 +55,7 @@ static void test_arr_get_ref(void)
 	TEST_ASSERT_MESSAGE(strncmp(nf->name, "test1", 5) == 0, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->stream_id == 42, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->size == 8, "wrong net_fifo returned");
-	TEST_ASSERT_MESSAGE(nf->freq == 50, "wrong net_fifo returned");
+	TEST_ASSERT_MESSAGE(nf->interval_ns == INT_50HZ, "wrong net_fifo returned");
 	TEST_ASSERT_MESSAGE(nf->dst[2] == 0x5e, "wrong net_fifo returned");
 }
 

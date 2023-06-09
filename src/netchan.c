@@ -262,7 +262,8 @@ struct channel * pdu_create(struct nethandler *nh,
 				unsigned char *dst,
 				uint64_t stream_id,
 				enum stream_class sc,
-				uint16_t sz)
+			uint16_t sz,
+			uint64_t interval_ns)
 {
 	struct channel *pdu = malloc(sizeof(*pdu) + sz);
 	if (!pdu)
@@ -276,7 +277,14 @@ struct channel * pdu_create(struct nethandler *nh,
 	pdu->pdu.seqnr = 0xff;
 	pdu->payload_size = sz;
 
-	/* FIXME: missing freq */
+	/* It does not make sense to set the next-ts (socket is not
+	 * fully configured) just yet.
+	 *
+	 * As long as it is 'sufficienty in the past', the first frame
+	 * arriving should fly straight through. */
+	pdu->next_tx_ns = 0;
+	pdu->interval_ns = interval_ns;
+
 	pdu->nh = nh;
 	memcpy(pdu->dst, dst, ETH_ALEN);
 
@@ -322,7 +330,27 @@ struct channel *pdu_create_standalone(char *name,
 	if (!_nh)
 		return NULL;
 
-	struct channel * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size);
+	if (verbose) {
+		printf("%s(): creating new DU, idx=%d, dst=%s\n",
+			__func__, idx,
+			ether_ntoa((const struct ether_addr *)arr[idx].dst));
+	}
+
+	/*
+	 * Missing frequency workaround: add a warning if freq >
+	 * class_max_freq
+	 */
+	double freq = 1e9/(double)arr[idx].interval_ns;
+	if (arr[idx].sc == CLASS_A && freq > 8000) {
+		fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
+	} else if (arr[idx].sc == CLASS_B && freq > 4000) {
+		fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
+	}
+
+	if (verbose)
+		printf("%s(): freq: %f (interval_ns=%lu)\n", __func__, freq, arr[idx].interval_ns);
+
+	struct channel * du = pdu_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size, arr[idx].interval_ns);
 	if (!du)
 		return NULL;
 

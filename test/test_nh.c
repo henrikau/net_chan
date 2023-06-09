@@ -12,10 +12,12 @@
 #include "../src/netchan.c"
 
 #define DATA17SZ 32
+#define INT17 INT_10HZ
 char data17[DATA17SZ] = {0};
 struct channel *pdu17;
 
 #define DATA42SZ 8
+#define INT42 INT_50HZ
 char data42[DATA42SZ] = {0};
 struct channel *pdu42;
 
@@ -29,8 +31,8 @@ int pfd[2];
 void setUp(void)
 {
 	nh = nh_create_init("lo", 16, NULL);
-	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ);
-	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_B, DATA42SZ);
+	pdu17 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ, INT17);
+	pdu42 = pdu_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_B, DATA42SZ, INT42);
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 

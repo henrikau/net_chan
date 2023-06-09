@@ -14,7 +14,7 @@ struct net_fifo net_fifo_chans[] = {
 		.stream_id = 42,
 		.sc	   = CLASS_A,
 		.size      =  8,
-		.freq      = 50,
+		.interval_ns = 20000000L, /* 50 Hz */
 		.name      = "mcast42",
 	},
 	{
@@ -23,7 +23,7 @@ struct net_fifo net_fifo_chans[] = {
 		.stream_id = 17,
 		.sc	   = CLASS_A,
 		.size      =  8,
-		.freq      = 10,
+		.interval_ns  = 100000000L, /* 10 Hz */
 		.name      = "mcast17"
 	},
 	{
@@ -32,7 +32,7 @@ struct net_fifo net_fifo_chans[] = {
 		.stream_id = 18,
 		.sc	   = CLASS_A,
 		.size      =  8,
-		.freq      = 10,
+		.interval_ns  = 100000000L, /* 10 Hz */
 		.name      = "mcast18"
 	}
 };
