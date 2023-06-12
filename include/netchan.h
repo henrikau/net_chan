@@ -191,7 +191,6 @@ struct channel
 	 * SRP attributes etc.
 	 */
 	int tx_sock;
-	pthread_t tx_tid;
 
 	/*
 	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need

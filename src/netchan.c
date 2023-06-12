@@ -342,7 +342,6 @@ struct channel * chan_create(struct nethandler *nh,
 
 	ch->sidw.s64 = stream_id;
 	ch->sc = sc;
-	ch->tx_tid = 0;
 	ch->tx_sock = -1;
 	ch->running = false;
 
@@ -525,21 +524,6 @@ void chan_destroy(struct channel **ch)
 
 	if (do_srp)
 		nc_srp_client_destroy((*ch));
-
-	/* close down tx-threads */
-	if ((*ch)->tx_tid > 0) {
-		(*ch)->running = false;
-
-		/* make sure threads blocking on the pipe wakes up. */
-		unsigned char *d = malloc((*ch)->payload_size);
-		memset(d, 0, (*ch)->payload_size);
-		write((*ch)->fd_w, d, (*ch)->payload_size);
-
-		usleep(1000);
-		pthread_join((*ch)->tx_tid, NULL);
-		(*ch)->tx_tid = 0;
-		free(d);
-	}
 
 	if ((*ch)->fd_r >= 0)
 		close((*ch)->fd_r);
