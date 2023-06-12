@@ -176,9 +176,6 @@ struct channel
 	struct nethandler *nh;
 	struct channel *next;
 
-
-	bool running;
-
 	struct sockaddr_ll sk_addr;
 	uint8_t dst[ETH_ALEN];
 

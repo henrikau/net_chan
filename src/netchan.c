@@ -343,7 +343,6 @@ struct channel * chan_create(struct nethandler *nh,
 	ch->sidw.s64 = stream_id;
 	ch->sc = sc;
 	ch->tx_sock = -1;
-	ch->running = false;
 
 	/* Set default values, if we run with SRP, it will be updated
 	 * once we've connected to mrpd
