@@ -185,13 +185,6 @@ struct channel
 	/* iface name */
 	char name[32];
 
-
-	/*
-	 * Each outgoing stream has its own socket, with corresponding
-	 * SRP attributes etc.
-	 */
-	int tx_sock;
-
 	/*
 	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need
 	 * it as a byte array for mrp, so keep an easy ref to it here
@@ -199,19 +192,26 @@ struct channel
 	union stream_id_wrapper sidw;
 
 	/*
-	 * Each outgoing stream is mapped ot its own socket, so it makes
-	 * sense to keep track of this here. Similarly, each incoming
-	 * stream has to keep track of which talker to subscribe to, so
-	 * keep context for this here..
+	 * Each channel is mapped to either an Rx or or it has its own Tx socket
+	 *
+	 * Similarly, each incoming stream has to keep track of which
+	 * talker to subscribe to, so keep context for this here..
 	 *
 	 * MRP client has its own section for talker and listener, with
 	 * dedicated fields for strem_id, mac etc.
 	 */
 	struct mrp_ctx *ctx;
-	struct mrp_domain_attr *class_a;
-	struct mrp_domain_attr *class_b;
+	struct mrp_domain_attr *class_a; /* PCP prio A */
+	struct mrp_domain_attr *class_b; /* PCP prio B */
 	enum stream_class sc;
-	int socket_prio;
+	int socket_prio;	/* Linux socket prio to hit correct TxQueue */
+
+	/*
+	 * Each outgoing stream has its own socket, with corresponding
+	 * SRP attributes etc.
+	 */
+	int tx_sock;
+
 
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
