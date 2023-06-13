@@ -35,11 +35,6 @@ static clockid_t get_clockid(int fd)
 	return FD_TO_CLOCKID(fd);
 }
 
-uint32_t tai_to_avtp_ns(uint64_t tai_ns)
-{
-	return (uint32_t)(tai_ns & 0xffffffff);
-}
-
 uint64_t get_ptp_ts_ns(int ptp_fd)
 {
 	if (ptp_fd < 0)
@@ -96,3 +91,16 @@ int get_ptp_fd(const char *ifname)
 
 	return ptp_fd;
 }
+
+uint32_t tai_to_avtp_ns(uint64_t tai_ns)
+{
+	return (uint32_t)(tai_ns & 0xffffffff);
+}
+
+uint64_t tai_get_ns(void)
+{
+	struct timespec ts_tai;
+	clock_gettime(CLOCK_TAI, &ts_tai);
+	return ts_tai.tv_sec * NS_IN_SEC + ts_tai.tv_nsec;
+}
+

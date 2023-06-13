@@ -36,6 +36,17 @@ uint64_t get_ptp_ts_ns(int ptp_fd);
  */
 uint32_t tai_to_avtp_ns(uint64_t tai_ns);
 
+/**
+ * tai_get_ns(): read local clock and get TAI format in return
+ *
+ * WARNING: This expects system to be PTP synchronized such that the PTP
+ * clock on the NIC and the systemclock (TAI) are reasonably in sync!
+ *
+ * @param: void:
+ * @returns: TAI clock in ns
+ */
+uint64_t tai_get_ns(void);
+
 #define US_IN_MS   (1000L)
 #define NS_IN_MS   (1000L * US_IN_MS)
 #define NS_IN_SEC  (1000L * NS_IN_MS)
