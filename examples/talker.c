@@ -13,6 +13,8 @@
 #include <timedc_args.h>
 
 #include "manifest.h"
+#define LIMIT 5000
+
 static int running = 0;
 void sighandler(int signum)
 {
@@ -24,38 +26,44 @@ void sighandler(int signum)
 int main(int argc, char *argv[])
 {
 	GET_ARGS();
+	struct channel *ch = chan_create_standalone("mcast42", true, net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
+	if (!ch) {
+		fprintf(stderr, "Could not create channel, failed for some mysterious reason\n", __func__);
+		return -1;
+	}
+	chan_dump_state(ch);
 
-	NETCHAN_TX(mcast42);
-	usleep(10000);
 	running = 1;
-
 	signal(SIGINT, sighandler);
-	int freq = 1e9 / net_fifo_chans[0].interval_ns;
 
-	for (int64_t i = 0; i < (freq*60*60*6) && running; i++) {
+	struct sensor s = {0};
+	struct timespec start, end;
+	clock_gettime(CLOCK_MONOTONIC, &start);
 
-		struct timespec ts_cpu = {0};
-		if (clock_gettime(CLOCK_MONOTONIC, &ts_cpu) == -1) {
-			fprintf(stderr, "%s() FAILED (%d, %s)\n", __func__, errno, strerror(errno));
-			return -1;
+	for (; s.seqnr < LIMIT && running; s.seqnr++) {
+		s.val = 0xdeadbeef;
+		int res = chan_send_now(ch, &s);
+		if (res < 0) {
+			printf("%s(): Send failed\n", __func__);
+			running = false;
 		}
-		ts_cpu.tv_nsec += net_fifo_chans[0].interval_ns;
-		ts_normalize(&ts_cpu);
-
-		WRITE_WAIT(mcast42, &i);
-		if (!(i%50))
-			printf("%lu: written\n", i);
-
-		if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts_cpu, NULL) == -1)
-			printf("%s() clock_nanosleep() failed: %s\n", __func__, strerror(errno));
+		wait_for_tx_slot(ch);
 	}
 
-	int64_t marker = -1;
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	int64_t start_ns = start.tv_sec * 1000000000 + start.tv_nsec;
+	int64_t end_ns = end.tv_sec * 1000000000 + end.tv_nsec;
+	int64_t diff_ns = end_ns - start_ns;
+	printf("Loop ran for %.6f ms\n", (double)diff_ns / 1e6);
+
+	printf("\n");
 	printf("%s() Attempting to stop remote, sending magic marker\n", __func__);
-	WRITE_WAIT(mcast42, &marker);
-	usleep(10000);
-	printf("%s() Attempting to stop remote, sending magic marker\n", __func__);
-	WRITE_WAIT(mcast42, &marker);
+
+	s.seqnr = -1;
+	chan_send_now_wait(ch, &s);
+	chan_send_now_wait(ch, &s);
 	CLEANUP();
+
+	printf("Sent %ld packets out of %d\n", s.seqnr, LIMIT);
 	return 0;
 }

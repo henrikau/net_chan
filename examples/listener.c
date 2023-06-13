@@ -29,27 +29,28 @@ int main(int argc, char *argv[])
 	running = 1;
 	signal(SIGINT, sighandler);
 
-	int64_t d = 0;
-	while (running && d >= 0) {
-		READ_WAIT(mcast42, &d);
+	struct sensor s = {0};
 
-		if (d == -1) {
+	while (running && s.seqnr >= 0) {
+		READ_WAIT(mcast42, &s);
+
+		if (s.seqnr == -1) {
 			printf("Magic marker received, stopping\n");
 			running = false;
 			continue;
 		}
 
-		if (!(d%10)) {
+		if (!(s.seqnr%10)) {
 			printf(".");
 			fflush(stdout);
 		}
-		if (!(d%200)) {
-			printf("%lu\n", d);
+		if (!(s.seqnr%200)) {
+			printf("%lu\n", s.seqnr);
 			fflush(stdout);
 		}
 	}
 
-	printf("%s(): terminating loop (d=%ld,running=%s)\n", __func__, d, running ? "true" : "false");
+	printf("%s(): terminating loop (d=%ld,running=%s)\n", __func__, s.seqnr, running ? "true" : "false");
 	CLEANUP();
 	return 0;
 }
