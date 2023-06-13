@@ -221,7 +221,8 @@ static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_
 
 	/* Test utilization */
 	if ((tx_sz * 1e9/nh->link_speed) > interval_ns) {
-		printf("Cannot send %zu bits (%d) in %lu ns\n", tx_sz, sz, interval_ns);
+		if (verbose)
+			printf("Cannot send %zu bits (%d) in %lu ns\n", tx_sz, sz, interval_ns);
 		return false;
 	}
 	return true;
@@ -301,7 +302,8 @@ struct channel *chan_create_standalone(char *name,
 				int arr_size)
 {
 	if (!name || !arr || arr_size <= 0) {
-		fprintf(stderr, "%s() no name, arr or arr_size sub-zero, aborting\n", __func__);
+		if (verbose)
+			fprintf(stderr, "%s() no name, arr or arr_size sub-zero, aborting\n", __func__);
 		return NULL;
 	}
 
@@ -432,7 +434,7 @@ struct channel *chan_create_standalone(char *name,
 		 * !!! WARNING: await_talker() BLOCKS !!!
 		 */
 		if (do_srp) {
-			printf("%s(): Awaiting talker\n", __func__);
+			printf("%s(): do_srp, awaiting talker\n", __func__);
 			fflush(stdout);
 			await_talker(ch->ctx);
 			send_ready(ch->ctx);
@@ -864,7 +866,7 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	if (enable_logging) {
 		nh->logger = log_create(logfile, enable_delay_logging);
 		if (!nh->logger) {
-			fprintf(stderr, "%s() Somethign went wrong when enabling logger, datalogging disabled\n", __func__);
+			fprintf(stderr, "%s() Something went wrong when enabling logger, datalogging disabled\n", __func__);
 			enable_logging = false;
 		}
 	}
