@@ -7,6 +7,7 @@
  * internals (and we want to produce a single file for ktc later)
  */
 #include "../src/netchan.c"
+#include "../src/netchan_socket.c"
 
 #define DATA17SZ 32
 #define INT17 INT_10HZ
@@ -42,7 +43,6 @@ void tearDown(void)
 
 static void test_chan_create(void)
 {
-	printf("%s(): start\n", __func__);
 	TEST_ASSERT_NULL_MESSAGE(chan_create(NULL, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128, INT_50HZ),
 				"Cannot create PDU and assign to non-existant nethandler!");
 
@@ -52,8 +52,6 @@ static void test_chan_create(void)
 	TEST_ASSERT(pdu->payload_size == 128);
 	chan_destroy(&pdu);
 	TEST_ASSERT(pdu == NULL);
-
-	printf("%s(): end\n", __func__);
 }
 
 static void test_invalid_interval(void)

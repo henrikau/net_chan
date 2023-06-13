@@ -39,13 +39,6 @@ static bool _set_socket_prio(struct channel *pdu)
 		pdu->class_b->priority,
 		pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 
-	if (setsockopt(pdu->tx_sock, SOL_SOCKET, SO_PRIORITY,
-			&pdu->socket_prio, sizeof(pdu->socket_prio)) < 0) {
-		fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
-			__func__, errno, strerror(errno));
-		return false;
-	}
-
 	return true;
 }
 

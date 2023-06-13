@@ -10,6 +10,7 @@
  * internals (and we want to produce a single file for ktc later)
  */
 #include "../src/netchan.c"
+#include "../src/netchan_socket.c"
 
 #define DATA17SZ 32
 #define INT17 INT_10HZ

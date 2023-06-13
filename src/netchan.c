@@ -350,37 +350,27 @@ struct channel *chan_create_standalone(char *name,
 	ch->fd_r = pfd[0];
 	ch->fd_w = pfd[1];
 
-	struct ifreq req;
-	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", _nh->ifname);
-	int res = ioctl(ch->nh->rx_sock, SIOCGIFINDEX, &req);
-	if (res < 0) {
-		fprintf(stderr, "%s(): Failed to get interface index for socket %d, %s\n",
-			__func__, ch->nh->rx_sock, strerror(errno));
-		chan_destroy(&ch);
-		return NULL;
-	}
-
 	/* SRP common setup */
 	if (do_srp)
 		nc_srp_client_setup(ch);
 
 	/* if tx, create socket  */
 	if (tx_update) {
-		ch->tx_sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
-		if (ch->tx_sock == -1) {
-			fprintf(stderr, "%s(): Failed creating tx-socket for channel (%lu) - %s\n",
-				__func__, be64toh(ch->pdu.stream_id), strerror(errno));
+		/* Set socket priority option (for sending to the right socket)
+		 *
+		 * FIXME: allow for outside config of socket prio (see
+		 * scripts/setup_nic.sh)
+		 */
+		ch->tx_sock_prio = 3;
+		ch->tx_sock = nc_create_tx_sock(ch);
+
+		if (ch->tx_sock < 0) {
+			fprintf(stderr, "%s(): Failed creating Tx-sock for channel\n", __func__);
 			chan_destroy(&ch);
 			return NULL;
 		}
 
-		/* Set destination address for outgoing traffict this DU */
-		struct sockaddr_ll *sk_addr = &ch->sk_addr;
-		sk_addr->sll_family = AF_PACKET;
-		sk_addr->sll_protocol = htons(ETH_P_TSN);
-		sk_addr->sll_halen = ETH_ALEN;
-		sk_addr->sll_ifindex = req.ifr_ifindex;
-		memcpy(sk_addr->sll_addr, ch->dst, ETH_ALEN);
+
 		if (verbose)
 			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
 
@@ -402,7 +392,7 @@ struct channel *chan_create_standalone(char *name,
 
 			struct packet_mreq mr;
 			memset(&mr, 0, sizeof(mr));
-			mr.mr_ifindex = req.ifr_ifindex;
+			mr.mr_ifindex = _nh->ifidx;
 			mr.mr_type = PACKET_MR_PROMISC;
 			if (setsockopt(ch->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
 				fprintf(stderr, "%s(): failed setting multicast membership, may not receive frames! => %s\n",
@@ -501,16 +491,52 @@ int chan_send(struct channel *ch)
 	if (ch->tx_sock == -1)
 		return -EINVAL;
 
-	int txsz = sendto(ch->tx_sock,
-			&ch->pdu,
-			sizeof(struct avtpdu_cshdr) + ch->payload_size,
-			0,
-			(struct sockaddr *) &ch->sk_addr,
-			sizeof(ch->sk_addr));
-	if (txsz < 0)
-		perror("chan_send()");
+	/*
+	 * Setup of timestamp is inspired by so_txtime in
+	 * Linux' tools/testing/selftests/net/so_txtime.c::do_send_one()
+	 */
+	struct msghdr msg = {0};
+	struct iovec iov = {0};
+	iov.iov_base = &ch->pdu;
+	iov.iov_len = sizeof(struct avtpdu_cshdr) + ch->payload_size;
 
-	return txsz;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_name = (struct sockaddr *)&ch->sk_addr;
+	msg.msg_namelen = sizeof(ch->sk_addr);
+
+	/*
+	 * Look at next_tx, compare with current time and either send *now* or add a delay.
+	 * update next_ts
+	 */
+	uint64_t tai_now = tai_get_ns();
+	if (ch->next_tx_ns > tai_now) {
+		printf("Need to schedule sending the packet in the future.\n");
+		char control[(CMSG_SPACE(sizeof(uint64_t)))];
+		memset(control, 0, sizeof(control));
+
+		msg.msg_control = &control;
+		msg.msg_controllen = sizeof(control);
+
+		struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
+		cm->cmsg_level = SOL_SOCKET;
+		cm->cmsg_type = SCM_TXTIME;
+		cm->cmsg_len = CMSG_LEN(ch->next_tx_ns);
+		memcpy(CMSG_DATA(cm), &ch->next_tx_ns, sizeof(ch->next_tx_ns));
+	}
+
+	ch->next_tx_ns = tai_now + ch->interval_ns;
+	int txsz = sendmsg(ch->tx_sock, &msg, 0);
+
+	if (txsz < 0) {
+		fprintf(stderr, "%s() failed (%d,%d) %s\n",
+			__func__, txsz, errno, strerror(errno));
+	}
+
+	/* Report the size of the payload to the usesr, the AVTPDU
+	 * header is 'invisible'
+	 */
+	return txsz - sizeof(struct avtpdu_cshdr);
 }
 
 /*
@@ -686,25 +712,61 @@ void * chan_get_payload(struct channel *ch)
 	return (void *)ch->payload;
 }
 
-
-static int _nh_socket_setup_common(struct nethandler *nh)
+static unsigned int _get_link_speed_Mbps(struct nethandler *nh)
 {
-	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
-	if (sock == -1) {
-		perror("Failed opening socket");
+	if (!nh || nh->rx_sock <= 0)
+		return -1;
+	struct ifreq ifr;
+	struct ethtool_cmd data;
+
+	/* If we are opening lo, speed does not make sense, so just
+	 * pretend it has 1 Gbps capacity. */
+	if (nh->is_lo)
+		return 1000;
+
+	strncpy(ifr.ifr_name, nh->ifname, sizeof(ifr.ifr_name));
+	ifr.ifr_data = &data;
+	data.cmd = ETHTOOL_GSET;
+
+	if (ioctl(nh->rx_sock, SIOCETHTOOL, &ifr) < 0) {
+		fprintf(stderr, "Failed reading ethtool data (%s)\n", strerror(errno));
 		return -1;
 	}
+	return (unsigned int)ethtool_cmd_speed(&data);
+}
+
+static int _nh_net_setup(struct nethandler *nh, const char *ifname)
+{
+	if (!nh || !ifname || strlen(ifname) < 1)
+		return -1;
+	strncpy((char *)nh->ifname, ifname, IFNAMSIZ-1);
+
+	nh->rx_sock = nc_create_rx_sock();
 
 	struct ifreq req;
-	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", nh->ifname);
-	if (ioctl(sock, SIOCGIFINDEX, &req) == -1) {
+	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", ifname);
+	if (ioctl(nh->rx_sock, SIOCGIFINDEX, &req) == -1) {
 		fprintf(stderr, "%s(): Could not get interface index for %s: %s\n", __func__, nh->ifname, strerror(errno));
 		return -1;
 	}
+	nh->ifidx = req.ifr_ifindex;
+	nh->is_lo = strncmp(nh->ifname, "lo", 2) == 0;
+
+	/* Don't bother about MAC for lo */
+	if (!nh->is_lo) {
+		if (ioctl(nh->rx_sock, SIOCGIFHWADDR, &req) == -1) {
+			fprintf(stderr, "%s(): Failed reading HW-addr from %s: %s\n",
+				__func__, nh->ifname, strerror(errno));
+			return -1;
+		}
+		memcpy(nh->mac, req.ifr_hwaddr.sa_data, 6);
+	}
+
+	/* We're good, update nethandler */
 	nh->sk_addr.sll_family = AF_PACKET;
 	nh->sk_addr.sll_protocol = htons(ETH_P_TSN);
 	nh->sk_addr.sll_halen = ETH_ALEN;
-	nh->sk_addr.sll_ifindex = req.ifr_ifindex;
+	nh->sk_addr.sll_ifindex = nh->ifidx;
 
 	/*
 	 * Special case: "lo"
@@ -718,42 +780,36 @@ static int _nh_socket_setup_common(struct nethandler *nh)
 	 * if nic is indeed 'lo', assume that we are testing, so place
 	 * it in promiscuous mode.
 	 */
-	if (strncmp(nh->ifname, "lo", 2) == 0) {
-		if (ioctl(sock, SIOCGIFFLAGS, &req) == -1) {
-			perror("Failed retrieveing flags for lo");
-			return -1;
-		}
-		req.ifr_flags |= IFF_PROMISC;
-		if (ioctl(sock, SIOCSIFFLAGS, &req) == -1) {
-			fprintf(stderr, "%s(): Failed placing lo in promiscuous "\
-				"mode, may not receive incoming data (tests may "\
-				"fail)", __func__);
+	if (nh->is_lo) {
+		if (ioctl(nh->rx_sock, SIOCGIFFLAGS, &req) == 0) {
+			req.ifr_flags |= IFF_PROMISC;
+			if (ioctl(nh->rx_sock, SIOCSIFFLAGS, &req) == -1) {
+				fprintf(stderr, "%s(): Failed placing lo in promiscuous " \
+					"mode, may not receive incoming data (tests may " \
+					"fail)", __func__);
+			}
 		}
 	}
-	return sock;
+
+	/*
+	 * Query link speed (need this to ensure that any Tx-channels
+	 * associated with this NIC does not have too short periods)
+	 *
+	 * If NIC is lo or if the query fails, assume 1Gbps as this is
+	 * the most common speed.
+	 */
+	nh->link_speed = 1e9;
+	if (!nh->is_lo) {
+		nh->link_speed = _get_link_speed_Mbps(nh) * 1e6;
+		struct ethtool_cmd data = { .cmd = ETHTOOL_GSET };
+		req.ifr_data = &data;
+		if (ioctl(nh->rx_sock, SIOCETHTOOL, &req) != -1) {
+			nh->link_speed = (unsigned int)ethtool_cmd_speed(&data) * 1e6;
+		}
+	}
+	return 0;
 }
 
-static unsigned int _get_link_speed_Mbps(int socket, const char *ifname)
-{
-	struct ifreq ifr;
-	struct ethtool_cmd data;
-
-	/* If we are opening lo, speed does not make sense, so just
-	 * pretend it has 1 Gbps capacity. */
-	if (strcmp(ifname, "lo") == 0) {
-		return 1000;
-	}
-
-	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-	ifr.ifr_data = &data;
-	data.cmd = ETHTOOL_GSET;
-
-	if (ioctl(socket, SIOCETHTOOL, &ifr) < 0) {
-		fprintf(stderr, "Failed reading ethtool data (%s)\n", strerror(errno));
-		return -1;
-	}
-	return (unsigned int)ethtool_cmd_speed(&data);
-}
 
 struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile)
 {
@@ -768,11 +824,14 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 		return NULL;
 	}
 
-	strncpy((char *)nh->ifname, ifname, IFNAMSIZ-1);
+	if (_nh_net_setup(nh, ifname)) {
+		fprintf(stderr, "%s(): failed setting up network, aborting\n", __func__);
+		nh_destroy(&nh);
+	}
 
-	nh->rx_sock = _nh_socket_setup_common(nh);
 	if (nh->tid == 0)
 		nh_start_rx(nh);
+
 
 	/* lock memory, we don't pagefaults later */
 	if (mlockall(MCL_CURRENT|MCL_FUTURE)) {
@@ -820,16 +879,11 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	 * knows their hardware?)
 	 */
 	nh->ptp_fd = -1;
-	if (strncmp(nh->ifname, "lo", 2) != 0) {
+	if (!nh->is_lo) {
 		nh->ptp_fd = get_ptp_fd(ifname);
 		if (nh->ptp_fd < 0)
 			fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
 	}
-
-	/* query link speed (need this to ensure that Tx-channels does
-	 * not have too short periods)
-	 */
-	nh->link_speed = _get_link_speed_Mbps(nh->rx_sock, nh->ifname) * 1e6;
 
 	/* if (strlen(nc_termdevice) > 0) */
 	/* 	nh->ttys = term_open(nc_termdevice); */
@@ -964,25 +1018,6 @@ static void * nh_runner(void *data)
 	struct nethandler *nh = (struct nethandler *)data;
 	if (nh->rx_sock <= 0)
 		return NULL;
-
-	/* set timeout (250ms) on socket in case we block and nothing arrives
-	 * and we want to close down
-	 */
-	struct timeval tv;
-	tv.tv_sec = 0;
-	tv.tv_usec = 250000;
-	if (setsockopt(nh->rx_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
-		printf("%s(): Could not set timeout on socket (%d): %s\n",
-			__func__, nh->rx_sock, strerror(errno));
-	}
-
-	int enable_ts = 1;
-	if (setsockopt(nh->rx_sock, SOL_SOCKET, SO_TIMESTAMPNS, &enable_ts, sizeof(enable_ts)) < 0) {
-		fprintf(stderr, "%s(): failed enabling SO_TIMESTAMPNS on Rx socket (%d, %s)\n",
-			__func__, errno, strerror(errno));
-	}
-	if (verbose)
-		printf("%s() SO_TIMESTAMPNS enabled! -> %d\n", __func__, enable_ts);
 
 	unsigned char buffer[1522] = {0};
 	bool running = true;

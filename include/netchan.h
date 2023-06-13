@@ -203,16 +203,20 @@ struct channel
 	 * dedicated fields for strem_id, mac etc.
 	 */
 	struct mrp_ctx *ctx;
-	struct mrp_domain_attr *class_a; /* PCP prio A */
-	struct mrp_domain_attr *class_b; /* PCP prio B */
+	struct mrp_domain_attr *class_a; /* PCP prio A attributes */
+	struct mrp_domain_attr *class_b; /* PCP prio B attributes */
 	enum stream_class sc;
-	int socket_prio;	/* Linux socket prio to hit correct TxQueue */
+	int socket_prio;	/* Active priority (PCP) for this channel */
 
 	/*
 	 * Each outgoing stream has its own socket, with corresponding
 	 * SRP attributes etc.
+	 *
+	 * Prio is the priority used to steer the traffic to the correct
+	 * mqprio queue.
 	 */
 	int tx_sock;
+	int tx_sock_prio;
 
 
 	/* private area for callback, embed directly i not struct to
@@ -247,6 +251,7 @@ struct channel
 	 */
 	uint64_t interval_ns;
 	uint64_t next_tx_ns;
+	struct sock_txtime txtime;
 
 	/* The currently active packet entering/leaving is tacked onto
 	 * the end, payload is of size '->payload_size'
@@ -327,6 +332,11 @@ void nc_verbose(void);
 void nc_use_termtag(const char *devpath);
 void nc_set_logfile(const char *logfile);
 void nc_log_delay(void);
+
+/* socket helpers
+ */
+int nc_create_rx_sock(void);
+int nc_create_tx_sock(struct channel *ch);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 
