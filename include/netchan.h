@@ -26,10 +26,15 @@ extern "C" {
 #include <errno.h>
 #include <stdbool.h>
 #include <linux/if_ether.h>
+#include <linux/if.h>		/* IFNAMSIZ */
+#include <stdio.h>		/* FILE* */
+
 
 #include <ptp_getclock.h>
 
 #include <linux/if_packet.h>	/* sk_addr */
+#include <linux/net_tstamp.h>	/* sock_txtime */
+
 
 /* --------------------------
  * Main NetChan Macros
@@ -250,7 +255,67 @@ struct channel
 	unsigned char payload[0];
 };
 
-struct nethandler;
+struct nethandler {
+	struct channel *du_tx_head;
+	struct channel *du_tx_tail;
+
+	struct channel *du_rx_head;
+	struct channel *du_rx_tail;
+
+	/*
+	 * We have one Rx socket, but each datastream will have its own
+	 * SRP context, look to netchan_avtp for SRP related fields.
+	 */
+	int rx_sock;
+	unsigned int link_speed;
+
+	struct sockaddr_ll sk_addr;
+	const char ifname[IFNAMSIZ];
+	bool is_lo;
+	int ifidx;
+	char mac[6];
+	bool running;
+	pthread_t tid;
+
+	/*
+	 * fd for PTP device to retrieve timestamp.
+	 *
+	 * We expect ptp daemon to run and sync the clock on the NIC
+	 * with the network. We do not assume that the network time is
+	 * synched to CLOCK_REALTIME.
+	 *
+	 * To avoid opening and closing the device multiple times, keep
+	 * a ref here.
+	 */
+	int ptp_fd;
+
+	/* reference to cpu_dma_latency, once opened and set to 0,
+	 * computer /should/ refrain from entering high cstates
+	 *
+	 * See: https://access.redhat.com/articles/65410
+	 */
+	int dma_lat_fd;
+
+	/* terminal TTY, used if we want to tag event to the output
+	 * serial port (for attaching a scope or some external timing
+	 * measure).
+	 */
+	int ttys;
+	/*
+	 * Tag tracebuffer, useful to tag trace when frames have arrived
+	 * etc to pinpoint delays etc.
+	 */
+	FILE *tb;
+
+	/*
+	 * datalogger, used by both Tx and Rx
+	 */
+	struct logc *logger;
+
+	/* hashmap, chan_id -> cb_entity  */
+	size_t hmap_sz;
+	struct cb_entity *hmap;
+};
 
 int nc_set_nic(char *nic);
 void nc_keep_cstate();
