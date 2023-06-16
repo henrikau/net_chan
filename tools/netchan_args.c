@@ -5,7 +5,7 @@
  * Public License, v. 2.0. If a copy of the MPL was not distributed
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
-#include <timedc_args.h>
+#include <netchan_args.h>
 #include <netchan.h>
 
 error_t parser(int key, char *arg, struct argp_state *state)
@@ -40,6 +40,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
 	      break;
       case 'v':
 	      nc_verbose();
+	      break;
+      case 'p':
+	      nc_tx_sock_prio(atoi(arg));
 	      break;
        }
 

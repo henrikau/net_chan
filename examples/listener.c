@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <netchan.h>
-#include <timedc_args.h>
+#include <netchan_args.h>
 
 #include "manifest.h"
 

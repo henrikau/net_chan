@@ -84,6 +84,7 @@ static bool enable_delay_logging = false;
 static char nc_logfile[129] = {0};
 static char nc_termdevice[129] = {0};
 static int nc_hmap_size = 42;
+static int tx_sock_prio = 3;
 
 int nc_set_nic(char *nic)
 {
@@ -153,6 +154,13 @@ void nc_use_termtag(const char *devpath)
 void nc_log_delay(void)
 {
 	enable_delay_logging = true;
+}
+
+void nc_tx_sock_prio(int prio)
+{
+	if (prio < 0 || prio > 15)
+		return;
+	tx_sock_prio = prio;
 }
 
 int nc_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
@@ -363,7 +371,7 @@ struct channel *chan_create_standalone(char *name,
 		 * FIXME: allow for outside config of socket prio (see
 		 * scripts/setup_nic.sh)
 		 */
-		ch->tx_sock_prio = 3;
+		ch->tx_sock_prio = tx_sock_prio;
 		ch->tx_sock = nc_create_tx_sock(ch);
 
 		if (ch->tx_sock < 0) {

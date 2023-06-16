@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <netchan.h>
-#include <timedc_args.h>
+#include <netchan_args.h>
 
 #include "manifest.h"
 #define LIMIT 5000
