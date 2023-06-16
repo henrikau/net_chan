@@ -81,7 +81,6 @@ int get_ptp_fd(const char *ifname)
 	char ptp_path[PTP_MAX_DEV_PATH] = {0};
 	snprintf(ptp_path, sizeof(ptp_path), "%s%d", "/dev/ptp",
 		interface_info.phc_index);
-	printf("%s(): ptp_path: %s\n", __func__, ptp_path);
 
 	int ptp_fd = open(ptp_path, O_RDONLY);
 	if (ptp_fd < 0) {
