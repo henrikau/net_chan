@@ -423,6 +423,32 @@ void chan_destroy(struct channel **ch);
  */
 int chan_update(struct channel *ch, uint32_t ts, void *data);
 
+/**
+ * chan_dump_state: Dump internal state about channel and nethandler
+ *
+ * This is primarily a part of the debugging toolset and is not required
+ * for normal use.
+ *
+ * @param ch: channel
+ * @returns: void
+ */
+void chan_dump_state(struct channel *ch);
+
+/**
+ * wait_for_tx_slot(): Sleep until Tx is ready
+ *
+ * To help align clocks, do a clock_nanosleep() until the next tx-slot has arrived
+ *
+ * Note: The ETC Qdisc scheduler prohibits tx-time too close to actual
+ * time, so the client must be woken up a bit prior to this. This
+ * function will therefore wait for approx 100us before the next period
+ * slot. If the client runs with periods < 100us or a tighter deadline
+ * is needed, the client should handle its own blocking.
+ *
+ * @param ch: channel
+ * @returns : 0 on success, negative on error
+ */
+int wait_for_tx_slot(struct channel *ch);
 
 /**
  * chan_get_payload : Return a pointer to the most recent payload in the channel

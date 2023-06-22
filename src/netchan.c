@@ -492,55 +492,104 @@ int chan_update(struct channel *ch, uint32_t ts, void *data)
 	return 0;
 }
 
-int chan_send(struct channel *ch)
+void chan_dump_state(struct channel *ch)
+{
+	if (!ch) {
+		printf("%s(): No channel\n", __func__);
+		return;
+	}
+	printf("%18s : %s\n", "iface", ch->nh->ifname);
+	printf("%18s : %"PRIu64"\n", "period_nsec", ch->interval_ns);
+	printf("%18s : %d\n", "use_so_txtime", 1);
+	printf("%18s : %d\n", "so_priority", ch->tx_sock_prio);
+	printf("%18s : 0x%04x\n", "use_deadline_mode", ch->txtime.flags & SOF_TXTIME_DEADLINE_MODE);
+	printf("%18s : 0x%04x\n", "receive_errors", ch->txtime.flags & SOF_TXTIME_REPORT_ERRORS);
+	printf("%18s : %02x:%02x:%02x:%02x:%02x:%02x\n", "MAC",
+		ch->dst[0], ch->dst[1], ch->dst[2],
+		ch->dst[3], ch->dst[4], ch->dst[5]);
+	printf("%18s : %d\n", "clkid", ch->txtime.clockid);
+	printf("%18s : 0x%04x\n", "flags", ch->txtime.flags);
+	printf("%18s : 0x%04x\n", "sll_family", ch->sk_addr.sll_family);
+	printf("%18s : 0x%04x\n", "sll_protocol", ch->sk_addr.sll_protocol);
+	printf("%18s : 0x%04x\n", "sll_halen", ch->sk_addr.sll_halen);
+	printf("%18s : 0x%04x\n", "sll_ifindex", ch->sk_addr.sll_ifindex);
+}
+
+int wait_for_tx_slot(struct channel *ch)
 {
 	if (!ch)
-		return -ENOMEM;
-	if (!ch->nh)
 		return -EINVAL;
-	if (ch->tx_sock == -1)
+
+	struct timespec ts = {
+		.tv_sec = ch->next_tx_ns / 1000000000,
+		.tv_nsec = ch->next_tx_ns % 1000000000,
+	};
+	ts_normalize(&ts);
+
+	/* account for offload to NIC and wakeup accuracy */
+	ts_subtract_ns(&ts, 100000);
+
+	return clock_nanosleep(CLOCK_TAI, TIMER_ABSTIME, &ts, NULL);
+}
+
+int chan_send(struct channel *ch, uint64_t *tx_ns)
+{
+	if (!ch || !ch->nh || ch->tx_sock == -1)
 		return -EINVAL;
 
 	/*
-	 * Setup of timestamp is inspired by so_txtime in
-	 * Linux' tools/testing/selftests/net/so_txtime.c::do_send_one()
+	 * Look at next planned Tx.
+	 * - If the Tx slot opened up in the past, we can send immediately
+	 * - If tx is in the future, use this as base and postpone tx
+	 * - Update next_tx
+	 *	   o Increment next_tx until next_tx is larger than tai
+	 *
+	 * txtime must be a bit into the future, otherwise it will be
+	 * rejected by the qdisc ETF scheduler
 	 */
+	uint64_t tai_now = tai_get_ns() + 20000; /* + 20us */
+	uint64_t txtime = tai_now > ch->next_tx_ns ? tai_now : ch->next_tx_ns;
+	do {
+		ch->next_tx_ns = txtime + ch->interval_ns;
+	} while (ch->next_tx_ns < tai_now);
+
+	/* Add control msg with txtime  */
 	struct msghdr msg = {0};
-	struct iovec iov = {0};
+	struct iovec iov  = {0};
+
+	/* payload and destination */
 	iov.iov_base = &ch->pdu;
 	iov.iov_len = sizeof(struct avtpdu_cshdr) + ch->payload_size;
 
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
+	memset(&msg, 0, sizeof(msg));
 	msg.msg_name = (struct sockaddr *)&ch->sk_addr;
 	msg.msg_namelen = sizeof(ch->sk_addr);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
 
-	/*
-	 * Look at next_tx, compare with current time and either send *now* or add a delay.
-	 * update next_ts
-	 */
-	uint64_t tai_now = tai_get_ns();
-	if (ch->next_tx_ns > tai_now) {
-		printf("Need to schedule sending the packet in the future.\n");
-		char control[(CMSG_SPACE(sizeof(uint64_t)))];
-		memset(control, 0, sizeof(control));
+	/* Set TxTime in socket */
+	char control[(CMSG_SPACE(sizeof(uint64_t)))] = {0};
+	msg.msg_control = &control;
+	msg.msg_controllen = sizeof(control);
 
-		msg.msg_control = &control;
-		msg.msg_controllen = sizeof(control);
+	struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
+	cm->cmsg_level = SOL_SOCKET;
+	cm->cmsg_type = SCM_TXTIME;
+	cm->cmsg_len = CMSG_LEN(sizeof(__u64));
+	*((__u64 *) CMSG_DATA(cm)) = txtime;
 
-		struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
-		cm->cmsg_level = SOL_SOCKET;
-		cm->cmsg_type = SCM_TXTIME;
-		cm->cmsg_len = CMSG_LEN(ch->next_tx_ns);
-		memcpy(CMSG_DATA(cm), &ch->next_tx_ns, sizeof(ch->next_tx_ns));
-	}
+	if (tx_ns)
+		*tx_ns = txtime;
 
-	ch->next_tx_ns = tai_now + ch->interval_ns;
 	int txsz = sendmsg(ch->tx_sock, &msg, 0);
-
-	if (txsz < 0) {
+	if (txsz < 1) {
 		fprintf(stderr, "%s() failed (%d,%d) %s\n",
 			__func__, txsz, errno, strerror(errno));
+	}
+
+	if (nc_handle_sock_err(ch->tx_sock) < 0) {
+		fprintf(stderr, "%s(): failed handling remaining socket error(s)\n", __func__);
+		return -1;
 	}
 
 	/* Report the size of the payload to the usesr, the AVTPDU
