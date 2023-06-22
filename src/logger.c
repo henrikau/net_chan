@@ -24,6 +24,7 @@ struct log_buffer
 	uint64_t avtp_ns[BSZ];
 	uint64_t cap_ptp_ns[BSZ];
 	uint64_t send_ptp_ns[BSZ];
+	uint64_t tx_ns[BSZ];
 	uint64_t rx_ns[BSZ];
 	uint64_t recv_ptp_ns[BSZ];
 }__attribute__((packed));
@@ -88,7 +89,7 @@ struct logc * log_create(const char *logfile, bool log_delay)
 			__func__, errno, strerror(errno));
 		goto err_out;
 	}
-	fprintf(logc->logfp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,rx_ns,recv_ptp_ns\n");
+	fprintf(logc->logfp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,tx_ns,rx_ns,recv_ptp_ns\n");
 	printf("%s(): opened logfile, buffersize: %zd, %d entries\n",
 		__func__, sizeof(struct log_buffer), BSZ);
 
@@ -126,6 +127,7 @@ static void _log(struct logc *logc,
 		struct avtpdu_cshdr *du,
 		uint64_t cap_ts_ns,
 		uint64_t send_ptp_ns,
+		uint64_t tx_ns,
 		uint64_t rx_ns,
 		uint64_t recv_ptp_ns)
 {
@@ -140,6 +142,7 @@ static void _log(struct logc *logc,
 		logc->lb->avtp_ns[logc->lb->idx] = ntohl(du->avtp_timestamp);
 		logc->lb->cap_ptp_ns[logc->lb->idx] = cap_ts_ns;
 		logc->lb->send_ptp_ns[logc->lb->idx] = send_ptp_ns;
+		logc->lb->tx_ns[logc->lb->idx] = tx_ns;
 		logc->lb->rx_ns[logc->lb->idx] = rx_ns;
 		logc->lb->recv_ptp_ns[logc->lb->idx] = recv_ptp_ns;
 		logc->lb->idx++;
@@ -150,10 +153,11 @@ static void _log(struct logc *logc,
 void log_tx(struct logc *logc,
 	struct avtpdu_cshdr *du,
 	uint64_t cap_ts_ns,
-	uint64_t send_ptp_ns)
+	uint64_t send_ptp_ns,
+	uint64_t tx_ns)
 {
 	if (logc && du)
-		_log(logc, du, cap_ts_ns, send_ptp_ns, 0, 0);
+		_log(logc, du, cap_ts_ns, send_ptp_ns, tx_ns, 0, 0);
 }
 
 void log_rx(struct logc *logc,
@@ -162,7 +166,7 @@ void log_rx(struct logc *logc,
 	uint64_t recv_ptp_ns)
 {
 	if (logc && du)
-		_log(logc, du, 0, 0, rx_ns, recv_ptp_ns);
+		_log(logc, du, 0, 0, 0, rx_ns, recv_ptp_ns);
 }
 
 void log_close_fp(struct logc *logc)
@@ -174,13 +178,14 @@ void log_close_fp(struct logc *logc)
 	if (logc->logfp && logc->lb) {
 		pthread_mutex_lock(&logc->m);
 		for (int i = 0; i < logc->lb->idx; i++) {
-			fprintf(logc->logfp, "%lu,%u,%u,%lu,%lu,%lu,%lu,%lu\n",
+			fprintf(logc->logfp, "%lu,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu\n",
 				logc->lb->sid[i],
 				logc->lb->sz[i],
 				logc->lb->seqnr[i],
 				logc->lb->avtp_ns[i],
 				logc->lb->cap_ptp_ns[i],
 				logc->lb->send_ptp_ns[i],
+				logc->lb->tx_ns[i],
 				logc->lb->rx_ns[i],
 				logc->lb->recv_ptp_ns[i]);
 		}

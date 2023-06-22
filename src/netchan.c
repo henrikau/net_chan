@@ -625,10 +625,19 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 
 	if (verbose)
 		printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
-	if (enable_logging)
-		log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns);
 
-	int res = chan_send(ch);
+	uint64_t tx_ns = 0;
+	int res = chan_send(ch, &tx_ns);
+
+	/* Use same timestamp for capture ts and send ts
+	 *
+	 * Capture TS should come from caller and is on the TODO
+	 */
+	if (enable_logging)
+		log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns, tx_ns);
+
+	if (res < 0)
+		return res;
 	int err_ns = 150000;
 
 	ts_ns += get_class_delay_bound_ns(ch);
