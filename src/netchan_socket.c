@@ -4,11 +4,13 @@
 #include <netchan.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
+#include <linux/errqueue.h>
+#include <poll.h>
 
 int nc_create_rx_sock(void)
 {
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
-	if (sock == -1) {
+	if (sock < 0) {
 		fprintf(stderr, "%s(): Failed creating socket: %s\n", __func__, strerror(errno));
 		return -1;
 	}
@@ -37,19 +39,14 @@ int nc_create_rx_sock(void)
 
 int nc_create_tx_sock(struct channel *ch)
 {
+	if (!ch)
+		return -EINVAL;
+
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
-	if (sock == -1)
+	if (sock < 0) {
+		fprintf(stderr, "%s(): Failed creating Tx-socket: %s\n", __func__, strerror(errno));
 		return -1;
-
-	/* Set destination address for outgoing traffict this DU */
-	ch->sk_addr.sll_family   = AF_PACKET;
-	ch->sk_addr.sll_protocol = htons(ETH_P_TSN);
-	ch->sk_addr.sll_halen    = ETH_ALEN;
-	ch->sk_addr.sll_ifindex  = ch->nh->ifidx;
-	memcpy(&ch->sk_addr.sll_addr, ch->dst, ETH_ALEN);
-
-	ch->txtime.clockid = CLOCK_TAI;
-	ch->txtime.flags = SOF_TXTIME_DEADLINE_MODE | SOF_TXTIME_REPORT_ERRORS;
+	}
 
 	/* Set socket priority option (for sending to the right socket)
 	 *
@@ -62,12 +59,70 @@ int nc_create_tx_sock(struct channel *ch)
 		goto err_out;
 	}
 
+	/* Set ETF-Qdisc clock field for socket */
+	ch->txtime.clockid = CLOCK_TAI;
+	ch->txtime.flags = SOF_TXTIME_REPORT_ERRORS | SOF_TXTIME_DEADLINE_MODE;
 	if (setsockopt(sock, SOL_SOCKET, SO_TXTIME, &ch->txtime, sizeof(ch->txtime)))
 		goto err_out;
 
+	/* Set destination address for outgoing traffict this DU */
+	ch->sk_addr.sll_family   = AF_PACKET;
+	ch->sk_addr.sll_protocol = htons(ETH_P_TSN);
+	ch->sk_addr.sll_halen    = ETH_ALEN;
+	ch->sk_addr.sll_ifindex  = ch->nh->ifidx;
+	memcpy(&ch->sk_addr.sll_addr, ch->dst, ETH_ALEN);
 
 	return sock;
 err_out:
 	close(sock);
 	return -1;
+}
+
+int nc_handle_sock_err(int sock)
+{
+	struct pollfd p_fd = {
+		.fd = sock,
+	};
+	int err = poll(&p_fd, 1, 0);
+
+	if (err == 1 && p_fd.revents == POLLERR) {
+		printf("%s(): Need to process errors\n", __func__);
+		uint8_t msg_control[CMSG_SPACE(sizeof(struct sock_extended_err))];
+		unsigned char err_buffer[2048];
+
+		struct iovec iov = {
+			.iov_base = err_buffer,
+			.iov_len = sizeof(err_buffer)
+		};
+		struct msghdr msg = {
+			.msg_iov = &iov,
+			.msg_iovlen = 1,
+			.msg_control = msg_control,
+			.msg_controllen = sizeof(msg_control)
+		};
+
+		if (recvmsg(sock, &msg, MSG_ERRQUEUE) != -1) {
+			struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+			while (cmsg != NULL) {
+				struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
+				if (serr->ee_origin == SO_EE_ORIGIN_TXTIME) {
+					uint64_t tstamp = ((__u64) serr->ee_data << 32) + serr->ee_info;
+					switch(serr->ee_code) {
+					case SO_EE_CODE_TXTIME_INVALID_PARAM:
+
+						fprintf(stderr, "packet with tstamp %"PRIu64" dropped due to invalid params\n", tstamp);
+						return -1;
+					case SO_EE_CODE_TXTIME_MISSED:
+						fprintf(stderr, "packet with tstamp %"PRIu64" dropped due to missed deadline\n", tstamp);
+						return -1;
+					default:
+						return -1;
+					}
+				}
+				cmsg = CMSG_NXTHDR(&msg, cmsg);
+
+			}
+		}
+	}
+	return 0;
 }
