@@ -52,6 +52,17 @@ uint64_t tai_get_ns(void);
 #define NS_IN_SEC  (1000L * NS_IN_MS)
 #define NS_IN_HOUR (3600L * NS_IN_SEC)
 
+static inline void ts_subtract_ns(struct timespec *ts, uint64_t sub)
+{
+	if (!ts)
+		return;
+	if (sub > ts->tv_nsec) {
+		ts->tv_sec--;
+		ts->tv_nsec = ts->tv_nsec + NS_IN_SEC;
+	}
+	ts->tv_nsec -= sub;
+}
+
 static inline void ts_normalize(struct timespec *ts)
 {
 	while (ts->tv_nsec >= NS_IN_SEC) {
