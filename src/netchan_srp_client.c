@@ -59,7 +59,6 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 		pdu->class_a->priority,
 		pdu->class_b->priority,
 		pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
-	return false;
 
 	report_domain_status(pdu->class_a, pdu->ctx);
 	mrp_join_vlan(pdu->class_a, pdu->ctx);
@@ -108,7 +107,6 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	if (!_set_socket_prio(pdu))
 		return false;
 
-	return false;
 	/*
 	 * Currently we allow for 8kHz inter frame gap,
 	 * even if the actual freq is much lower than
