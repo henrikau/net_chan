@@ -466,9 +466,10 @@ void * chan_get_payload(struct channel *);
  * correct destination MAC.
  *
  * @params: ch
+ * @params: *tx_ns: timestamp for when the frame was physically sent (requires HW support)
  * @returns: 0 on success negative value on error.
  */
-int chan_send(struct channel *ch);
+int chan_send(struct channel *ch, uint64_t *tx_ns);
 
 /**
  * chan_send_now: update and send data *now*

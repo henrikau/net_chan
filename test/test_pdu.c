@@ -142,12 +142,11 @@ static void test_chan_get_payload(void)
 
 static void test_chan_send(void)
 {
-	TEST_ASSERT(chan_send(NULL) == -ENOMEM);
+	TEST_ASSERT_MESSAGE(chan_send(NULL, NULL) == -EINVAL, "Null-channel should get -EINVAL");
 
 	uint64_t val = 0xdeadbeef;
 	chan_update(pdu42, 5, &val);
-	TEST_ASSERT(chan_send(pdu42) == -EINVAL);
-
+	TEST_ASSERT_MESSAGE(chan_send(pdu42, NULL) == -EINVAL, "Should not be able to send without valid Tx fd");
 }
 
 static void test_create_standalone(void)

@@ -279,7 +279,7 @@ struct channel * chan_create(struct nethandler *nh,
 	 *
 	 * As long as it is 'sufficienty in the past', the first frame
 	 * arriving should fly straight through. */
-	ch->next_tx_ns = 0;
+	ch->next_tx_ns = 0; // tai_get_ns();
 	ch->interval_ns = interval_ns;
 
 	ch->nh = nh;
@@ -387,9 +387,10 @@ struct channel *chan_create_standalone(char *name,
 		if (do_srp) {
 			if (!nc_srp_client_talker_setup(ch)) {
 				chan_destroy(&ch);
+				printf("%s() Talker setup FAILED!\n", __func__);
 				return NULL;
 			}
-
+			printf("%s() Talker setup success!\n", __func__);
 		}
 		/* Add ref to internal list for memory mgmt */
 		nh_add_tx(ch->nh, ch);
