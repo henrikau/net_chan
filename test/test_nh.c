@@ -172,7 +172,7 @@ static void test_nh_add_cb_overflow(void)
 	TEST_ASSERT(nh_reg_callback(nh_small, 2, &cbp, cb) == 0);
 	TEST_ASSERT(nh_reg_callback(nh_small, 3, &cbp, cb) == 0);
 	TEST_ASSERT(nh_reg_callback(nh_small, 4, &cbp, cb) == 0);
-	TEST_ASSERT(nh_reg_callback(nh_small, 5, &cbp, cb) == -1);
+	TEST_ASSERT(nh_reg_callback(nh_small, 5, &cbp, cb) == -ENOMEM);
 
 	nh_destroy(&nh_small);
 }

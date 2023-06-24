@@ -1008,8 +1008,9 @@ int nh_reg_callback(struct nethandler *nh,
 	for (int i = 0; i < nh->hmap_sz && nh->hmap[idx].cb; i++)
 		idx = (idx + 1) % nh->hmap_sz;
 
+	/* Hashmap is full */
 	if (nh->hmap[idx].cb)
-		return -1;
+		return -ENOMEM;
 
 	nh->hmap[idx].stream_id = stream_id;
 	nh->hmap[idx].priv_data = priv_data;
