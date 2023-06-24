@@ -262,6 +262,16 @@ struct channel * chan_create(struct nethandler *nh,
 	if (!_valid_size(nh, sz) || !_valid_interval(nh, interval_ns, sz))
 		return NULL;
 
+	/*
+	 * Missing frequency workaround: add a warning if freq >
+	 * class_max_freq
+	 */
+	double freq = 1e9/(double)interval_ns;
+	if (sc == CLASS_A && freq > 8000) {
+		fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
+	} else if (sc == CLASS_B && freq > 4000) {
+		fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
+	}
 
 	struct channel *ch = calloc(1, sizeof(*ch) + sz);
 	if (!ch)
@@ -301,6 +311,60 @@ struct channel * chan_create(struct nethandler *nh,
 		break;
 	}
 
+	int pfd[2];
+	if (pipe(pfd) == -1) {
+		chan_destroy(&ch);
+		return NULL;
+	}
+	ch->fd_r = pfd[0];
+	ch->fd_w = pfd[1];
+
+	/* SRP common setup */
+	if (do_srp)
+		nc_srp_client_setup(ch);
+
+	return ch;
+}
+
+struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
+{
+	if (!nh || !attrs)
+		return NULL;
+
+	struct channel *ch = chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
+	if (!ch)
+		return NULL;
+	strncpy(ch->name, attrs->name, 32);
+
+	/* Set socket priority option (for sending to the right socket)
+	 *
+	 * FIXME: allow for outside config of socket prio (see
+	 * scripts/setup_nic.sh)
+	 */
+	ch->tx_sock_prio = tx_sock_prio;
+	ch->tx_sock = nc_create_tx_sock(ch);
+
+	if (ch->tx_sock < 0) {
+		fprintf(stderr, "%s(): Failed creating Tx-sock for channel\n", __func__);
+		chan_destroy(&ch);
+		return NULL;
+	}
+
+
+	if (verbose)
+		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
+
+	if (do_srp) {
+		if (!nc_srp_client_talker_setup(ch)) {
+			chan_destroy(&ch);
+			printf("%s() Talker setup FAILED!\n", __func__);
+			return NULL;
+		}
+		printf("%s() Talker setup success!\n", __func__);
+	}
+	/* Add ref to internal list for memory mgmt */
+	nh_add_tx(ch->nh, ch);
+
 	return ch;
 }
 
@@ -332,70 +396,21 @@ struct channel *chan_create_standalone(char *name,
 			ether_ntoa((const struct ether_addr *)arr[idx].dst));
 	}
 
-	/*
-	 * Missing frequency workaround: add a warning if freq >
-	 * class_max_freq
-	 */
-	double freq = 1e9/(double)arr[idx].interval_ns;
-	if (arr[idx].sc == CLASS_A && freq > 8000) {
-		fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
-	} else if (arr[idx].sc == CLASS_B && freq > 4000) {
-		fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
-	}
+	struct channel * ch = NULL;
+	if (tx_update)
+		ch = chan_create_tx(_nh, &arr[idx]);
+	else
+		ch = chan_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size, arr[idx].interval_ns);
 
-	if (verbose)
-		printf("%s(): freq: %f (interval_ns=%lu)\n", __func__, freq, arr[idx].interval_ns);
-
-	struct channel * ch = chan_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size, arr[idx].interval_ns);
 	if (!ch)
 		return NULL;
 
+	/* FIXME: remove when chan_create_rx() is complete */
 	strncpy(ch->name, name, 32);
 
-	int pfd[2];
-	if (pipe(pfd) == -1) {
-		chan_destroy(&ch);
-		return NULL;
-	}
-	ch->fd_r = pfd[0];
-	ch->fd_w = pfd[1];
 
-	/* SRP common setup */
-	if (do_srp)
-		nc_srp_client_setup(ch);
-
-	/* if tx, create socket  */
-	if (tx_update) {
-		/* Set socket priority option (for sending to the right socket)
-		 *
-		 * FIXME: allow for outside config of socket prio (see
-		 * scripts/setup_nic.sh)
-		 */
-		ch->tx_sock_prio = tx_sock_prio;
-		ch->tx_sock = nc_create_tx_sock(ch);
-
-		if (ch->tx_sock < 0) {
-			fprintf(stderr, "%s(): Failed creating Tx-sock for channel\n", __func__);
-			chan_destroy(&ch);
-			return NULL;
-		}
-
-
-		if (verbose)
-			printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
-
-		if (do_srp) {
-			if (!nc_srp_client_talker_setup(ch)) {
-				chan_destroy(&ch);
-				printf("%s() Talker setup FAILED!\n", __func__);
-				return NULL;
-			}
-			printf("%s() Talker setup success!\n", __func__);
-		}
-		/* Add ref to internal list for memory mgmt */
-		nh_add_tx(ch->nh, ch);
-	} else {
-
+	/* if Rx  */
+	if (!tx_update) {
 		/* if dst is multicast, add membership */
 		if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
 			if (verbose)

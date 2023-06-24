@@ -403,6 +403,8 @@ struct channel *chan_create_standalone(char *name,
 				struct net_fifo *arr,
 				int arr_size);
 
+struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs);
+
 /**
  * chan_destroy : clean up and destroy a channel
  *

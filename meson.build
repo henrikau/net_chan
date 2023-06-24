@@ -125,9 +125,18 @@ t_mrp =  executable('testmrp',
 	       dependencies: deps,
 	       link_with : mrplibso)
 
+t_chan = executable('testchan',
+		    'test/test_chan.c',
+		    'test/unity.c',
+		    include_directories: include_directories('include'),
+		    build_by_default: true,
+		    dependencies: deps,
+		    link_with : netchan)
+
 test('pdu test', t_pdu)
 test('nh test', t_nh)
 test('nh net fifo', t_net_fifo)
+test('channel test', t_chan)
 
 # MRP test is unstable, so it only adds noise
 # test('mrp', t_mrp)
