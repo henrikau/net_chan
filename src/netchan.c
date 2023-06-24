@@ -726,11 +726,13 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 		char tbmsg[128] = {0};
 		snprintf(tbmsg, 127, "E2E delay (%.3f us) exceeded break_value (%d)", (float)avtp_diff/1000, break_us);
 		fprintf(stderr, "%s\n", tbmsg);
-		tb_tag(_nh->tb, tbmsg);
-		tb_close(_nh->tb);
-		_nh->tb = NULL;
-		nh_destroy(&_nh);
+		tb_tag(ch->nh->tb, tbmsg);
+		tb_close(ch->nh->tb);
+		ch->nh->tb = NULL;
+		nh_destroy(&ch->nh);
+		return res;
 	}
+
 	/* Extract timing-data from pipe, reconstruct avtp_timestamp,
 	 * find diff since it was sent and calculate offset to determine
 	 * length of sleep before moving on.
@@ -1010,11 +1012,6 @@ int nh_std_cb(void *priv, struct avtpdu_cshdr *du)
 	if (wsz == -1) {
 		perror("Failed writing to fifo");
 		return -EINVAL;
-	}
-	if (use_tracebuffer && _nh) {
-		char tbmsg[128] = {0};
-		snprintf(tbmsg, 127, "wrote %d to pipe", wsz);
-		tb_tag(_nh->tb, tbmsg);
 	}
 
 	return 0;
