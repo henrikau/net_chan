@@ -249,7 +249,33 @@ static bool _valid_size(struct nethandler *nh, uint16_t sz)
 	return true;
 }
 
-struct channel * chan_create(struct nethandler *nh,
+/*
+ * _chan_create - create and initialize a new channel.
+ *
+ * Not that this is the bare basics for a channel, neither Rx nor Tx will be properly 
+ *
+ * The common workflow is that a channel is created once for a stream and
+ * then updated before sending. If the traffic is so dense that the
+ * network layer has not finished with it before a new must be
+ * assembled, caller should create multiple channels..
+ *
+ *
+ * For convenience, the flow is more like:
+ * CREATE
+ * while (1)
+ *    UPDATE -> SEND
+ * DESTROY
+ *
+ * @param nh nethandler container
+ * @param dst destination address for this channel
+ * @param stream_id 64 bit unique value for the stream allotted to our channel.
+ * @param cl: stream class this stream belongs to, required to set correct socket prio
+ * @param sz: size of data to transmit
+ * @param interval_ns: the minimum time between subsequent frames (1/freq)
+ *
+ * @returns the new channel or NULL upon failure.
+ */
+static struct channel * _chan_create(struct nethandler *nh,
 			unsigned char *dst,
 			uint64_t stream_id,
 			enum stream_class sc,
@@ -331,7 +357,7 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
 	if (!nh || !attrs)
 		return NULL;
 
-	struct channel *ch = chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
+	struct channel *ch = _chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
 	if (!ch)
 		return NULL;
 
@@ -371,7 +397,7 @@ struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs)
 {
 	if (!nh || !attrs)
 		return NULL;
-	struct channel *ch = chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
+	struct channel *ch = _chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
 	if (!ch)
 		return NULL;
 

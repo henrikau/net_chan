@@ -353,40 +353,35 @@ int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
 #define NC_GET_REF(x) (nc_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
 
 /**
- * chan_create - create and initialize a new channel.
+ * chan_create_tx create a Tx channel
  *
- * The common workflow is that a channel is created once for a stream and
- * then updated before sending. If the traffic is so dense that the
- * network layer has not finished with it before a new must be
- * assembled, caller should create multiple channels..
- *
- * For convenience, the flow is more like:
- * CREATE
- * while (1)
- *    UPDATE -> SEND
- * DESTROY
+ * Expects a valid net_fifo attribute array entry to be supplied.
  *
  * @param nh nethandler container
- * @param dst destination address for this channel
- * @param stream_id 64 bit unique value for the stream allotted to our channel.
- * @param cl: stream class this stream belongs to, required to set correct socket prio
- * @param sz: size of data to transmit
- * @param interval_ns: the minimum time between subsequent frames (1/freq)
+ * @param attrs netfiro channel attributes
  *
- * @returns the new channel or NULL upon failure.
+ * @returns new channel or NULL on error
  */
-struct channel * chan_create(struct nethandler *nh,
-			unsigned char *dst,
-			uint64_t stream_id,
-			enum stream_class sc,
-			uint16_t sz,
-			uint64_t interval_ns);
+struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs);
+
+/**
+ * chan_create_rx create a Tx channel
+ *
+ * Expects a valid net_fifo attribute array entry to be supplied.
+ *
+ * @param nh nethandler container
+ * @param attrs netfiro channel attributes
+ *
+ * @returns new channel or NULL on error
+ */
+struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs);
 
 /**
  * chan_create_standalone - create a new channel using internal refs as much as possible
  *
- * Intended to be used when retrieving values from struct net_fifo and
- * other magic constants in net_fifo.h
+ * This is a multiplexing function primarily inteded to be used with the
+ * macros. In time, this function will be deprecated, use
+ * nh_create_init() and chan_create_tx() and chan_create_rx() instead.
  *
  * @param name : name of net_fifo
  * @param tx : tx or rx end of net_fifo
@@ -400,8 +395,6 @@ struct channel *chan_create_standalone(char *name,
 				struct net_fifo *arr,
 				int arr_size);
 
-struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs);
-struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs);
 
 /**
  * chan_destroy : clean up and destroy a channel
