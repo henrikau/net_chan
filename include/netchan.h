@@ -184,9 +184,6 @@ struct channel
 	struct sockaddr_ll sk_addr;
 	uint8_t dst[ETH_ALEN];
 
-	/* iface name */
-	char name[32];
-
 	/*
 	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need
 	 * it as a byte array for mrp, so keep an easy ref to it here

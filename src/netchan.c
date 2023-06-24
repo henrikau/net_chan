@@ -334,7 +334,6 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
 	struct channel *ch = chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
 	if (!ch)
 		return NULL;
-	strncpy(ch->name, attrs->name, 32);
 
 	/* Set socket priority option (for sending to the right socket)
 	 *
@@ -404,10 +403,6 @@ struct channel *chan_create_standalone(char *name,
 
 	if (!ch)
 		return NULL;
-
-	/* FIXME: remove when chan_create_rx() is complete */
-	strncpy(ch->name, name, 32);
-
 
 	/* if Rx  */
 	if (!tx_update) {
