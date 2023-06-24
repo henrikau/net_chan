@@ -367,101 +367,86 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
 	return ch;
 }
 
+struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs)
+{
+	if (!nh || !attrs)
+		return NULL;
+	struct channel *ch = chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
+	if (!ch)
+		return NULL;
+
+	if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
+		if (verbose)
+			printf("%s() receive data on a multicast group, adding membership\n", __func__);
+
+		struct packet_mreq mr;
+		memset(&mr, 0, sizeof(mr));
+		mr.mr_ifindex = nh->ifidx;
+		mr.mr_type = PACKET_MR_PROMISC;
+		if (setsockopt(ch->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
+			fprintf(stderr, "%s(): failed setting multicast membership, may not receive frames! => %s\n",
+				__func__, strerror(errno));
+		}
+	}
+
+	/* Rx SRP subscribe */
+	if (do_srp) {
+		if (!nc_srp_client_listener_setup(ch)) {
+			chan_destroy(&ch);
+			return NULL;
+		}
+	}
+
+	/* Add ref to internal list for memory mgmt */
+	nh_add_rx(ch->nh, ch);
+
+	/* trigger on incoming DUs and attach a generic callback
+	 * and write data into correct pipe.
+	 *
+	 * data to feed through the pipe, we need to keep track of
+	 * metadata such as timestamps etc, so we cannot copy just the
+	 * payload, we need additional fields - thus a temp buffer that
+	 * follows the pdu.
+	 */
+	ch->cbp = malloc(sizeof(struct cb_priv) + ch->payload_size);
+	if (!ch->cbp) {
+		chan_destroy(&ch);
+		return NULL;
+	}
+
+	ch->cbp->fd = ch->fd_w;
+	ch->cbp->sz = ch->payload_size;
+	nh_reg_callback(ch->nh, attrs->stream_id, ch->cbp, nh_std_cb);
+
+	/* Rx thread ready, wait for talker to start sending
+	 *
+	 * !!! WARNING: await_talker() BLOCKS !!!
+	 */
+	if (do_srp) {
+		printf("%s(): do_srp, awaiting talker\n", __func__);
+		fflush(stdout);
+		await_talker(ch->ctx);
+		send_ready(ch->ctx);
+	}
+	return ch;
+}
+
 struct channel *chan_create_standalone(char *name,
 				bool tx_update,
 				struct net_fifo *arr,
 				int arr_size)
 {
-	if (!name || !arr || arr_size <= 0) {
-		if (verbose)
-			fprintf(stderr, "%s() no name, arr or arr_size sub-zero, aborting\n", __func__);
+	if (!name || !arr || arr_size <= 0)
 		return NULL;
-	}
-
-	if (verbose)
-		printf("%s(): nic: %s\n", __func__, nc_nic);
 
 	int idx = nc_get_chan_idx(name, arr, arr_size);
 	if (idx < 0)
 		return NULL;
 
 	nh_create_init_standalone();
-	if (!_nh)
-		return NULL;
-
-	if (verbose) {
-		printf("%s(): creating new DU, idx=%d, dst=%s\n",
-			__func__, idx,
-			ether_ntoa((const struct ether_addr *)arr[idx].dst));
-	}
-
-	struct channel * ch = NULL;
-	if (tx_update)
-		ch = chan_create_tx(_nh, &arr[idx]);
-	else
-		ch = chan_create(_nh, arr[idx].dst, arr[idx].stream_id, arr[idx].sc, arr[idx].size, arr[idx].interval_ns);
-
-	if (!ch)
-		return NULL;
-
-	/* if Rx  */
-	if (!tx_update) {
-		/* if dst is multicast, add membership */
-		if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
-			if (verbose)
-				printf("%s() receive data on a multicast group, adding membership\n", __func__);
-
-			struct packet_mreq mr;
-			memset(&mr, 0, sizeof(mr));
-			mr.mr_ifindex = _nh->ifidx;
-			mr.mr_type = PACKET_MR_PROMISC;
-			if (setsockopt(ch->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
-				fprintf(stderr, "%s(): failed setting multicast membership, may not receive frames! => %s\n",
-					__func__, strerror(errno));
-			}
-		}
-		/* Rx SRP subscribe */
-		if (do_srp) {
-			if (!nc_srp_client_listener_setup(ch)) {
-				chan_destroy(&ch);
-				return NULL;
-			}
-		}
-
-		/* Add ref to internal list for memory mgmt */
-		nh_add_rx(ch->nh, ch);
-
-		/* trigger on incoming DUs and attach a generic callback
-		 * and write data into correct pipe.
-		 *
-		 * data to feed through the pipe, we need to keep track of
-		 * metadata such as timestamps etc, so we cannot copy just the
-		 * payload, we need additional fields - thus a temp buffer that
-		 * follows the pdu.
-		 */
-		ch->cbp = malloc(sizeof(struct cb_priv) + ch->payload_size);
-		if (!ch->cbp) {
-			chan_destroy(&ch);
-			return NULL;
-		}
-		ch->cbp->fd = ch->fd_w;
-		ch->cbp->sz = ch->payload_size;
-		nh_reg_callback(ch->nh, arr[idx].stream_id, ch->cbp, nh_std_cb);
-
-		/* Rx thread ready, wait for talker to start sending
-		 *
-		 * !!! WARNING: await_talker() BLOCKS !!!
-		 */
-		if (do_srp) {
-			printf("%s(): do_srp, awaiting talker\n", __func__);
-			fflush(stdout);
-			await_talker(ch->ctx);
-			send_ready(ch->ctx);
-		}
-	}
-
-	return ch;
+	return tx_update ? chan_create_tx(_nh, &arr[idx]) : chan_create_rx(_nh, &arr[idx]);
 }
+
 
 void chan_destroy(struct channel **ch)
 {
