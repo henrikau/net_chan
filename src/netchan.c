@@ -499,6 +499,45 @@ void chan_destroy(struct channel **ch)
 		printf("%s(): Channel destroyed\n", __func__);
 }
 
+bool chan_valid(struct channel *ch)
+{
+	if (!ch || !ch->nh)
+		return false;
+
+	/* No sockets either way defined */
+	if (ch->tx_sock < 0 && ch->nh->rx_sock < 0)
+		return false;
+
+	/* Invalid StreamID (not set) */
+	if (ch->sidw.s64 == 0)
+		return false;
+
+	/* payload size */
+	if (ch->payload_size <= 0)
+		return false;
+
+	/* fd_w, fd_r */
+	if (ch->fd_w == 0 && ch->fd_r == 0)
+		return false;
+
+	/* if tx;
+	 * sock_prio set
+	 * cbp should be 0,
+	 * interval, next_tx_ns
+	 */
+	if (ch->tx_sock > 0) {
+		if (ch->cbp)
+			return false;
+
+		if (ch->interval_ns <= 0)
+			return false;
+	} else {
+		if (!ch->cbp)
+			return false;
+	}
+	return true;
+}
+
 int chan_update(struct channel *ch, uint32_t ts, void *data)
 {
 	if (!ch)

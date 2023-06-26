@@ -404,6 +404,17 @@ struct channel *chan_create_standalone(char *name,
 void chan_destroy(struct channel **ch);
 
 /**
+ * chan_valid() basic test to determine if channel is valid
+ *
+ * The function performs the most basic of tests, not aiming to provide
+ * a comprehensive test, but rather a fairly thorough first screening.
+ *
+ * @param: ch
+ * @returns true for valid channels
+ */
+bool chan_valid(struct channel *ch);
+
+/**
  * chan_update : take an existing channel and update timestamp and data and make it ready for Tx
  *
  * The function expects the size of data to be the same size as when it was created

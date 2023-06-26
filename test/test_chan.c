@@ -47,16 +47,56 @@ static void test_create_rx_channel(void)
 	TEST_ASSERT_NULL(chan_create_rx(nh, NULL));
 	struct channel *ch = chan_create_rx(nh, &chanattr);
 
-	/* TEST_ASSERT_NOT_NULL_MESSAGE(ch, "Channel not created with valid arguments"); */
-	/* TEST_ASSERT_NOT_NULL_MESSAGE(ch->cbp, "Generic callback not created for Rx channel"); */
+	TEST_ASSERT_NOT_NULL_MESSAGE(ch, "Channel not created with valid arguments");
+	TEST_ASSERT_NOT_NULL_MESSAGE(ch->cbp, "Generic callback not created for Rx channel");
 }
 
+/* Gradually assemble and channel and make sure chan_valid() triggers on
+ * missing values.
+ */
+static void test_chan_valid(void)
+{
+	TEST_ASSERT(!chan_valid(NULL));
+	struct channel ch = {0};
+	TEST_ASSERT(!chan_valid(&ch));
+	ch.nh = nh;
+	TEST_ASSERT(!chan_valid(&ch));
+	ch.tx_sock = 7;
+	TEST_ASSERT(!chan_valid(&ch));
+	ch.sidw.s64 = 17;
+	TEST_ASSERT(!chan_valid(&ch));
+	ch.payload_size = 8;
+	TEST_ASSERT(!chan_valid(&ch));
+	ch.fd_w = 1;
+	ch.fd_r = 2;
+	TEST_ASSERT(!chan_valid(&ch));
+
+	ch.interval_ns = 12345;
+	TEST_ASSERT(chan_valid(&ch));
+
+	/* If not Tx, then it must be Rx, and then cbp must point to something */
+	ch.tx_sock = 0;
+	TEST_ASSERT(!chan_valid(&ch));
+
+	char buffer[128] = {0};
+	ch.cbp = (struct cb_priv *)buffer;
+
+	TEST_ASSERT(chan_valid(&ch));
+	/* Tx-sock should not have callback memory set */
+	ch.tx_sock = 1;
+	TEST_ASSERT(!chan_valid(&ch));
+	ch.cbp = NULL;
+	TEST_ASSERT(chan_valid(&ch));
+
+	struct channel *ch2 = chan_create_tx(nh, &chanattr);
+	TEST_ASSERT(chan_valid(ch2));
+}
 
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
 	RUN_TEST(test_create_tx_channel);
 	RUN_TEST(test_create_rx_channel);
-
+	RUN_TEST(test_chan_valid);
 	return UNITY_END();
 }
