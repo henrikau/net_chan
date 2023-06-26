@@ -540,11 +540,12 @@ bool chan_valid(struct channel *ch)
 
 int chan_update(struct channel *ch, uint32_t ts, void *data)
 {
-	if (!ch)
+	if (!chan_valid(ch))
 		return -ENOMEM;
 
 	if (!data)
 		return -ENOMEM;
+
 	ch->pdu.seqnr++;
 	ch->pdu.avtp_timestamp = htonl(ts);
 	ch->pdu.tv = 1;
@@ -555,7 +556,7 @@ int chan_update(struct channel *ch, uint32_t ts, void *data)
 
 void chan_dump_state(struct channel *ch)
 {
-	if (!ch) {
+	if (!chan_valid(ch)) {
 		printf("%s(): No channel\n", __func__);
 		return;
 	}
@@ -578,7 +579,7 @@ void chan_dump_state(struct channel *ch)
 
 int wait_for_tx_slot(struct channel *ch)
 {
-	if (!ch)
+	if (!chan_valid(ch))
 		return -EINVAL;
 
 	struct timespec ts = {
@@ -595,7 +596,7 @@ int wait_for_tx_slot(struct channel *ch)
 
 int chan_send(struct channel *ch, uint64_t *tx_ns)
 {
-	if (!ch || !ch->nh || ch->tx_sock == -1)
+	if (!chan_valid(ch) || ch->tx_sock == -1)
 		return -EINVAL;
 
 	/*
@@ -770,6 +771,9 @@ int chan_send_now_wait(struct channel *ch, void *data)
 
 int _chan_read(struct channel *ch, void *data, bool read_delay)
 {
+	if (!chan_valid(ch))
+		return -EINVAL;
+
 	size_t rpsz = sizeof(struct pipe_meta) + ch->payload_size;
 
 	int res = read(ch->fd_r, &ch->cbp->meta, rpsz);

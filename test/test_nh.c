@@ -21,6 +21,7 @@ struct channel *pdu17;
 #define INT42 INT_50HZ
 char data42[DATA42SZ] = {0};
 struct channel *pdu42;
+struct channel *pdu43_r;
 
 struct nethandler *nh;
 
@@ -34,6 +35,7 @@ void setUp(void)
 	nh = nh_create_init("lo", 16, NULL);
 	pdu17 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ, INT17);
 	pdu42 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_B, DATA42SZ, INT42);
+	pdu43_r = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, DATA42SZ, INT42);
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 
@@ -45,7 +47,9 @@ void tearDown(void)
 {
 	chan_destroy(&pdu17);
 	chan_destroy(&pdu42);
+	chan_destroy(&pdu43_r);
 	nh_destroy(&nh);
+
 	/* close pipes */
 	close(pfd[0]);
 	close(pfd[1]);
@@ -137,14 +141,18 @@ static void test_create_cb(void)
 	int (*cb)(void *priv_data, struct avtpdu_cshdr *du) = nh_std_cb;
 	TEST_ASSERT(cb(NULL, NULL) == -EINVAL);
 	TEST_ASSERT(cb(&cbp, NULL) == -EINVAL);
-	TEST_ASSERT(cb(NULL, &pdu42->pdu) == -EINVAL);
+	TEST_ASSERT(cb(NULL, &pdu43_r->pdu) == -EINVAL);
 
+	/* We are are constructiong the channel manually, so we need to
+	 * update the cbp pointer as well.
+	 */
+	pdu43_r->cbp = &cbp;
 
-	TEST_ASSERT(nh_reg_callback(nh, 42, &cbp, cb) == 0);
+	TEST_ASSERT(nh_reg_callback(nh, 43, &cbp, cb) == 0);
 
 	uint64_t val = 0xdeadbeef;
-	chan_update(pdu42, 0, &val);
-	TEST_ASSERT(nh_feed_pdu(nh, &pdu42->pdu) == 0);
+	TEST_ASSERT(chan_update(pdu43_r, 0, &val) == 0);
+	TEST_ASSERT(nh_feed_pdu(nh, &pdu43_r->pdu) == 0);
 
 	/* Verify that callback has written data into pipe
 	 *
@@ -158,8 +166,12 @@ static void test_create_cb(void)
 
 	TEST_ASSERT(rdsz == sizeof(*pm) + sizeof(uint64_t));
 	TEST_ASSERT(*res == 0xdeadbeef);
-	free(pm);
+	if (pm)
+		free(pm);
 	val = 1;
+
+	/* Remember to drop ref to object of automatic storage duration.. (thanks Olve!) */
+	pdu43_r->cbp = NULL;
 }
 
 static void test_nh_add_cb_overflow(void)
