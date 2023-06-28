@@ -221,6 +221,11 @@ static void test_nh_standalone_destroy(void)
 	TEST_ASSERT_NULL(_nh);
 }
 
+static void test_sc_values(void)
+{
+	TEST_ASSERT_EQUAL_MESSAGE(2*NS_IN_MS, CLASS_A, "Class A should have default value 2 ms");
+	TEST_ASSERT_EQUAL_MESSAGE(50*NS_IN_MS, CLASS_B, "Class B should have default value 50 ms");
+}
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -233,6 +238,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_create_tx_fifo);
 	RUN_TEST(test_nh_standalone_create);
 	RUN_TEST(test_nh_standalone_destroy);
+	RUN_TEST(test_sc_values);
 
 	return UNITY_END();
 }

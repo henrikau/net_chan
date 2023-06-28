@@ -69,10 +69,9 @@ enum {
 };
 
 enum stream_class {
-	CLASS_A,
-	CLASS_B
+	CLASS_A = 2 * NS_IN_MS,
+	CLASS_B = 50 * NS_IN_MS
 };
-
 
 /* StreamID u64 to bytearray wrapper */
 union stream_id_wrapper {

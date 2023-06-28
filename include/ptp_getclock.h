@@ -48,7 +48,8 @@ uint32_t tai_to_avtp_ns(uint64_t tai_ns);
 uint64_t tai_get_ns(void);
 
 #define US_IN_MS   (1000L)
-#define NS_IN_MS   (1000L * US_IN_MS)
+#define NS_IN_US   (1000L)
+#define NS_IN_MS   (1000L * NS_IN_US)
 #define NS_IN_SEC  (1000L * NS_IN_MS)
 #define NS_IN_HOUR (3600L * NS_IN_SEC)
 

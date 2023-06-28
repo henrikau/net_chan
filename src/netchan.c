@@ -816,23 +816,15 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	 * length of sleep before moving on.
 	 */
 	if (read_delay) {
-		switch (ch->sc) {
-		case CLASS_A:
-			ptp_capture += 2 * NS_IN_MS;
-			break;
-		case CLASS_B:
-			ptp_capture += 50 * NS_IN_MS;
-			break;
-		}
-		int64_t err = _delay(ch, ptp_capture);
+		int64_t err = _delay(ch, ptp_capture + ch->sc);
 
 		if (verbose) {
 			printf("%s() Sample spent %ld ns from capture to recvmsg()\n",
 				__func__, avtp_diff);
 			printf("%s() Reconstructed timestamp: %lu\n",
-				__func__, ptp_capture);
+				__func__, ptp_capture + ch->sc);
 			printf("%s() Delayed to %lu, missed by %ld ns\n",
-				__func__, ptp_capture, err);
+				__func__, ptp_capture + ch->sc, err);
 		}
 	}
 
