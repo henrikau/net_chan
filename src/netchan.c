@@ -243,6 +243,38 @@ static bool _valid_size(struct nethandler *nh, uint16_t sz)
 	return true;
 }
 
+static void _chan_avtpdu_init(struct channel *ch, uint64_t stream_id)
+{
+	ch->pdu.subtype = AVTP_SUBTYPE_NETCHAN;
+	ch->pdu.stream_id = htobe64(stream_id);
+	ch->pdu.sv = 1;
+	ch->pdu.seqnr = 0xff;
+	ch->sidw.s64 = stream_id;
+}
+
+static void _chan_set_streamclass(struct channel *ch,
+				enum stream_class sc,
+				uint64_t interval_ns)
+{
+	ch->sc = sc;
+
+	/* Set default values, if we run with SRP, it will be updated
+	 * once we've connected to mrpd
+	 */
+	switch (ch->sc) {
+	case CLASS_A:
+		ch->socket_prio = DEFAULT_CLASS_A_PRIO;
+		if (interval_ns > 125*NS_IN_US)
+			fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
+		break;
+	case CLASS_B:
+		ch->socket_prio = DEFAULT_CLASS_B_PRIO;
+		if (interval_ns > 250*NS_IN_US)
+			fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
+		break;
+	}
+}
+
 /*
  * _chan_create - create and initialize a new channel.
  *
@@ -282,55 +314,30 @@ static struct channel * _chan_create(struct nethandler *nh,
 	if (!_valid_size(nh, sz) || !_valid_interval(nh, interval_ns, sz))
 		return NULL;
 
-	/*
-	 * Missing frequency workaround: add a warning if freq >
-	 * class_max_freq
-	 */
-	double freq = 1e9/(double)interval_ns;
-	if (sc == CLASS_A && freq > 8000) {
-		fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
-	} else if (sc == CLASS_B && freq > 4000) {
-		fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
-	}
-
 	struct channel *ch = calloc(1, sizeof(*ch) + sz);
 	if (!ch)
 		return NULL;
-
-	ch->pdu.subtype = AVTP_SUBTYPE_NETCHAN;
-	ch->pdu.stream_id = htobe64(stream_id);
-	ch->sidw.s64 = ch->pdu.stream_id;
-	ch->pdu.sv = 1;
-	ch->pdu.seqnr = 0xff;
+	ch->nh = nh;
 	ch->payload_size = sz;
 
+	_chan_avtpdu_init(ch, stream_id);
+
+
 	/* It does not make sense to set the next-ts (socket is not
-	 * fully configured) just yet.
+	 * fully configured) just yet, leave this at 0 from calloc
 	 *
 	 * As long as it is 'sufficienty in the past', the first frame
-	 * arriving should fly straight through. */
-	ch->next_tx_ns = 0; // tai_get_ns();
+	 * arriving should fly straight through.
+	 */
 	ch->interval_ns = interval_ns;
 
-	ch->nh = nh;
 	memcpy(ch->dst, dst, ETH_ALEN);
 
-	ch->sidw.s64 = stream_id;
-	ch->sc = sc;
+	_chan_set_streamclass(ch, sc, interval_ns);
+
 	ch->tx_sock = -1;
 
-	/* Set default values, if we run with SRP, it will be updated
-	 * once we've connected to mrpd
-	 */
-	switch (ch->sc) {
-	case CLASS_A:
-		ch->socket_prio = DEFAULT_CLASS_A_PRIO;
-		break;
-	case CLASS_B:
-		ch->socket_prio = DEFAULT_CLASS_B_PRIO;
-		break;
-	}
-
+	/* Set up pipes for Rx/Tx */
 	int pfd[2];
 	if (pipe(pfd) == -1) {
 		chan_destroy(&ch);
@@ -1090,20 +1097,21 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	nh->hmap = calloc(sizeof(struct cb_entity), nh->hmap_sz);
 	if (!nh->hmap) {
 		free(nh);
-		return NULL;
+		nh = NULL;
+		goto out;
 	}
 
 	if (_nh_net_setup(nh, ifname)) {
 		fprintf(stderr, "%s(): failed setting up network, aborting\n", __func__);
 		nh_destroy(&nh);
-		return NULL;
+		goto out;
 
 	}
 
 	if (_nh_start_rx(nh)) {
 		fprintf(stderr, "%s(): failed starting Rx-handler\n", __func__);
 		nh_destroy(&nh);
-		return NULL;
+		goto out;
 	}
 
 	if (_nh_enable_rt_measures(nh))
@@ -1128,13 +1136,14 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	 * FIXME: properly handle error when opening (assume caller
 	 * knows their hardware?)
 	 */
-	nh->ptp_fd = -1;
-	if (!nh->is_lo) {
-		nh->ptp_fd = get_ptp_fd(ifname);
-		if (nh->ptp_fd < 0)
-			fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
+	nh->ptp_fd = get_ptp_fd(ifname);
+	if (nh->ptp_fd < 0 && !nh->is_lo) {
+		fprintf(stderr, "%s(): failed getting FD for PTP on %s (%s), aborting.\n",
+			__func__, ifname, strerror(errno));
+		nh_destroy(&nh);
+		goto out;
 	}
-
+out:
 	return nh;
 }
 
