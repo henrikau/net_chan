@@ -23,7 +23,11 @@ while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
 	# only run tests if build was ok
 	./scripts/fix_perms.sh
 	pushd build > /dev/null
-	meson test || { echo "Test failed, dumping complete log"; cat meson-logs/testlog.txt; }
+	if [[ ! -z $(which pmccabe) ]]; then
+	    meson test && { pmccabe -v /dev/null | head -n6; pmccabe ../src/* | sort -nk 2 | tail -n20; echo "Files: "; pmccabe -F ../src/* |sort -nk 2; }
+	else
+	    meson test
+	fi
 	popd > /dev/null
     }
 
