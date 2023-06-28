@@ -562,6 +562,7 @@ void chan_dump_state(struct channel *ch)
 		return;
 	}
 	printf("%18s : %s\n", "iface", ch->nh->ifname);
+	printf("%18s : %.0f Mbps\n", "link speed", ch->nh->link_speed / 1e6);
 	printf("%18s : %"PRIu64"\n", "period_nsec", ch->interval_ns);
 	printf("%18s : %d\n", "use_so_txtime", 1);
 	printf("%18s : %d\n", "so_priority", ch->tx_sock_prio);
@@ -941,15 +942,8 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 	 * If NIC is lo or if the query fails, assume 1Gbps as this is
 	 * the most common speed.
 	 */
-	nh->link_speed = 1e9;
-	if (!nh->is_lo) {
-		nh->link_speed = _get_link_speed_Mbps(nh) * 1e6;
-		struct ethtool_cmd data = { .cmd = ETHTOOL_GSET };
-		req.ifr_data = &data;
-		if (ioctl(nh->rx_sock, SIOCETHTOOL, &req) != -1) {
-			nh->link_speed = (unsigned int)ethtool_cmd_speed(&data) * 1e6;
-		}
-	}
+	nh->link_speed = _get_link_speed_Mbps(nh) * 1e6;
+
 	return 0;
 }
 
