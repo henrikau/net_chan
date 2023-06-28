@@ -1026,9 +1026,6 @@ static void * nh_runner(void *data)
  */
 static int _nh_start_rx(struct nethandler *nh)
 {
-	if (nh->rx_sock == -1 || nh->tid)
-		return -1;
-
 	nh->running = true;
 
 	if (pthread_create(&nh->tid, NULL, nh_runner, nh)) {
