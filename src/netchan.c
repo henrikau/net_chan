@@ -660,11 +660,28 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 	return txsz - sizeof(struct avtpdu_cshdr);
 }
 
+
+uint64_t chan_time_to_tx(struct channel *ch)
+{
+	/* Invalid channel, -1 will yield a value as  */
+	if (!chan_valid(ch))
+		return UINT64_MAX;
+
+	uint64_t tai_now = tai_get_ns();
+
+	/* If next_tx_ns is in the past, we can send right now */
+	return tai_now > ch->next_tx_ns ? 0 : ch->next_tx_ns - tai_now;
+}
+
 /*
  * ptp_target_delay_ns: absolute timestamp for PTP time to delay to
  * du: data-unit for netchan internals (need access to PTP fd)
  *
  * ptp_target_delay_ns is adjusted for correct class
+ *
+ * FIXME: we are slowly moving towards a situation where we expect
+ *	  phc2sys to synchronize the system clock, so this function
+ *	  should be ripe for simplification.
  */
 int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 {

@@ -92,11 +92,36 @@ static void test_chan_valid(void)
 	TEST_ASSERT(chan_valid(ch2));
 }
 
+static void test_chan_time_to_tx(void)
+{
+	TEST_ASSERT_EQUAL_UINT64_MESSAGE(UINT64_MAX, chan_time_to_tx(NULL),
+					"Invalid channel should result in MAXINT");
+
+	struct channel ch = {0};
+	TEST_ASSERT_EQUAL_UINT64_MESSAGE(UINT64_MAX, chan_time_to_tx(&ch),
+					"Invalid channel should result in MAXINT");
+
+	struct channel *ch2 = chan_create_tx(nh, &chanattr);
+	uint64_t now = tai_get_ns();
+	ch2->interval_ns = 10 * NS_IN_MS;
+	ch2->next_tx_ns = now + 9*NS_IN_SEC;
+
+	/* Check interval */
+	TEST_ASSERT_UINT64_WITHIN_MESSAGE(NS_IN_MS, 9*NS_IN_SEC, chan_time_to_tx(ch2),
+					"Unexpected time to Tx; should be close to 9 sec in the future");
+
+	/* Move time backwards, time to tx should be *now*, i.e. 0 */
+	ch2->next_tx_ns = now - NS_IN_SEC;
+	TEST_ASSERT_EQUAL_UINT64_MESSAGE(0, chan_time_to_tx(ch2),
+					"next_tx_ns in the past should result in Tx-time to *now* (0)");
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
 	RUN_TEST(test_create_tx_channel);
 	RUN_TEST(test_create_rx_channel);
 	RUN_TEST(test_chan_valid);
+	RUN_TEST(test_chan_time_to_tx);
 	return UNITY_END();
 }

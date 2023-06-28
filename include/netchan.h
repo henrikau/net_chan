@@ -478,8 +478,11 @@ int chan_send(struct channel *ch, uint64_t *tx_ns);
 /**
  * chan_send_now: update and send data *now*
  *
- * This helper function will take a channel, increment seqnr, set timestamp
- * to time *now* and send the currently active PDU maintained by the channel.
+ * Provided the Tx budget is not exhausted, the data will be sent
+ * immideately. Note that based on the expected interval (i.e. CBS
+ * bandwidth), the function will block until the budget is available.
+ *
+ * Use the function chan_time_to_tx() to determine elibility to transmit.
  *
  * @param chan: channel to send from
  * @param data: new data to copy into field and send.
@@ -487,6 +490,18 @@ int chan_send(struct channel *ch, uint64_t *tx_ns);
  * @return 0 on success, negative on error
  */
 int chan_send_now(struct channel *ch, void *data);
+
+/**
+ * chan_time_to_tx : ns left until a new frame can be sent.
+ *
+ * If the channel is invalid, and extreme value (UINT64_MAX) is returned
+ * to indicate that the channel will only be ready in a *very* long
+ * time.
+ *
+ * @params ch: active channel
+ * @returns ns left until budget replenished or 0 if ready for Tx
+ */
+uint64_t chan_time_to_tx(struct channel *ch);
 
 /**
  * chan_send_now_wait - update and send PDU from channel, and wait for class delay
