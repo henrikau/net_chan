@@ -25,6 +25,7 @@ int nc_create_rx_sock(void)
 	if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
 		printf("%s(): Could not set timeout on socket (%d): %s\n",
 			__func__, sock, strerror(errno));
+		close(sock);
 		return -1;
 	}
 
@@ -32,6 +33,7 @@ int nc_create_rx_sock(void)
 	if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &enable_ts, sizeof(enable_ts)) < 0) {
 		fprintf(stderr, "%s(): failed enabling SO_TIMESTAMPNS on Rx socket (%d, %s)\n",
 			__func__, errno, strerror(errno));
+		close(sock);
 		return -1;
 	}
 	return sock;
