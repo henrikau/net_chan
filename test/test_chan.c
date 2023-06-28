@@ -63,7 +63,11 @@ static void test_chan_valid(void)
 	TEST_ASSERT(!chan_valid(&ch));
 	ch.tx_sock = 7;
 	TEST_ASSERT(!chan_valid(&ch));
+
+	/* StreamID but also PDU's streamID */
 	ch.sidw.s64 = 17;
+	ch.pdu.stream_id = 17;
+
 	TEST_ASSERT(!chan_valid(&ch));
 	ch.payload_size = 8;
 	TEST_ASSERT(!chan_valid(&ch));

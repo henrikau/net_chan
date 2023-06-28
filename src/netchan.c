@@ -505,12 +505,22 @@ bool chan_valid(struct channel *ch)
 	if (!ch || !ch->nh)
 		return false;
 
-	/* No sockets either way defined */
-	if (ch->tx_sock < 0 && ch->nh->rx_sock < 0)
+	/* Must always have a Rx socket */
+	if (ch->nh->rx_sock < 0)
 		return false;
 
+	/* if tx; no cbp and valid interval */
+	if (ch->tx_sock > 0) {
+		if (ch->cbp || ch->interval_ns <= 0)
+			return false;
+	} else {
+		/* Rx *must* have callback-buffer */
+		if (!ch->cbp)
+			return false;
+	}
+
 	/* Invalid StreamID (not set) */
-	if (ch->sidw.s64 == 0)
+	if (ch->sidw.s64 == 0 || ch->pdu.stream_id == 0)
 		return false;
 
 	/* payload size */
@@ -521,21 +531,6 @@ bool chan_valid(struct channel *ch)
 	if (ch->fd_w == 0 && ch->fd_r == 0)
 		return false;
 
-	/* if tx;
-	 * sock_prio set
-	 * cbp should be 0,
-	 * interval, next_tx_ns
-	 */
-	if (ch->tx_sock > 0) {
-		if (ch->cbp)
-			return false;
-
-		if (ch->interval_ns <= 0)
-			return false;
-	} else {
-		if (!ch->cbp)
-			return false;
-	}
 	return true;
 }
 
