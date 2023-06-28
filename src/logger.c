@@ -128,6 +128,11 @@ static void _flush_ts(const char *logfile, struct log_buffer *lb)
 {
 	if (!logfile || !lb)
 		return;
+
+	/* no entries written, avoid creating new logfile */
+	if (lb->idx == 0)
+		return;
+
 	FILE *fp = fopen(logfile, "w+");
 	fprintf(fp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,tx_ns,rx_ns,recv_ptp_ns\n");
 	if (fp) {
