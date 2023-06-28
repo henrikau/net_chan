@@ -621,19 +621,6 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *du,
 		uint64_t recv_ptp_ns);
 
 /**
- * nh_start_rx - start receiver thread
- *
- * This will filter out and grab all TSN ethertype frames coming in on
- * the socket. PDUs will known StreamIDs will be fed to registred
- * callbacks.
- *
- * @param nh nethandler container
- * @returns 0 on success, negative on error
- */
-int nh_start_rx(struct nethandler *nh);
-void nh_stop_rx(struct nethandler *nh);
-
-/**
  * nh_get_num_(tx|rx) : get the number of Tx or Rx pipes registred
  *
  * @param: nh nethandler container

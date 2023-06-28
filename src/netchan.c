@@ -963,34 +963,114 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 }
 
 
-struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile)
+static void * nh_runner(void *data)
 {
-	struct nethandler *nh = calloc(sizeof(*nh), 1);
-	if (!nh)
+	if (!data)
 		return NULL;
-	nh->tid = 0;
-	nh->hmap_sz = hmap_size;
-	nh->hmap = calloc(sizeof(struct cb_entity), nh->hmap_sz);
-	if (!nh->hmap) {
-		free(nh);
+
+	struct nethandler *nh = (struct nethandler *)data;
+	if (nh->rx_sock <= 0)
 		return NULL;
+
+	unsigned char buffer[1522] = {0};
+	bool running = true;
+
+	struct msghdr msg;
+	struct iovec entry;
+	struct sockaddr_in addr;
+	struct {
+		struct cmsghdr cm;
+		char control[512];
+	} control;
+
+	while (running) {
+
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_iov = &entry;
+		msg.msg_iovlen = 1;
+		entry.iov_base = buffer;
+		entry.iov_len = sizeof(buffer);
+		msg.msg_name = (caddr_t)&addr;
+		msg.msg_namelen = sizeof(addr);
+		msg.msg_control = &control;
+		msg.msg_controllen = sizeof(control);
+
+		int n = recvmsg(nh->rx_sock, &msg, 0);
+		/* grab local timestamp now that we've received a msg */
+		uint64_t recv_ptp_ns = get_ptp_ts_ns(nh->ptp_fd);
+		uint64_t rx_hw_ns = 0;
+		running = nh->running;
+		if (n > 0) {
+			/* Read HW Rx time  */
+			struct cmsghdr *cmsg;
+			for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+				if (cmsg->cmsg_type == SO_TIMESTAMPNS) {
+					struct timespec *stamp = (struct timespec *)CMSG_DATA(cmsg);
+					rx_hw_ns = stamp->tv_sec * 1e9 + stamp->tv_nsec;
+				}
+			}
+
+			/* parse data */
+			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
+			nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
+
+			/* we have all the timestamps, so we can safely
+			 * log this /after/ the data has been passed
+			 * on
+			 */
+			if (enable_logging)
+				log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
+		}
 	}
+	return NULL;
+}
 
-	if (_nh_net_setup(nh, ifname)) {
-		fprintf(stderr, "%s(): failed setting up network, aborting\n", __func__);
-		nh_destroy(&nh);
+/*
+ * nh_start_rx - start receiver thread
+ *
+ * This will filter out and grab all TSN ethertype frames coming in on
+ * the socket. PDUs will known StreamIDs will be fed to registred
+ * callbacks.
+ *
+ * @param nh nethandler container
+ * @returns 0 on success, negative on error
+ */
+static int _nh_start_rx(struct nethandler *nh)
+{
+	if (nh->rx_sock == -1 || nh->tid)
+		return -1;
+
+	nh->running = true;
+
+	if (pthread_create(&nh->tid, NULL, nh_runner, nh)) {
+		nh->tid = 0;
+		nh->running = false;
+		return -1;
 	}
+	return 0;
+}
 
-	if (nh->tid == 0)
-		nh_start_rx(nh);
+static void _nh_stop_rx(struct nethandler *nh)
+{
+	if (nh && nh->running) {
+		nh->running = false;
+		if (nh->tid > 0) {
+			/* once timeout expires, join */
+			pthread_join(nh->tid, NULL);
+			nh->tid = 0;
+			nh->rx_sock = -1;
+		}
+	}
+}
 
-
+static int _nh_enable_rt_measures(struct nethandler *nh)
+{
+	int res = 0;
 	/* lock memory, we don't pagefaults later */
 	if (mlockall(MCL_CURRENT|MCL_FUTURE)) {
 		fprintf(stderr, "%s(): failed locking memory (%d, %s)\n",
 			__func__, errno, strerror(errno));
-		nh_destroy(&nh);
-		return NULL;
+		res = -1;
 	}
 
 	/* disable dma latency */
@@ -1001,15 +1081,52 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 				__func__, errno, strerror(errno));
 		} else {
 			int lat_val = 0;
-			int res = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
-			if (res < 1) {
+			int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
+			if (wres < 1) {
 				fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
 					__func__, lat_val, errno, strerror(errno));
-			}
-			if (verbose)
+				res = -2;
+			} else if (verbose) {
 				printf("%s(): Disabled cstate on CPU\n", __func__);
+			}
 		}
 	}
+
+	return res;
+}
+
+struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile)
+{
+	if (!ifname || !hmap_size)
+		return NULL;
+
+	struct nethandler *nh = calloc(sizeof(*nh), 1);
+	if (!nh)
+		return NULL;
+
+	nh->hmap_sz = hmap_size;
+	nh->hmap = calloc(sizeof(struct cb_entity), nh->hmap_sz);
+	if (!nh->hmap) {
+		free(nh);
+		return NULL;
+	}
+
+	if (_nh_net_setup(nh, ifname)) {
+		fprintf(stderr, "%s(): failed setting up network, aborting\n", __func__);
+		nh_destroy(&nh);
+		return NULL;
+
+	}
+
+	if (_nh_start_rx(nh)) {
+		fprintf(stderr, "%s(): failed starting Rx-handler\n", __func__);
+		nh_destroy(&nh);
+		return NULL;
+	}
+
+	if (_nh_enable_rt_measures(nh))
+		fprintf(stderr, "%s() Failed enabling RT measures, not fatal but performance may not be optimal\n", __func__);
+
 	/*
 	 * Open logfile if provided
 	 */
@@ -1021,9 +1138,8 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 		}
 	}
 
-	if (use_tracebuffer) {
+	if (use_tracebuffer)
 		nh->tb = tb_open();
-	}
 
 	/* get PTP fd for timekeeping
 	 *
@@ -1036,9 +1152,6 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 		if (nh->ptp_fd < 0)
 			fprintf(stderr, "%s(): failed getting FD for PTP on %s\n", __func__, ifname);
 	}
-
-	/* if (strlen(nc_termdevice) > 0) */
-	/* 	nh->ttys = term_open(nc_termdevice); */
 
 	return nh;
 }
@@ -1157,94 +1270,6 @@ int nh_feed_pdu(struct nethandler *nh, struct avtpdu_cshdr *cshdr)
 	return nh_feed_pdu_ts(nh, cshdr, 0, 0);
 }
 
-
-static void * nh_runner(void *data)
-{
-	if (!data)
-		return NULL;
-
-	struct nethandler *nh = (struct nethandler *)data;
-	if (nh->rx_sock <= 0)
-		return NULL;
-
-	unsigned char buffer[1522] = {0};
-	bool running = true;
-
-	struct msghdr msg;
-	struct iovec entry;
-	struct sockaddr_in addr;
-	struct {
-		struct cmsghdr cm;
-		char control[512];
-	} control;
-
-	while (running) {
-
-		memset(&msg, 0, sizeof(msg));
-		msg.msg_iov = &entry;
-		msg.msg_iovlen = 1;
-		entry.iov_base = buffer;
-		entry.iov_len = sizeof(buffer);
-		msg.msg_name = (caddr_t)&addr;
-		msg.msg_namelen = sizeof(addr);
-		msg.msg_control = &control;
-		msg.msg_controllen = sizeof(control);
-
-		int n = recvmsg(nh->rx_sock, &msg, 0);
-		/* grab local timestamp now that we've received a msg */
-		uint64_t recv_ptp_ns = get_ptp_ts_ns(nh->ptp_fd);
-		uint64_t rx_hw_ns = 0;
-		running = nh->running;
-		if (n > 0) {
-			/* Read HW Rx time  */
-			struct cmsghdr *cmsg;
-			for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-				if (cmsg->cmsg_type == SO_TIMESTAMPNS) {
-					struct timespec *stamp = (struct timespec *)CMSG_DATA(cmsg);
-					rx_hw_ns = stamp->tv_sec * 1e9 + stamp->tv_nsec;
-				}
-			}
-
-			/* parse data */
-			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
-			nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
-
-			/* we have all the timestamps, so we can safely
-			 * log this /after/ the data has been passed
-			 * on
-			 */
-			if (enable_logging)
-				log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
-		}
-	}
-	return NULL;
-}
-
-int nh_start_rx(struct nethandler *nh)
-{
-	if (!nh)
-		return -1;
-	if (nh->rx_sock == -1)
-		return -1;
-	nh->running = true;
-	pthread_create(&nh->tid, NULL, nh_runner, nh);
-
-	return 0;
-}
-
-void nh_stop_rx(struct nethandler *nh)
-{
-	if (nh && nh->running) {
-		nh->running = false;
-		if (nh->tid > 0) {
-			/* once timeout expires, join */
-			pthread_join(nh->tid, NULL);
-			nh->tid = 0;
-			nh->rx_sock = -1;
-		}
-	}
-}
-
 int _nh_get_len(struct channel *head)
 {
 	if (!head)
@@ -1304,7 +1329,7 @@ void nh_destroy(struct nethandler **nh)
 			close((*nh)->dma_lat_fd);
 
 
-		nh_stop_rx(*nh);
+		_nh_stop_rx(*nh);
 
 		if (enable_logging) {
 			log_close_fp((*nh)->logger);
