@@ -52,8 +52,18 @@ uint64_t get_ptp_ts_ns(int ptp_fd)
 
 int get_ptp_fd(const char *ifname)
 {
+	/*
+	 * It does not make sense to use lo as a PTP device, it can by
+	 * definition not get any external sync, nor sync others. In
+	 * this case, it is better to fail early and either force the
+	 * caller to use CLOCK_REALTIME or just abort.
+	 */
+	if (strncmp(ifname, "lo", 2) == 0)
+		return -1;
+
 	struct ifreq req;
 	struct ethtool_ts_info interface_info = {0};
+
 	interface_info.cmd = ETHTOOL_GET_TS_INFO;
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", ifname);
 	req.ifr_data = (char *) &interface_info;
