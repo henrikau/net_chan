@@ -19,7 +19,7 @@ static struct argp_option options[] = {
        {"keep_cstate", 'D', NULL , 0, "Do not disable cstate adjustment for powersave (this option is *not* good for RT!)"},
        {"verbose", 'v', NULL     , 0, "Run in verbose mode" },
        {"log_ts" , 'l', "LOGFILE", 0, "Log timestamps to logfile (csv format)"},
-       {"log_delay" , 'L', NULL  , 0, "Log wakeup (delay) to file (csv format)"},
+       {"log_delay" , 'L', NULL  , 0, "Log wakeup (delay) to file (csv format), *requires* --log_ts"},
        {"ftrace"    , 't', NULL  , 0, "Enable tagging of ftrace tracebuffer from various points in the system"},
        {"break"     , 'b', "USEC", 0, "Stop program and ftrace if calculated E2E delay is larger than [USEC]"},
        {"terminal"  , 'T', "device",0,"Write a character to the tty-device on return from READ/WRITE(_WAIT)"},

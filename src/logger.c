@@ -17,6 +17,7 @@
 
 struct log_buffer
 {
+	FILE *logfp;
 	int idx;
 	uint64_t sid[BSZ];
 	uint16_t sz[BSZ];
@@ -29,8 +30,9 @@ struct log_buffer
 	uint64_t recv_ptp_ns[BSZ];
 }__attribute__((packed));
 
-struct delay_buffer
+struct wakeup_delay_buffer
 {
+	FILE *delayfp;
 	int idx;
 	uint64_t ptp_target_ns[BSZ];
 	uint64_t cpu_target_ns[BSZ];
@@ -39,34 +41,37 @@ struct delay_buffer
 
 struct logc
 {
-	FILE *logfp;
-	FILE *delayfp;
 	pthread_mutex_t m;
-
+	char *logfile;
 	/* buffer */
 	struct log_buffer *lb;
-	struct delay_buffer *db;
+	struct wakeup_delay_buffer *wdb;
 
 };
 
-struct logc * log_create(const char *logfile, bool log_delay)
+static int _log_create_wakeup_delay_buffer(struct logc *logc)
 {
-	if (!logfile || strlen(logfile) == 0)
-		return NULL;
+	logc->wdb = malloc(sizeof(struct wakeup_delay_buffer));
+	if (!logc->wdb)
+		return -ENOMEM;
 
-	struct logc *logc = calloc(1, sizeof(*logc));
-	if (!logc)
-		return NULL;
-	pthread_mutexattr_t attr;
-	pthread_mutexattr_init(&attr);
-	pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT);
-	pthread_mutex_init(&logc->m, &attr);
+	/* make sure all memory is paged in
+	 * (we use mlockall(), so once it's read, it should not be forced out.
+	 */
+	logc->wdb->idx = 0;
+	for (int i = 0; i < BSZ; i++) {
+		logc->wdb->ptp_target_ns[i] = 0;
+		logc->wdb->cpu_target_ns[i] = 0;
+		logc->wdb->cpu_actual_ns[i] = 0;
+	}
+	return 0;
+}
 
-	pthread_mutex_lock(&logc->m);
-
+static int _log_create_ts(struct logc *logc)
+{
 	logc->lb = malloc(sizeof(struct log_buffer));
 	if (!logc->lb)
-		goto err_out;
+		return -ENOMEM;
 
 	/* make sure all memory is paged in
 	 * (we use mlockall(), so once it's read, it should not be forced out.
@@ -82,46 +87,115 @@ struct logc * log_create(const char *logfile, bool log_delay)
 		logc->lb->rx_ns[i] = 0;
 		logc->lb->recv_ptp_ns[i] = 0;
 	}
+	return 0;
+}
 
-	logc->logfp = fopen(logfile, "w+");
-	if (!logc->logfp) {
-		fprintf(stderr, "%s(): Failed opening logfile for writing (%d, %s)\n",
-			__func__, errno, strerror(errno));
+struct logc * log_create(const char *logfile)
+{
+	if (!logfile || strlen(logfile) == 0)
+		return NULL;
+
+	struct logc *logc = calloc(1, sizeof(*logc));
+	if (!logc)
+		return NULL;
+
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT);
+	pthread_mutex_init(&logc->m, &attr);
+
+	pthread_mutex_lock(&logc->m);
+
+	/* Keep logfile */
+	logc->logfile = calloc(1, strlen(logfile) + 1);
+	if (!logc->logfile)
 		goto err_out;
-	}
-	fprintf(logc->logfp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,tx_ns,rx_ns,recv_ptp_ns\n");
-	printf("%s(): opened logfile, buffersize: %zd, %d entries\n",
-		__func__, sizeof(struct log_buffer), BSZ);
+	strncpy(logc->logfile, logfile, strlen(logfile));
 
-	if (log_delay) {
-		logc->db = malloc(sizeof(struct delay_buffer));
-		if (!logc->db)
-			goto err_out;
-		logc->db->idx = 0;
-		for (int i = 0; i < BSZ; i++) {
-			logc->db->ptp_target_ns[i] = 0;
-			logc->db->cpu_target_ns[i] = 0;
-			logc->db->cpu_actual_ns[i] = 0;
-		}
-
-		char ldf[256] = {0};
-		snprintf(ldf, 255, "%s_d", logfile);
-		logc->delayfp = fopen(ldf, "w+");
-		fprintf(logc->delayfp, "ptp_target,cpu_target,cpu_actual\n");
-
-		printf("%s(): opened delay-log, buffersize: %zd, %d entries\n",
-			__func__, sizeof(struct delay_buffer), BSZ);
-	}
+	/* Create buffers */
+	if (_log_create_ts(logc) || _log_create_wakeup_delay_buffer(logc))
+		goto err_out;
 
 	pthread_mutex_unlock(&logc->m);
-
 	return logc;
 err_out:
 	pthread_mutex_unlock(&logc->m);
-	log_close_fp(logc);
+	log_close(logc);
 	return NULL;
 }
 
+static void _flush_ts(const char *logfile, struct log_buffer *lb)
+{
+	if (!logfile || !lb)
+		return;
+	FILE *fp = fopen(logfile, "w+");
+	fprintf(fp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,tx_ns,rx_ns,recv_ptp_ns\n");
+	if (fp) {
+		for (int i = 0; i < lb->idx; i++) {
+			fprintf(fp, "%lu,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu\n",
+				lb->sid[i],
+				lb->sz[i],
+				lb->seqnr[i],
+				lb->avtp_ns[i],
+				lb->cap_ptp_ns[i],
+				lb->send_ptp_ns[i],
+				lb->tx_ns[i],
+				lb->rx_ns[i],
+				lb->recv_ptp_ns[i]);
+		}
+		fflush(fp);
+		fclose(fp);
+		printf("%s(): wrote %d entries to log (%s)\n", __func__, lb->idx, logfile);
+	}
+}
+
+static void _flush_wakeup_delay(const char *logfile, struct wakeup_delay_buffer *wdb)
+{
+	if (!logfile || !wdb)
+		return;
+
+	/* no entries written, no read_now_wait() or write_now_wait() used */
+	if (wdb->idx == 0)
+		return;
+
+	FILE *fp = fopen(logfile, "w+");
+	if (fp) {
+		fprintf(fp, "ptp_target,cpu_target,cpu_actual\n");
+		for (int i = 0; i < wdb->idx; i++) {
+			fprintf(fp, "%lu,%lu,%lu\n",
+				wdb->ptp_target_ns[i],
+				wdb->cpu_target_ns[i],
+				wdb->cpu_actual_ns[i]);
+		}
+		fflush(fp);
+		fclose(fp);
+		printf("%s(): wrote %d entries to wakeup-delay-log (%s)\n", __func__, wdb->idx, logfile);
+	}
+}
+
+void log_close(struct logc *logc)
+{
+	if (!logc)
+		return;
+	pthread_mutex_lock(&logc->m);
+
+	/* Writing content to logbuffer */
+	if (logc->lb) {
+		_flush_ts(logc->logfile, logc->lb);
+		free(logc->lb);
+	}
+
+	if (logc->wdb) {
+		char ldf[256] = {0};
+		snprintf(ldf, 255, "%s_d", logc->logfile);
+		_flush_wakeup_delay(ldf, logc->wdb);
+		free(logc->wdb);
+	}
+
+	pthread_mutex_unlock(&logc->m);
+	pthread_mutex_destroy(&logc->m);
+	memset(logc, 0, sizeof(*logc));
+}
 
 static void _log(struct logc *logc,
 		struct avtpdu_cshdr *du,
@@ -131,9 +205,6 @@ static void _log(struct logc *logc,
 		uint64_t rx_ns,
 		uint64_t recv_ptp_ns)
 {
-	if (!logc->lb)
-		return;
-
 	pthread_mutex_lock(&logc->m);
 	if (logc->lb->idx < BSZ) {
 		logc->lb->sid[logc->lb->idx] = be64toh(du->stream_id);
@@ -169,71 +240,20 @@ void log_rx(struct logc *logc,
 		_log(logc, du, 0, 0, 0, rx_ns, recv_ptp_ns);
 }
 
-void log_close_fp(struct logc *logc)
-{
-	if (!logc)
-		return;
-
-	printf("%s(): closing logger\n", __func__);
-	if (logc->logfp && logc->lb) {
-		pthread_mutex_lock(&logc->m);
-		for (int i = 0; i < logc->lb->idx; i++) {
-			fprintf(logc->logfp, "%lu,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu\n",
-				logc->lb->sid[i],
-				logc->lb->sz[i],
-				logc->lb->seqnr[i],
-				logc->lb->avtp_ns[i],
-				logc->lb->cap_ptp_ns[i],
-				logc->lb->send_ptp_ns[i],
-				logc->lb->tx_ns[i],
-				logc->lb->rx_ns[i],
-				logc->lb->recv_ptp_ns[i]);
-		}
-		fflush(logc->logfp);
-		fclose(logc->logfp);
-		logc->logfp = NULL;
-		printf("%s(): wrote %d entries to log\n", __func__, logc->lb->idx);
-
-		if (logc->delayfp && logc->db) {
-			/* FIXME: dump buffer */
-			for (int i = 0; i < logc->db->idx; i++) {
-				fprintf(logc->delayfp, "%lu,%lu,%lu\n",
-					logc->db->ptp_target_ns[i],
-					logc->db->cpu_target_ns[i],
-					logc->db->cpu_actual_ns[i]);
-				fflush(logc->delayfp);
-			}
-
-			fflush(logc->delayfp);
-			fclose(logc->delayfp);
-			logc->delayfp = NULL;
-			printf("%s(): wrote %d entries to delay log\n", __func__, logc->db->idx);
-		}
-
-		if (logc->lb)
-			free(logc->lb);
-		if (logc->db)
-			free(logc->db);
-
-		pthread_mutex_unlock(&logc->m);
-		pthread_mutex_destroy(&logc->m);
-		memset(logc, 0, sizeof(*logc));
-	}
-}
-
-void log_delay(struct logc *logc,
+void log_wakeup_delay(struct logc *logc,
 	uint64_t ptp_target_ns,
 	uint64_t cpu_target_ns,
 	uint64_t cpu_actual_ns)
 {
-	if (logc && logc->delayfp && logc->db) {
-		pthread_mutex_lock(&logc->m);
-		if (logc->db->idx < BSZ) {
-			logc->db->ptp_target_ns[logc->db->idx] = ptp_target_ns;
-			logc->db->cpu_target_ns[logc->db->idx] = cpu_target_ns;
-			logc->db->cpu_actual_ns[logc->db->idx] = cpu_actual_ns;
-			logc->db->idx++;
-		}
-		pthread_mutex_unlock(&logc->m);
+	if (!logc)
+		return;
+
+	pthread_mutex_lock(&logc->m);
+	if (logc->wdb->idx < BSZ) {
+		logc->wdb->ptp_target_ns[logc->wdb->idx] = ptp_target_ns;
+		logc->wdb->cpu_target_ns[logc->wdb->idx] = cpu_target_ns;
+		logc->wdb->cpu_actual_ns[logc->wdb->idx] = cpu_actual_ns;
+		logc->wdb->idx++;
 	}
+	pthread_mutex_unlock(&logc->m);
 }

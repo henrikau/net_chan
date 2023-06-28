@@ -45,8 +45,8 @@ extern "C" {
  */
 struct logc;
 
-struct logc * log_create(const char *logfile, bool log_delay);
-void log_close_fp(struct logc *logc);
+struct logc * log_create(const char *logfile);
+void log_close(struct logc *logc);
 
 /**
  * log_rx: log Rx entries to a CSV log (if enabled)
@@ -93,7 +93,7 @@ void log_rx(struct logc *logc,
 	uint64_t recv_ptp_ns);
 
 /**
- * log_delay: log timestamps for delay (clock_nanosleep)
+ * log_wakeup_delay: log timestamps for wakeup delay (clock_nanosleep)
  *
  * clock_nanosleep() uses CLOCK_MONOTONIC, so we log both ptp target and
  * CPU target. We assume that the CPU clock runs at close enough rate so
@@ -106,7 +106,7 @@ void log_rx(struct logc *logc,
  * @param: cpu_target_ns: target wakeup time converted to CLOCK_MONOTONIC
  * @param: cpu_actual_ns: cpu timestamp (MONOTONIC) for when thread actually woke up.
  */
-void log_delay(struct logc *logc,
+void log_wakeup_delay(struct logc *logc,
 	uint64_t ptp_target_ns,
 	uint64_t cpu_target_ns,
 	uint64_t cpu_actual_ns);

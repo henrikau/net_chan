@@ -80,7 +80,6 @@ static int break_us = -1;
 static bool verbose = false;
 static char nc_nic[IFNAMSIZ] = {0};
 static bool enable_logging = false;
-static bool enable_delay_logging = false;
 static char nc_logfile[129] = {0};
 static char nc_termdevice[129] = {0};
 static int nc_hmap_size = 42;
@@ -151,11 +150,6 @@ void nc_use_termtag(const char *devpath)
 
 	strncpy(nc_termdevice, devpath, 128);
 }
-void nc_log_delay(void)
-{
-	enable_delay_logging = true;
-}
-
 void nc_tx_sock_prio(int prio)
 {
 	if (prio < 0 || prio > 15)
@@ -719,8 +713,7 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 	uint64_t cpu_wakeup_ns = ts_wakeup.tv_sec * NS_IN_SEC + ts_wakeup.tv_nsec;
 	int64_t error_cpu_ns = cpu_target_delay_ns - cpu_wakeup_ns;
 
-	if (enable_delay_logging)
-		log_delay(du->nh->logger, ptp_target_delay_ns, cpu_target_delay_ns, cpu_wakeup_ns);
+	log_wakeup_delay(du->nh->logger, ptp_target_delay_ns, cpu_target_delay_ns, cpu_wakeup_ns);
 
 	if (use_tracebuffer) {
 		char tbmsg[128] = {0};
@@ -761,8 +754,7 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 	 *
 	 * Capture TS should come from caller and is on the TODO
 	 */
-	if (enable_logging)
-		log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns, tx_ns);
+	log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns, tx_ns);
 
 	if (res < 0)
 		return res;
@@ -1015,11 +1007,9 @@ static void * nh_runner(void *data)
 			nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
 
 			/* we have all the timestamps, so we can safely
-			 * log this /after/ the data has been passed
-			 * on
+			 * log this /after/ the data has been passed on
 			 */
-			if (enable_logging)
-				log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
+			log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
 		}
 	}
 	return NULL;
@@ -1131,7 +1121,7 @@ struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *l
 	 * Open logfile if provided
 	 */
 	if (enable_logging) {
-		nh->logger = log_create(logfile, enable_delay_logging);
+		nh->logger = log_create(logfile);
 		if (!nh->logger) {
 			fprintf(stderr, "%s() Something went wrong when enabling logger, datalogging disabled\n", __func__);
 			enable_logging = false;
@@ -1332,7 +1322,7 @@ void nh_destroy(struct nethandler **nh)
 		_nh_stop_rx(*nh);
 
 		if (enable_logging) {
-			log_close_fp((*nh)->logger);
+			log_close((*nh)->logger);
 			free((*nh)->logger);
 			(*nh)->logger = NULL;
 		}
