@@ -18,7 +18,7 @@ void tearDown(void)
 
 static void test_arr_size(void)
 {
-	TEST_ASSERT(ARRAY_SIZE(net_fifo_chans) == 3);
+	TEST_ASSERT(ARRAY_SIZE(net_fifo_chans) == 5);
 }
 
 static void test_arr_idx(void)

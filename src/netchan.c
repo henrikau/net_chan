@@ -285,42 +285,28 @@ static void _chan_set_streamclass(struct channel *ch,
  * network layer has not finished with it before a new must be
  * assembled, caller should create multiple channels..
  *
- *
- * For convenience, the flow is more like:
- * CREATE
- * while (1)
- *    UPDATE -> SEND
- * DESTROY
- *
  * @param nh nethandler container
- * @param dst destination address for this channel
- * @param stream_id 64 bit unique value for the stream allotted to our channel.
- * @param cl: stream class this stream belongs to, required to set correct socket prio
- * @param sz: size of data to transmit
- * @param interval_ns: the minimum time between subsequent frames (1/freq)
+ * @param attrs net_fifo attributes describing this stream
  *
  * @returns the new channel or NULL upon failure.
  */
 static struct channel * _chan_create(struct nethandler *nh,
-			unsigned char *dst,
-			uint64_t stream_id,
-			enum stream_class sc,
-			uint16_t sz,
-			uint64_t interval_ns)
+				struct net_fifo *attrs)
 {
 	/* Validate */
-	if (!nh || !dst)
-		return NULL;
-	if (!_valid_size(nh, sz) || !_valid_interval(nh, interval_ns, sz))
+	if (!nh || !attrs)
 		return NULL;
 
-	struct channel *ch = calloc(1, sizeof(*ch) + sz);
+	if (!_valid_size(nh, attrs->size) || !_valid_interval(nh, attrs->interval_ns, attrs->size))
+		return NULL;
+
+	struct channel *ch = calloc(1, sizeof(*ch) + attrs->size);
 	if (!ch)
 		return NULL;
 	ch->nh = nh;
-	ch->payload_size = sz;
+	ch->payload_size = attrs->size;
 
-	_chan_avtpdu_init(ch, stream_id);
+	_chan_avtpdu_init(ch, attrs->stream_id);
 
 
 	/* It does not make sense to set the next-ts (socket is not
@@ -329,11 +315,11 @@ static struct channel * _chan_create(struct nethandler *nh,
 	 * As long as it is 'sufficienty in the past', the first frame
 	 * arriving should fly straight through.
 	 */
-	ch->interval_ns = interval_ns;
+	ch->interval_ns = attrs->interval_ns;
 
-	memcpy(ch->dst, dst, ETH_ALEN);
+	memcpy(ch->dst, attrs->dst, ETH_ALEN);
 
-	_chan_set_streamclass(ch, sc, interval_ns);
+	_chan_set_streamclass(ch, attrs->sc, attrs->interval_ns);
 
 	ch->tx_sock = -1;
 
@@ -358,7 +344,7 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
 	if (!nh || !attrs)
 		return NULL;
 
-	struct channel *ch = _chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
+	struct channel *ch = _chan_create(nh, attrs);
 	if (!ch)
 		return NULL;
 
@@ -398,7 +384,7 @@ struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs)
 {
 	if (!nh || !attrs)
 		return NULL;
-	struct channel *ch = _chan_create(nh, attrs->dst, attrs->stream_id, attrs->sc, attrs->size, attrs->interval_ns);
+	struct channel *ch = _chan_create(nh, attrs);
 	if (!ch)
 		return NULL;
 

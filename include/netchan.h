@@ -354,7 +354,15 @@ int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
 /**
  * chan_create_tx create a Tx channel
  *
- * Expects a valid net_fifo attribute array entry to be supplied.
+ * Expects a valid net_fifo attribute list to be supplied containing
+ * valid stream_id, stream_class, payload size and minimum interval
+ * between frames.
+ *
+ * For convenience, the flow is more like:
+ * CREATE
+ * while (1)
+ *    UPDATE -> SEND
+ * DESTROY
  *
  * @param nh nethandler container
  * @param attrs netfiro channel attributes
@@ -366,7 +374,15 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs);
 /**
  * chan_create_rx create a Tx channel
  *
- * Expects a valid net_fifo attribute array entry to be supplied.
+ * Expects a valid net_fifo attribute list to be supplied containing
+ * valid stream_id, stream_class, payload size and minimum interval
+ * between frames.
+ *
+ * For convenience, the flow is more like:
+ * CREATE
+ * while (1)
+ *    READ -> CONSUME
+ * DESTROY
  *
  * @param nh nethandler container
  * @param attrs netfiro channel attributes

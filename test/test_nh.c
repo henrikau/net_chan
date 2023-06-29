@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 
 #include "unity.h"
@@ -33,9 +34,9 @@ int pfd[2];
 void setUp(void)
 {
 	nh = nh_create_init("lo", 16, NULL);
-	pdu17 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ, INT17);
-	pdu42 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_B, DATA42SZ, INT42);
-	pdu43_r = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, DATA42SZ, INT42);
+	pdu17 = _chan_create(nh, &net_fifo_chans[MCAST17]);
+	pdu42 = _chan_create(nh, &net_fifo_chans[MCAST42]);
+	pdu43_r = _chan_create(nh, &net_fifo_chans[PDU43_R]);
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 

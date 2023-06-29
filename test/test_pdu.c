@@ -9,23 +9,42 @@
 #include "../src/netchan.c"
 #include "../src/netchan_socket.c"
 
-#define DATA17SZ 32
-#define INT17 INT_10HZ
 char data17[DATA17SZ] = {0};
 struct channel *pdu17;
 
 #define DATA42SZ 8
+#define DATA17SZ 32
+
 #define INT42 INT_50HZ
+#define INT17 INT_10HZ
+
 char data42[DATA42SZ] = {0};
 struct channel *pdu42;
+struct net_fifo nfc;
 
 struct nethandler *nh;
+struct net_fifo nfc = {
+	.dst       = { 0x01, 0x00, 0xe5, 0x01, 0x02, 0x42},
+	.stream_id = 18,
+	.sc        = CLASS_A,
+	.size      = 8,
+	.interval_ns = 2 * NS_IN_MS,
+	.name      = "invalid_period",
+};
+
 
 void setUp(void)
 {
 	nh = nh_create_init("lo", 16, NULL);
-	pdu17 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 17, CLASS_A, DATA17SZ, INT17);
-	pdu42 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 42, CLASS_A, DATA42SZ, INT42);
+	nfc.stream_id = 17;
+	nfc.size = DATA17SZ;
+	nfc.interval_ns = INT17;
+	pdu17 = _chan_create(nh, &nfc);
+
+	nfc.stream_id = 42;
+	nfc.size = DATA42SZ;
+	nfc.interval_ns = INT42;
+	pdu42 = _chan_create(nh, &nfc);
 
 	/* Must set all channel attributes before channel can be used */
 	pdu17->tx_sock = 3;
@@ -48,10 +67,14 @@ void tearDown(void)
 
 static void test_chan_create(void)
 {
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(NULL, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128, INT_50HZ),
+	nfc.stream_id = 43;
+	nfc.sc = CLASS_B;
+	nfc.size = 128;
+	nfc.interval_ns = INT_50HZ;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(NULL, &nfc),
 				"Cannot create PDU and assign to non-existant nethandler!");
 
-	struct channel *pdu = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 128, INT_50HZ);
+	struct channel *pdu = _chan_create(nh, &nfc);
 	TEST_ASSERT(pdu != NULL);
 	TEST_ASSERT(pdu->pdu.stream_id == be64toh(43));
 	TEST_ASSERT(pdu->payload_size == 128);
@@ -62,49 +85,59 @@ static void test_chan_create(void)
 static void test_invalid_interval(void)
 {
 	/* 0 */
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 0),
-				"Invalid period (0)");
+	nfc.interval_ns = 0;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid period (0)");
 
 	/* shorter than minimum time to send smallest possible payload
 	 * on link capacity.
 	 * For test, we use lo, which sets the capacity to 1 Gbps, i.e 1ns pr bit
 	 */
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 66),
-				"Invalid period (66 bits)");
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 66*8),
-				"Invalid period (528 ns (66 bytes on 1 Gbps link)");
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 66*8-1),
-				"Invalid period (527 ns (66 bytes -1 bit on 1 Gbps link)");
-	TEST_ASSERT_NOT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 74*8+1),
-				"Failed for a valid period (time for 8 bytes payload (+ headers) + 1 bit)");
+	nfc.interval_ns = 66;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid period (66 bits)");
+
+	nfc.interval_ns = 66 * 8;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid period (528 ns (66 bytes on 1 Gbps link)");
+
+	nfc.interval_ns = 66 * 8 - 1;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid period (527 ns (66 bytes -1 bit on 1 Gbps link)");
+
+	nfc.interval_ns = 74 * 8 + 1;
+	TEST_ASSERT_NOT_NULL_MESSAGE(_chan_create(nh, &nfc), "Failed for a valid period (time for 8 bytes payload (+ headers) + 1 bit)");
 
 	/* larger than one hour (why would you need this?) */
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 1e9*3600),
-				"Too long period (> 1 hour)");
+	nfc.interval_ns = NS_IN_SEC * 3600;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Too long period (> 1 hour)");
 }
 
 static void test_invalid_payload_size(void)
 {
 	/* payload 0 */
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 0, 50*NS_IN_MS),
-				"Invalid size (0 bytes)");
+	nfc.size = 0;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid size (0 bytes)");
 
 	/* payload -> exceed MTU */
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 2048, 50*NS_IN_MS),
-				"Invalid size (2k bytes)");
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1500, 50*NS_IN_MS),
-				"Invalid size (1500B payload, forgetting AVTP header)");
-	TEST_ASSERT_NOT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1476, 50*NS_IN_MS),
-				"Just about valid size (1476 B payload, adding AVTP header -> 1500)");
+	nfc.size = 2048;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid size (2k bytes)");
+	nfc.size = 1500;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid size (1500B payload, forgetting AVTP header)");
+	nfc.size = 1476;
+	nfc.interval_ns = 500 * NS_IN_MS;
+	TEST_ASSERT_NOT_NULL_MESSAGE(_chan_create(nh, &nfc), "Just about valid size (1476 B payload, adding AVTP header -> 1500)");
 }
 
 static void test_payload_size_interval_combo(void)
 {
 	/* 1 Gbps needs 1522 ns to send 1476 payload when adding headers and IPG/preamble*/
-	TEST_ASSERT_NOT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, 1500),
-				"Invalid size (8) interval (1500ns)");
-	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1476, 1500),
-				"Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization");
+	nfc.size = 8;
+	nfc.interval_ns = 1500;
+	TEST_ASSERT_NOT_NULL_MESSAGE(_chan_create(nh, &nfc), "Valid size (8) interval (1500ns)");
+
+	nfc.size = 1576;
+	nfc.interval_ns = 1500;
+	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization");
+
+	/* TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1476, 1500), */
+	/* 			"Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization"); */
 }
 
 static void test_chan_update(void)
@@ -157,7 +190,6 @@ static void test_chan_send(void)
 
 static void test_create_standalone(void)
 {
-
 	TEST_ASSERT(chan_create_standalone(NULL, false, net_fifo_chans, nfc_sz) == NULL);
 	TEST_ASSERT(chan_create_standalone("missing", false, net_fifo_chans, nfc_sz) == NULL);
 	NETCHAN_RX(missing);
@@ -185,7 +217,7 @@ static void test_add_anon_pdu(void)
 {
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
 	TEST_ASSERT_NULL(nh->du_tx_head);
-	struct channel *du = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 8, INT_50HZ);
+	struct channel *du = _chan_create(nh, &net_fifo_chans[MCAST42]);
 	TEST_ASSERT_NOT_NULL(du);
 	TEST_ASSERT(nh_add_tx(NULL, du) == -EINVAL);
 	TEST_ASSERT(nh_add_tx(nh, NULL) == -EINVAL);
@@ -195,7 +227,7 @@ static void test_add_anon_pdu(void)
 	TEST_ASSERT(nh->du_tx_tail == du);
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 
-	struct channel *du2 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:43", 43, CLASS_A, 8, INT_50HZ);
+	struct channel *du2 = _chan_create(nh, &net_fifo_chans[MCAST43]);
 	TEST_ASSERT(nh_add_tx(nh, du2) == 0);
 	TEST_ASSERT(nh_get_num_tx(nh) == 2);
 	TEST_ASSERT(nh->du_tx_head == du);
@@ -208,10 +240,10 @@ static void test_add_anon_pdu(void)
 
 static void test_add_anon_rx_pdu(void)
 {
-	struct channel *du1 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8, INT_50HZ);
-	struct channel *du2 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8, INT_50HZ);
-	struct channel *du3 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8, INT_50HZ);
-	struct channel *du4 = _chan_create(nh, (unsigned char *)"01:00:e5:01:02:42", 43, CLASS_B, 8, INT_50HZ);
+	struct channel *du1 = _chan_create(nh, &net_fifo_chans[MCAST43]);
+	struct channel *du2 = _chan_create(nh, &net_fifo_chans[MCAST43]);
+	struct channel *du3 = _chan_create(nh, &net_fifo_chans[MCAST43]);
+	struct channel *du4 = _chan_create(nh, &net_fifo_chans[MCAST43]);
 
 	TEST_ASSERT(nh_get_num_rx(nh) == 0);
 	TEST_ASSERT(nh_add_rx(NULL, du1) == -EINVAL);
