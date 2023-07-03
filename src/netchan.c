@@ -264,12 +264,12 @@ static void _chan_set_streamclass(struct channel *ch,
 	switch (ch->sc) {
 	case CLASS_A:
 		ch->socket_prio = DEFAULT_CLASS_A_PRIO;
-		if (interval_ns > 125*NS_IN_US)
+		if (interval_ns < 125*NS_IN_US)
 			fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
 		break;
 	case CLASS_B:
 		ch->socket_prio = DEFAULT_CLASS_B_PRIO;
-		if (interval_ns > 250*NS_IN_US)
+		if (interval_ns < 250*NS_IN_US)
 			fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
 		break;
 	}
