@@ -1056,7 +1056,7 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 	return res;
 }
 
-struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile)
+struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const char *logfile)
 {
 	if (!ifname || !hmap_size)
 		return NULL;

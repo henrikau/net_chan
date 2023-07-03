@@ -564,7 +564,7 @@ int chan_read_wait(struct channel *ch, void *data);
  *
  * @returns struct nethandler on success, NULL on error
  */
-struct nethandler * nh_create_init(char *ifname, size_t hmap_size, const char *logfile);
+struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const char *logfile);
 
 /**
  * nh_create_init_standalone - create and initialize a standalone instance of nethandler
