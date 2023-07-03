@@ -9,92 +9,118 @@
 #include <netchan.h>
 #include <string>
 
+namespace netchan {
+
+class NetHandler {
+public:
+    NetHandler(std::string ifname, std::string logfile, int hmap_size, bool srp = false) :
+        logfile(logfile),
+        hmap_size(hmap_size),
+        use_srp(srp),
+        valid(true)
+    {
+        if (use_srp)
+            nc_use_srp();
+        // nc_verbose();
+        nh = nh_create_init(ifname.c_str(), hmap_size, logfile.length() > 0 ? logfile.c_str() : NULL);
+
+        if (!nh) {
+            fprintf(stderr, "%s() FAILED creating handler\n", __func__);
+            valid = false;
+        }
+    };
+
+    NetHandler(std::string ifname) : NetHandler(ifname, "", 127) {};
+    NetHandler(std::string ifname, int hmap_size) : NetHandler(ifname, "", hmap_size) {};
+    NetHandler(std::string ifname, bool use_srp) : NetHandler(ifname, "", 127, use_srp) {};
+
+    ~NetHandler()
+    {
+        if (nh)
+            nh_destroy(&nh);
+    };
+
+    struct channel * new_tx_channel(struct net_fifo *attrs)
+    {
+        if (!valid)
+            return NULL;
+        return chan_create_tx(nh, attrs);
+    }
+
+    struct channel * new_rx_channel(struct net_fifo *attrs)
+    {
+        if (!valid)
+            return NULL;
+        return chan_create_rx(nh, attrs);
+    }
+
+    int active_tx(void) { return nh_get_num_tx(nh); }
+    int active_rx(void) { return nh_get_num_rx(nh); }
+
+private:
+    struct nethandler *nh;
+    int hmap_size = 127;
+    std::string logfile;
+    bool use_srp;
+    bool valid;
+};
+
+
 /**
  * Extremely simple C++ wrapper to recreate C-macro behavior
  */
 class NetChan {
 public:
-
-    NetChan(std::string name,
-            struct net_fifo *nfc,
-            int sz,
-            bool tx,
-            std::string nic = "lo",
-            bool use_srp = true) :
-        channel_name(name),
-        nfc_sz(sz),
-        tx(tx)
-    {
-        set_nic(nic);
-        net_fifo_chans = nfc;
-        nc_use_srp();
-        connect();
-    }
-
-    ~NetChan()
-    {
-        nh_destroy_standalone();
-    }
-
-    void verbose() { nc_verbose(); };
-
 protected:
-    void set_nic(std::string nic = "lo") { nc_set_nic((char *)nic.c_str()); };
-    bool connect() {
-        _ch = chan_create_standalone((char *)channel_name.c_str(), tx, net_fifo_chans, nfc_sz);
-        if (_ch)
-            return true;
-        printf("failed creating stdandalone pdu\n");
-        return false;
-    }
-
-    struct channel *_ch;
-    std::string channel_name;
-    struct net_fifo *net_fifo_chans;
-    int nfc_sz;
-    bool tx;
+    bool use_srp;
+    struct channel *ch;
 };
+
 
 class NetChanTx : public NetChan {
 public:
-    NetChanTx(std::string name,
-              struct net_fifo *nfc,
-              int sz,
-              std::string nic) :
-        NetChan(name, nfc, sz, true, nic) {};
-
-    bool do_write(void *data) {
-        if (!_ch) {
-            printf("_ch not set\n");
-            return false;
-        }
-        return chan_send_now(_ch, data);
+    NetChanTx(class NetHandler& nh,
+              struct net_fifo *attrs)
+    {
+        ch = nh.new_tx_channel(attrs);
     }
 
-    bool write_wait(void *data) {
-        if (!_ch)
+    bool send(void *data) {
+        if (!ch)
             return false;
-        return chan_send_now_wait(_ch, data);
+
+        return chan_send_now(ch, data) == ch->payload_size;
+    }
+
+    bool send_wait(void *data) {
+        if (!ch)
+            return false;
+
+        return chan_send_now_wait(ch, data) == ch->payload_size;
     }
 };
 
 class NetChanRx : public NetChan {
 public:
-    NetChanRx(std::string name,
-              struct net_fifo *nfc,
-              int sz,
-              std::string nic) :
-        NetChan(name, nfc, sz, false, nic) {};
+    NetChanRx(class NetHandler& nh,
+              struct net_fifo *attrs)
+    {
+        ch = nh.new_rx_channel(attrs);
+    }
 
     bool read(void *data) {
-        if (!_ch)
+        if (!ch)
             return false;
-        return chan_read(_ch, data);
+
+        return chan_read(ch, data) > 0;
     }
 
     bool read_wait(void *data) {
-        if (!_ch)
+        if (!ch)
             return false;
-        return chan_read_wait(_ch, data);
+
+        return chan_read_wait(ch, data) > 0;
     }
 };
+} //  namespace netchan
+
