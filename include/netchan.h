@@ -660,6 +660,18 @@ int nh_add_tx(struct nethandler *nh, struct channel *du);
 int nh_add_rx(struct nethandler *nh, struct channel *du);
 
 /**
+ * nh_remove_(tx|rx) - remove channel
+ *
+ * This function will only remve the erference to a channel from the
+ * nethandler, it will not /destroy/ the channel!
+ *
+ * @param ch: channel to remove
+ * @return: 0 on sucess, negative on error
+ */
+int nh_remove_tx(struct channel *ch);
+int nh_remove_rx(struct channel *ch);
+
+/**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.
  *
  * @param nh: indirect ref to nh pointer (caller's ref will be NULL'd)

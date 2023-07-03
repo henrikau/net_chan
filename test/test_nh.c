@@ -222,6 +222,71 @@ static void test_nh_standalone_destroy(void)
 	TEST_ASSERT_NULL(_nh);
 }
 
+
+static void test_nh_add_remove_tx_chan(void)
+{
+	TEST_ASSERT(nh_get_num_tx(nh) == 0);
+	struct channel *ch1 = chan_create_tx(nh, &net_fifo_chans[MCAST43]);
+	TEST_ASSERT_NOT_NULL(ch1);
+	TEST_ASSERT(nh_get_num_tx(nh) == 1);
+
+	struct channel *ch2 = chan_create_tx(nh, &net_fifo_chans[MCAST42]);
+	TEST_ASSERT(nh_get_num_tx(nh) == 2);
+
+	TEST_ASSERT(nh_remove_tx(NULL) == -ENOMEM);
+	TEST_ASSERT(nh_remove_tx(ch1) == 0);
+	TEST_ASSERT(nh_get_num_tx(nh) == 1);
+
+	/* Cannot do double remove */
+	TEST_ASSERT(nh_remove_tx(ch1) == -ENOMEM);
+
+	/* Remove final */
+	TEST_ASSERT(nh_remove_tx(ch2) == 0);
+	TEST_ASSERT(nh_get_num_tx(nh) == 0);
+}
+
+static void test_nh_add_remove_rx_chan(void)
+{
+	struct net_fifo chanattr = {
+		.dst       = DEFAULT_MCAST,
+		.stream_id = 42,
+		.sc        = CLASS_A,
+		.size      = 8,
+		.interval_ns      = INT_50HZ,
+		.name      = "test1"};
+	struct channel *ch[10];
+	for (int i = 0; i < 10; i++) {
+		chanattr.stream_id++;
+		ch[i] = chan_create_rx(nh, &chanattr);
+		TEST_ASSERT_NOT_NULL(ch[i]);
+		TEST_ASSERT(nh_get_num_rx(nh) == i+1);
+	}
+	TEST_ASSERT(nh_remove_rx(NULL) == -ENOMEM);
+
+	/* Remove head */
+	TEST_ASSERT(ch[0]->nh != NULL);
+	TEST_ASSERT(ch[0]->next != NULL);
+	TEST_ASSERT(nh_remove_rx(nh->du_rx_head) == 0);
+	TEST_ASSERT(ch[0]->nh == NULL);
+	TEST_ASSERT(ch[0]->next == NULL);
+	TEST_ASSERT(nh_get_num_rx(nh) == 9);
+
+	/* Double remove */
+	TEST_ASSERT(nh_remove_rx(ch[0]) == -ENOMEM);
+
+	/* Remove tail */
+	TEST_ASSERT(nh_remove_rx(ch[9]) == 0);
+	TEST_ASSERT(ch[9]->nh == NULL);
+	TEST_ASSERT(ch[9]->next == NULL);
+	TEST_ASSERT(nh_get_num_rx(nh) == 8);
+
+	/* Remove middle */
+	TEST_ASSERT(nh_remove_rx(ch[5]) == 0);
+	TEST_ASSERT(ch[5]->nh == NULL);
+	TEST_ASSERT(ch[5]->next == NULL);
+	TEST_ASSERT(nh_get_num_rx(nh) == 7);
+}
+
 static void test_sc_values(void)
 {
 	TEST_ASSERT_EQUAL_MESSAGE(2*NS_IN_MS, CLASS_A, "Class A should have default value 2 ms");
@@ -239,6 +304,8 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_create_tx_fifo);
 	RUN_TEST(test_nh_standalone_create);
 	RUN_TEST(test_nh_standalone_destroy);
+	RUN_TEST(test_nh_add_remove_tx_chan);
+	RUN_TEST(test_nh_add_remove_rx_chan);
 	RUN_TEST(test_sc_values);
 
 	return UNITY_END();

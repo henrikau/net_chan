@@ -460,28 +460,43 @@ struct channel *chan_create_standalone(char *name,
 	return tx_update ? chan_create_tx(_nh, &arr[idx]) : chan_create_rx(_nh, &arr[idx]);
 }
 
-
-void chan_destroy(struct channel **ch)
+static void _chan_destroy(struct channel **ch, bool unlink)
 {
-	if (!*ch)
-		return;
-
 	if (do_srp)
 		nc_srp_client_destroy((*ch));
-
 	if ((*ch)->fd_r >= 0)
 		close((*ch)->fd_r);
 	if ((*ch)->fd_w >= 0)
 		close((*ch)->fd_w);
+
+	/* Must remove channel from Tx or Rx list */
 	if ((*ch)->tx_sock >= 0) {
+		if (unlink)
+			nh_remove_tx(*ch);
 		close((*ch)->tx_sock);
 		(*ch)->tx_sock = -1;
+	} else {
+		if (unlink)
+			nh_remove_rx(*ch);
 	}
+
 	if ((*ch)->cbp)
 		free((*ch)->cbp);
 
 	free(*ch);
 	*ch = NULL;
+
+
+}
+
+void chan_destroy(struct channel **ch)
+{
+	if (!*ch)
+		return;
+	if (verbose)
+		printf("%s(): Destroying channel=%ld\n", __func__, (*ch)->sidw.s64);
+	_chan_destroy(ch, true);
+
 	if (verbose)
 		printf("%s(): Channel destroyed\n", __func__);
 }
@@ -1115,6 +1130,7 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 		nh_destroy(&nh);
 		goto out;
 	}
+
 out:
 	return nh;
 }
@@ -1268,6 +1284,62 @@ int nh_add_tx(struct nethandler *nh, struct channel *du)
 	return 0;
 }
 
+static int _nh_unlink_ch(struct channel *head, struct channel *rem)
+{
+	if (!head || !rem)
+		return -ENOMEM;
+	while (head) {
+		if (head->next == rem) {
+			head->next = rem->next;
+			return 0;
+		}
+		head = head->next;
+	}
+	return -EINVAL;
+}
+int nh_remove_tx(struct channel *ch)
+{
+	if (!ch || !ch->nh)
+		return -ENOMEM;
+
+	/* Since we don't use an empty channel to mark the head, but
+	 * instead point directly to first element, we cannot use the
+	 * double-deref trick to optimize removal. We are stuck with a
+	 * clumsy test for head
+	 */
+	if (ch->nh->du_tx_head == ch) {
+		ch->nh->du_tx_head = ch->nh->du_tx_head->next;
+	} else if (_nh_unlink_ch(ch->nh->du_tx_head, ch) < 0) {
+		return -1;
+	}
+
+	ch->next = NULL;
+	ch->nh = NULL;
+
+	return 0;
+}
+
+int nh_remove_rx(struct channel *ch)
+{
+	if (!ch || !ch->nh)
+		return -ENOMEM;
+
+	/* Since we don't use an empty channel to mark the head, but
+	 * instead point directly to first element, we cannot use the
+	 * double-deref trick to optimize removal. We are stuck with a
+	 * clumsy test for head
+	 */
+	if (ch->nh->du_rx_head == ch) {
+		ch->nh->du_rx_head = ch->next;
+	} else if (_nh_unlink_ch(ch->nh->du_rx_head, ch) < 0) {
+		return -1;
+	}
+
+	ch->next = NULL;
+	ch->nh = NULL;
+	return 0;
+}
+
 int nh_add_rx(struct nethandler *nh, struct channel *du)
 {
 	if (!nh || !du)
@@ -1308,14 +1380,14 @@ void nh_destroy(struct nethandler **nh)
 		while ((*nh)->du_tx_head) {
 			struct channel *ch = (*nh)->du_tx_head;
 			(*nh)->du_tx_head = (*nh)->du_tx_head->next;
-			chan_destroy(&ch);
+			_chan_destroy(&ch, false);
 		}
 
 		/* clean up Rx PDUs */
 		while ((*nh)->du_rx_head) {
 			struct channel *ch = (*nh)->du_rx_head;
 			(*nh)->du_rx_head = (*nh)->du_rx_head->next;
-			chan_destroy(&ch);
+			_chan_destroy(&ch, false);
 		}
 
 		/* Free memory */
