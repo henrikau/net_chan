@@ -1053,8 +1053,9 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 	if (!keep_cstate) {
 		nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
 		if (nh->dma_lat_fd < 0) {
-			fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
-				__func__, errno, strerror(errno));
+			if (verbose)
+				fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
+					__func__, errno, strerror(errno));
 		} else {
 			int lat_val = 0;
 			int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
