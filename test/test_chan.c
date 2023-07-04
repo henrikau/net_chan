@@ -6,7 +6,7 @@
  * Test of external channel interface
  */
 struct nethandler *nh;
-struct net_fifo chanattr = {
+struct channel_attrs chanattr = {
 	.dst       = DEFAULT_MCAST,
 	.stream_id = 42,
 	.sc        = CLASS_A,

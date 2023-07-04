@@ -20,7 +20,7 @@
 int main()
 {
     netchan::NetHandler nh("enp6s0", false);
-    netchan::NetChanRx rx(nh, &net_fifo_chans[0]);
+    netchan::NetChanRx rx(nh, &nc_channels[0]);
 
     struct sensor s = { 0 };
     for (int i = 0; i < 1000; i++) {

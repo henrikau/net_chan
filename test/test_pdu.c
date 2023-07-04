@@ -20,10 +20,10 @@ struct channel *pdu17;
 
 char data42[DATA42SZ] = {0};
 struct channel *pdu42;
-struct net_fifo nfc;
+struct channel_attrs nfc;
 
 struct nethandler *nh;
-struct net_fifo nfc = {
+struct channel_attrs nfc = {
 	.dst       = { 0x01, 0x00, 0xe5, 0x01, 0x02, 0x42},
 	.stream_id = 18,
 	.sc        = CLASS_A,
@@ -190,16 +190,16 @@ static void test_chan_send(void)
 
 static void test_create_standalone(void)
 {
-	TEST_ASSERT(chan_create_standalone(NULL, false, net_fifo_chans, nfc_sz) == NULL);
-	TEST_ASSERT(chan_create_standalone("missing", false, net_fifo_chans, nfc_sz) == NULL);
+	TEST_ASSERT(chan_create_standalone(NULL, false, nc_channels, nfc_sz) == NULL);
+	TEST_ASSERT(chan_create_standalone("missing", false, nc_channels, nfc_sz) == NULL);
 	NETCHAN_RX(missing);
 	TEST_ASSERT(missing_du == NULL);
 
 	struct channel *pdu;
-	pdu = chan_create_standalone("test1", false, net_fifo_chans, nfc_sz);
+	pdu = chan_create_standalone("test1", false, nc_channels, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
 
-	pdu = chan_create_standalone("test2", false, net_fifo_chans, nfc_sz);
+	pdu = chan_create_standalone("test2", false, nc_channels, nfc_sz);
 	TEST_ASSERT(pdu != NULL);
 
 	NETCHAN_RX(test1);
@@ -208,7 +208,7 @@ static void test_create_standalone(void)
 	/* Test pdu internals after macro creation */
 	TEST_ASSERT(test1_du->pdu.stream_id == be64toh(42));
 	for (int i = 0; i < ETH_ALEN; i++)
-		TEST_ASSERT(test1_du->dst[i] == net_fifo_chans[0].dst[i]);
+		TEST_ASSERT(test1_du->dst[i] == nc_channels[0].dst[i]);
 	TEST_ASSERT(test1_du->nh == _nh);
 
 }
@@ -217,7 +217,7 @@ static void test_add_anon_pdu(void)
 {
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
 	TEST_ASSERT_NULL(nh->du_tx_head);
-	struct channel *du = _chan_create(nh, &net_fifo_chans[MCAST42]);
+	struct channel *du = _chan_create(nh, &nc_channels[MCAST42]);
 	TEST_ASSERT_NOT_NULL(du);
 	TEST_ASSERT(nh_add_tx(NULL, du) == -EINVAL);
 	TEST_ASSERT(nh_add_tx(nh, NULL) == -EINVAL);
@@ -227,7 +227,7 @@ static void test_add_anon_pdu(void)
 	TEST_ASSERT(nh->du_tx_tail == du);
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 
-	struct channel *du2 = _chan_create(nh, &net_fifo_chans[MCAST43]);
+	struct channel *du2 = _chan_create(nh, &nc_channels[MCAST43]);
 	TEST_ASSERT(nh_add_tx(nh, du2) == 0);
 	TEST_ASSERT(nh_get_num_tx(nh) == 2);
 	TEST_ASSERT(nh->du_tx_head == du);
@@ -240,10 +240,10 @@ static void test_add_anon_pdu(void)
 
 static void test_add_anon_rx_pdu(void)
 {
-	struct channel *du1 = _chan_create(nh, &net_fifo_chans[MCAST43]);
-	struct channel *du2 = _chan_create(nh, &net_fifo_chans[MCAST43]);
-	struct channel *du3 = _chan_create(nh, &net_fifo_chans[MCAST43]);
-	struct channel *du4 = _chan_create(nh, &net_fifo_chans[MCAST43]);
+	struct channel *du1 = _chan_create(nh, &nc_channels[MCAST43]);
+	struct channel *du2 = _chan_create(nh, &nc_channels[MCAST43]);
+	struct channel *du3 = _chan_create(nh, &nc_channels[MCAST43]);
+	struct channel *du4 = _chan_create(nh, &nc_channels[MCAST43]);
 
 	TEST_ASSERT(nh_get_num_rx(nh) == 0);
 	TEST_ASSERT(nh_add_rx(NULL, du1) == -EINVAL);

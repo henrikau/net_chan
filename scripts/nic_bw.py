@@ -91,15 +91,15 @@ def line_clean(line):
 def parse_file(manifest):
     channels = {}
     block = {}
-    found_net_fifo = False
+    found_channel_attrs = False
     lvlctr = 0
     # grab each channel, hope the file is properly structured
     with open(manifest, 'r') as f:
         for l in f.readlines():
             line = line_clean(l)
-            if not found_net_fifo:
-                if "struct net_fifo" in line:
-                    found_net_fifo = True
+            if not found_channel_attrs:
+                if "struct channel_attrs" in line:
+                    found_channel_attrs = True
                     do_print("Found beginning of struct")
                 continue
             else:
@@ -136,7 +136,7 @@ def parse_file(manifest):
 
             if lvlctr < 0:
                 do_print("End of struct")
-                found_net_fifo = False
+                found_channel_attrs = False
                 break
     return channels
 

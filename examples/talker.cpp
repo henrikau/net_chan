@@ -21,7 +21,7 @@
 int main()
 {
     netchan::NetHandler nh("enp6s0", false);
-    netchan::NetChanTx tx(nh, &net_fifo_chans[0]);
+    netchan::NetChanTx tx(nh, &nc_channels[0]);
 
     struct sensor s = { .val = 0xdeadbeefa0a0a0a0, .seqnr = 1337 };
     for (int i = 0; i < 50; i++) {

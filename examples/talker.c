@@ -26,7 +26,7 @@ void sighandler(int signum)
 int main(int argc, char *argv[])
 {
 	GET_ARGS();
-	struct channel *ch = chan_create_standalone("mcast42", true, net_fifo_chans, ARRAY_SIZE(net_fifo_chans));
+	struct channel *ch = chan_create_standalone("mcast42", true, nc_channels, ARRAY_SIZE(nc_channels));
 	if (!ch)
 		return -1;
 

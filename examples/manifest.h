@@ -12,7 +12,7 @@ struct sensor {
 	uint64_t seqnr;
 };
 
-struct net_fifo net_fifo_chans[] = {
+struct channel_attrs nc_channels[] = {
 	{
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x42},

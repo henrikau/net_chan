@@ -44,11 +44,11 @@ extern "C" {
  * macros and use the non-standalone functions.
  */
 #define NETCHAN_RX(x) struct channel * x ## _du = \
-		chan_create_standalone(#x, 0, net_fifo_chans, \
-		ARRAY_SIZE(net_fifo_chans))
+		chan_create_standalone(#x, 0, nc_channels, \
+		ARRAY_SIZE(nc_channels))
 #define NETCHAN_TX(x) struct channel * x ## _du = \
-		chan_create_standalone(#x, 1, net_fifo_chans, \
-		ARRAY_SIZE(net_fifo_chans))
+		chan_create_standalone(#x, 1, nc_channels, \
+		ARRAY_SIZE(nc_channels))
 
 #define WRITE(x,v) chan_send_now(x ## _du, v)
 #define WRITE_WAIT(x,v) chan_send_now_wait(x ## _du, v)
@@ -80,15 +80,18 @@ union stream_id_wrapper {
 };
 
 /**
- * struct net_fifo
+ * @struct channel_attrs
  *
- * This struct is used by client to populate a set of channels, by
- * calling nh_create_default, it will read "net_fifo.h" expected to be
- * in the standard include-path and create all the channels.
+ * @brief This struct is a conventient container for a channels relevant
+ * attributes such as destination address, stream ID, size etc
  *
- * The channels will be assigned to a static, global scope.
+ * @var channel_attrs:dst
+
+ * Member dst is the destination address for this channel. For a talker,
+ * this is where the data should be sent to, for a listener, this is
+ * either its own address or a multicast group it should subscribe to
  */
-struct net_fifo
+struct channel_attrs
 {
 	/* dst: address to which the talker will publish
 	 *
@@ -119,7 +122,7 @@ struct net_fifo
 	/* Minimum distance between each frame, in ns (1/freq) */
 	uint64_t interval_ns;
 
-	/* Name of net_fifo (used by macros to create variable)
+	/* Name of channel (used by macros to create variable)
 	 * It expects a callback
 	 */
 	char name[32];
@@ -340,21 +343,24 @@ int nc_handle_sock_err(int sock);
 
 /* Get idx of a channel based on the name
  */
-int nc_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size);
-#define NC_CHAN_IDX(x) (nc_get_chan_idx((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+int nc_get_chan_idx(char *name, const struct channel_attrs *attrs, int arr_size);
+#define NC_CHAN_IDX(x) (nc_get_chan_idx((x), nc_channels, ARRAY_SIZE(nc_channels)))
 
-struct net_fifo * nc_get_chan(char *name, const struct net_fifo *arr, int arr_size);
-const struct net_fifo * nc_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size);
+struct channel_attrs * nc_get_chan(char *name, const struct channel_attrs *attrs, int arr_size);
+const struct channel_attrs * nc_get_chan_ref(char *name, const struct channel_attrs *nc_channels, int arr_size);
 
-int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
+/**
+ * @deprecated
+ */
+int nc_rx_create(char *name, struct channel_attrs *attrs, int arr_size);
 
-#define NC_GET(x) (nc_get_chan((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
-#define NC_GET_REF(x) (nc_get_chan_ref((x), net_fifo_chans, ARRAY_SIZE(net_fifo_chans)))
+#define NC_GET(x) (nc_get_chan((x), nc_channels, ARRAY_SIZE(nc_channels)))
+#define NC_GET_REF(x) (nc_get_chan_ref((x), nc_channels, ARRAY_SIZE(nc_channels)))
 
 /**
  * chan_create_tx create a Tx channel
  *
- * Expects a valid net_fifo attribute list to be supplied containing
+ * Expects a valid attribute list to be supplied containing
  * valid stream_id, stream_class, payload size and minimum interval
  * between frames.
  *
@@ -365,16 +371,16 @@ int nc_rx_create(char *name, struct net_fifo *arr, int arr_size);
  * DESTROY
  *
  * @param nh nethandler container
- * @param attrs netfiro channel attributes
+ * @param attrs channel attributes
  *
  * @returns new channel or NULL on error
  */
-struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs);
+struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs);
 
 /**
  * chan_create_rx create a Tx channel
  *
- * Expects a valid net_fifo attribute list to be supplied containing
+ * Expects a valid attribute list to be supplied containing
  * valid stream_id, stream_class, payload size and minimum interval
  * between frames.
  *
@@ -389,7 +395,7 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs);
  *
  * @returns new channel or NULL on error
  */
-struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs);
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs);
 
 /**
  * chan_create_standalone - create a new channel using internal refs as much as possible
@@ -398,16 +404,16 @@ struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs);
  * macros. In time, this function will be deprecated, use
  * nh_create_init() and chan_create_tx() and chan_create_rx() instead.
  *
- * @param name : name of net_fifo
- * @param tx : tx or rx end of net_fifo
- * @param arr : net_fifo array of values
- * @param arr_size : size of net_fifo array
+ * @param name : name of channel in attribute list
+ * @param tx : flag indicating if channel is tx or rx
+ * @param arr : channel_attrs array of values
+ * @param arr_size : size of channel_attrs array
  *
  * @returns new channel, NULL on error
  */
 struct channel *chan_create_standalone(char *name,
 				bool tx,
-				struct net_fifo *arr,
+				struct channel_attrs *attrs,
 				int arr_size);
 
 

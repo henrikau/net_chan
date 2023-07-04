@@ -31,7 +31,7 @@ static inline int helper_create_socket(int nfc_idx, struct sockaddr_ll *sk_addr)
 	sk_addr->sll_protocol = htons(ETH_P_TSN);
 	sk_addr->sll_halen = ETH_ALEN;
 	sk_addr->sll_ifindex = ifr.ifr_ifindex;
-	memcpy(&sk_addr->sll_addr, net_fifo_chans[nfc_idx].dst, ETH_ALEN);
+	memcpy(&sk_addr->sll_addr, nc_channels[nfc_idx].dst, ETH_ALEN);
 
 	return sock;
 }
@@ -46,7 +46,7 @@ static inline int helper_send_8byte(int nfc_idx, uint64_t data)
 	uint64_t *d = (uint64_t *)(buffer + sizeof(*cshdr));
 
 	cshdr->subtype = AVTP_SUBTYPE_NETCHAN;
-	cshdr->stream_id = htobe64(net_fifo_chans[nfc_idx].stream_id);
+	cshdr->stream_id = htobe64(nc_channels[nfc_idx].stream_id);
 	*d = data;
 
 	int txsz = sendto(sock, buffer,
@@ -98,9 +98,9 @@ static inline int helper_recv(int idx, char *data, int retries, const char *ifac
 		}
 		struct ether_header *hdr = (struct ether_header *)buffer;
 		struct avtpdu_cshdr *cshdr = (struct avtpdu_cshdr *)((void *)&buffer[0] + sizeof(*hdr));
-		size_t sz = net_fifo_chans[idx].size;
+		size_t sz = nc_channels[idx].size;
 
-		if (be64toh(cshdr->stream_id) == net_fifo_chans[idx].stream_id &&
+		if (be64toh(cshdr->stream_id) == nc_channels[idx].stream_id &&
 			rxsz == (sizeof(*hdr) + sizeof(*cshdr) + sz)) {
 			char *d = &buffer[0] + sizeof(*hdr) + sizeof(*cshdr);
 			memcpy(data, d, sz);

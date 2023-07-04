@@ -40,14 +40,14 @@ public:
             nh_destroy(&nh);
     };
 
-    struct channel * new_tx_channel(struct net_fifo *attrs)
+    struct channel * new_tx_channel(struct channel_attrs *attrs)
     {
         if (!valid)
             return NULL;
         return chan_create_tx(nh, attrs);
     }
 
-    struct channel * new_rx_channel(struct net_fifo *attrs)
+    struct channel * new_rx_channel(struct channel_attrs *attrs)
     {
         if (!valid)
             return NULL;
@@ -80,7 +80,7 @@ protected:
 class NetChanTx : public NetChan {
 public:
     NetChanTx(class NetHandler& nh,
-              struct net_fifo *attrs)
+              struct channel_attrs *attrs)
     {
         ch = nh.new_tx_channel(attrs);
     }
@@ -103,7 +103,7 @@ public:
 class NetChanRx : public NetChan {
 public:
     NetChanRx(class NetHandler& nh,
-              struct net_fifo *attrs)
+              struct channel_attrs *attrs)
     {
         ch = nh.new_rx_channel(attrs);
     }

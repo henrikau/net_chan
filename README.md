@@ -38,7 +38,7 @@ is then used by the core net_chan machinery to allocate buffers, start
 receivers, reserve bandwidth etc.
 
 ```C
-struct net_fifo net_fifo_chans[] = {
+struct channel_attrs attrs[] = {
 	{
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x02, 0x42},

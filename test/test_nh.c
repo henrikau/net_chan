@@ -34,9 +34,9 @@ int pfd[2];
 void setUp(void)
 {
 	nh = nh_create_init("lo", 16, NULL);
-	pdu17 = _chan_create(nh, &net_fifo_chans[MCAST17]);
-	pdu42 = _chan_create(nh, &net_fifo_chans[MCAST42]);
-	pdu43_r = _chan_create(nh, &net_fifo_chans[PDU43_R]);
+	pdu17 = _chan_create(nh, &nc_channels[MCAST17]);
+	pdu42 = _chan_create(nh, &nc_channels[MCAST42]);
+	pdu43_r = _chan_create(nh, &nc_channels[PDU43_R]);
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 
@@ -226,11 +226,11 @@ static void test_nh_standalone_destroy(void)
 static void test_nh_add_remove_tx_chan(void)
 {
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
-	struct channel *ch1 = chan_create_tx(nh, &net_fifo_chans[MCAST43]);
+	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43]);
 	TEST_ASSERT_NOT_NULL(ch1);
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 
-	struct channel *ch2 = chan_create_tx(nh, &net_fifo_chans[MCAST42]);
+	struct channel *ch2 = chan_create_tx(nh, &nc_channels[MCAST42]);
 	TEST_ASSERT(nh_get_num_tx(nh) == 2);
 
 	TEST_ASSERT(nh_remove_tx(NULL) == -ENOMEM);
@@ -247,7 +247,7 @@ static void test_nh_add_remove_tx_chan(void)
 
 static void test_nh_add_remove_rx_chan(void)
 {
-	struct net_fifo chanattr = {
+	struct channel_attrs chanattr = {
 		.dst       = DEFAULT_MCAST,
 		.stream_id = 42,
 		.sc        = CLASS_A,

@@ -157,44 +157,46 @@ void nc_tx_sock_prio(int prio)
 	tx_sock_prio = prio;
 }
 
-int nc_get_chan_idx(char *name, const struct net_fifo *arr, int arr_size)
+int nc_get_chan_idx(char *name, const struct channel_attrs *attrs, int arr_size)
 {
 	for (int i = 0; i < arr_size; i++) {
-		if (strncmp(name, arr[i].name, 32) == 0)
+		if (strncmp(name, attrs[i].name, 32) == 0)
 			return i;
 	}
 	return -1;
 }
 
-struct net_fifo * nc_get_chan(char *name, const struct net_fifo *arr, int arr_size)
+struct channel_attrs * nc_get_chan(char *name, const struct channel_attrs *attrs, int sz)
 {
-	if (!name || !arr || arr_size < 1)
+	if (!name || !attrs || sz < 1)
 		return NULL;
-	int idx = nc_get_chan_idx(name, arr, arr_size);
+
+	int idx = nc_get_chan_idx(name, attrs, sz);
 	if (idx == -1)
 		return NULL;
 
-	struct net_fifo *nf = malloc(sizeof(*nf));
-	if (!nf)
+	struct channel_attrs *ca = malloc(sizeof(*ca));
+	if (!ca)
 		return NULL;
-	*nf = arr[idx];
-	return nf;
+	*ca = attrs[idx];
+	return ca;
 }
 
-const struct net_fifo * nc_get_chan_ref(char *name, const struct net_fifo *arr, int arr_size)
+const struct channel_attrs * nc_get_chan_ref(char *name, const struct channel_attrs *attrs, int sz)
 {
-	if (!name || !arr || arr_size < 1)
+	if (!name || !attrs || sz < 1)
 		return NULL;
-	int idx = nc_get_chan_idx(name, arr, arr_size);
+	int idx = nc_get_chan_idx(name, attrs, sz);
 	if (idx == -1)
 		return NULL;
 
-	return &arr[idx];
+	return &attrs[idx];
 }
 
-int nc_rx_create(char *name, struct net_fifo *arr, int arr_size)
+/* DEPRECATED */
+int nc_rx_create(char *name, struct channel_attrs *attrs, int sz)
 {
-	struct channel *chan = chan_create_standalone(name, 0, arr, arr_size);
+	struct channel *chan = chan_create_standalone(name, 0, attrs, sz);
 	if (!chan)
 		return -1;
 
@@ -286,12 +288,12 @@ static void _chan_set_streamclass(struct channel *ch,
  * assembled, caller should create multiple channels..
  *
  * @param nh nethandler container
- * @param attrs net_fifo attributes describing this stream
+ * @param attrs channel attributes describing this stream
  *
  * @returns the new channel or NULL upon failure.
  */
 static struct channel * _chan_create(struct nethandler *nh,
-				struct net_fifo *attrs)
+				struct channel_attrs *attrs)
 {
 	/* Validate */
 	if (!nh || !attrs)
@@ -339,7 +341,7 @@ static struct channel * _chan_create(struct nethandler *nh,
 	return ch;
 }
 
-struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
+struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs)
 {
 	if (!nh || !attrs)
 		return NULL;
@@ -380,7 +382,7 @@ struct channel *chan_create_tx(struct nethandler *nh, struct net_fifo *attrs)
 	return ch;
 }
 
-struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs)
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs)
 {
 	if (!nh || !attrs)
 		return NULL;
@@ -446,18 +448,18 @@ struct channel *chan_create_rx(struct nethandler *nh, struct net_fifo *attrs)
 
 struct channel *chan_create_standalone(char *name,
 				bool tx_update,
-				struct net_fifo *arr,
-				int arr_size)
+				struct channel_attrs *attrs,
+				int sz)
 {
-	if (!name || !arr || arr_size <= 0)
+	if (!name || !attrs || sz <= 0)
 		return NULL;
 
-	int idx = nc_get_chan_idx(name, arr, arr_size);
+	int idx = nc_get_chan_idx(name, attrs, sz);
 	if (idx < 0)
 		return NULL;
 
 	nh_create_init_standalone();
-	return tx_update ? chan_create_tx(_nh, &arr[idx]) : chan_create_rx(_nh, &arr[idx]);
+	return tx_update ? chan_create_tx(_nh, &attrs[idx]) : chan_create_rx(_nh, &attrs[idx]);
 }
 
 static void _chan_destroy(struct channel **ch, bool unlink)

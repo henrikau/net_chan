@@ -14,7 +14,7 @@ enum fifo_arr {
 #define DATA17SZ 32
 #define INT17 INT_10HZ
 
-struct net_fifo net_fifo_chans[] = {
+struct channel_attrs nc_channels[] = {
 	{			/* 0 */
 		.dst       = DEFAULT_MCAST,
 		.stream_id = 42,
@@ -58,4 +58,4 @@ struct net_fifo net_fifo_chans[] = {
 
 };
 
-int nfc_sz = ARRAY_SIZE(net_fifo_chans);
+int nfc_sz = ARRAY_SIZE(nc_channels);
