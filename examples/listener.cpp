@@ -11,7 +11,13 @@
 //
 // To compile:
 // 1. build netchan
-// 2. g++ -o build/cpp_listener examples/listener.cpp -I include -L build/ -lnetchan
+//    meson build
+//    ninja -C build/
+//
+// Compile and link C++ code
+// 2-1 g++ -o build/cpp_listener examples/listener.cpp -I include -L build/ -lnetchan
+// -- or link statically
+// 2-2 g++ -o build/cpp_listener examples/listener.cpp build/libnetchan.a build/libmrp.a -pthread -I include/
 
 #include <iostream>
 #include <netchan.hpp>
