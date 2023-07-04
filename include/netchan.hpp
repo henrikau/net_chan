@@ -71,6 +71,7 @@ private:
  */
 class NetChan {
 public:
+    void stop(void) {};
 protected:
     bool use_srp;
     struct channel *ch;
@@ -120,6 +121,11 @@ public:
             return false;
 
         return chan_read_wait(ch, data) > 0;
+    }
+
+    void stop(void) {
+        chan_destroy(&ch);
+        ch = NULL;
     }
 };
 } //  namespace netchan
