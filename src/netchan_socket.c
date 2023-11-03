@@ -6,10 +6,12 @@
 #include <arpa/inet.h>
 #include <linux/errqueue.h>
 #include <poll.h>
+#include <sys/ioctl.h>
 
-int nc_create_rx_sock(void)
+int nc_create_rx_sock(const char *ifname)
 {
-	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
+	/* Can only get promiscous to work reliably for raw sockets  */
+	int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	if (sock < 0) {
 		fprintf(stderr, "%s(): Failed creating socket: %s\n", __func__, strerror(errno));
 		return -1;
@@ -36,6 +38,37 @@ int nc_create_rx_sock(void)
 		close(sock);
 		return -1;
 	}
+
+	/* Bind to device and open in promiscous mode */
+	struct ifreq ifr = {0};
+	strncpy((char *)ifr.ifr_name, ifname, IFNAMSIZ);
+	if (ioctl(sock, SIOCGIFINDEX, &ifr)) {
+		fprintf(stderr, "%s(): Failed retrieving idx for %s\n", __func__, ifname);
+		close(sock);
+		return -1;
+	}
+	int ifidx = ifr.ifr_ifindex;
+
+	struct sockaddr_ll sock_address = {0};
+	sock_address.sll_family = AF_PACKET;
+	sock_address.sll_protocol = htons(ETH_P_ALL);
+	sock_address.sll_ifindex = ifidx;
+	if (bind(sock, (struct sockaddr *)&sock_address, sizeof(sock_address))) {
+		fprintf(stderr, "%s(): bind failed (%s)\n", __func__, strerror(errno));
+		return -1;
+	}
+
+	struct packet_mreq mreq = {0};
+	mreq.mr_ifindex = ifidx;
+	mreq.mr_type = PACKET_MR_PROMISC;
+	mreq.mr_alen = 6;
+	if (setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
+			(void *)&mreq, (socklen_t)sizeof(mreq)) < 0) {
+		fprintf(stderr, "%s(): Failed adding membership for promiscous mode (%s)\n", __func__, strerror(errno));
+		close(sock);
+		return -1;
+	}
+
 	return sock;
 }
 

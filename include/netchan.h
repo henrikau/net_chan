@@ -334,7 +334,7 @@ void nc_tx_sock_prio(int prio);
 
 /* socket helpers
  */
-int nc_create_rx_sock(void);
+int nc_create_rx_sock(const char *ifname);
 int nc_create_tx_sock(struct channel *ch);
 int nc_handle_sock_err(int sock);
 

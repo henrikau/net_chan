@@ -879,7 +879,7 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 		return -1;
 	strncpy((char *)nh->ifname, ifname, IFNAMSIZ-1);
 
-	nh->rx_sock = nc_create_rx_sock();
+	nh->rx_sock = nc_create_rx_sock(ifname);
 
 	struct ifreq req;
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", ifname);
@@ -945,27 +945,28 @@ static void * nh_runner(void *data)
 		return NULL;
 
 	unsigned char buffer[1522] = {0};
-	bool running = true;
 
-	struct msghdr msg;
-	struct iovec entry;
 	struct sockaddr_in addr;
+	struct iovec entry = {0};
+	entry.iov_base = buffer;
+	entry.iov_len = sizeof(buffer);
+
 	struct {
 		struct cmsghdr cm;
 		char control[512];
 	} control;
 
-	while (running) {
+	struct msghdr msg = {
+		.msg_iov = &entry,
+		.msg_iovlen = 1,
+		.msg_name = (caddr_t) &addr,
+		.msg_namelen = sizeof(addr),
+		.msg_control = &control,
+		.msg_controllen = sizeof(control),
+	};
 
-		memset(&msg, 0, sizeof(msg));
-		msg.msg_iov = &entry;
-		msg.msg_iovlen = 1;
-		entry.iov_base = buffer;
-		entry.iov_len = sizeof(buffer);
-		msg.msg_name = (caddr_t)&addr;
-		msg.msg_namelen = sizeof(addr);
-		msg.msg_control = &control;
-		msg.msg_controllen = sizeof(control);
+	bool running = true;
+	while (running) {
 
 		int n = recvmsg(nh->rx_sock, &msg, 0);
 		/* grab local timestamp now that we've received a msg */
@@ -983,13 +984,16 @@ static void * nh_runner(void *data)
 			}
 
 			/* parse data */
-			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)buffer;
-			nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
+			struct ethhdr *hdr = (struct ethhdr *)buffer;
+			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)((void *)buffer + sizeof(*hdr));
+			if (ntohs(hdr->h_proto) == 0x22f0) {
+				nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
 
-			/* we have all the timestamps, so we can safely
-			 * log this /after/ the data has been passed on
-			 */
-			log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
+				/* we have all the timestamps, so we can safely
+				 * log this /after/ the data has been passed on
+				 */
+				log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
+			}
 		}
 	}
 	return NULL;
