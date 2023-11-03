@@ -273,7 +273,6 @@ struct nethandler {
 	int rx_sock;
 	unsigned int link_speed;
 
-	struct sockaddr_ll sk_addr;
 	const char ifname[IFNAMSIZ];
 	bool is_lo;
 	int ifidx;

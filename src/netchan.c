@@ -571,10 +571,6 @@ void chan_dump_state(struct channel *ch)
 		ch->dst[3], ch->dst[4], ch->dst[5]);
 	printf("%18s : %d\n", "clkid", ch->txtime.clockid);
 	printf("%18s : 0x%04x\n", "flags", ch->txtime.flags);
-	printf("%18s : 0x%04x\n", "sll_family", ch->sk_addr.sll_family);
-	printf("%18s : 0x%04x\n", "sll_protocol", ch->sk_addr.sll_protocol);
-	printf("%18s : 0x%04x\n", "sll_halen", ch->sk_addr.sll_halen);
-	printf("%18s : 0x%04x\n", "sll_ifindex", ch->sk_addr.sll_ifindex);
 }
 
 int wait_for_tx_slot(struct channel *ch)
@@ -903,13 +899,6 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 		}
 		memcpy(nh->mac, req.ifr_hwaddr.sa_data, 6);
 	}
-
-	/* We're good, update nethandler */
-	nh->sk_addr.sll_family = AF_PACKET;
-	nh->sk_addr.sll_protocol = htons(ETH_P_TSN);
-	nh->sk_addr.sll_halen = ETH_ALEN;
-	nh->sk_addr.sll_ifindex = nh->ifidx;
-
 	/*
 	 * Special case: "lo"
 	 *
