@@ -329,7 +329,6 @@ void nc_breakval(int break_us);
 void nc_verbose(void);
 void nc_use_termtag(const char *devpath);
 void nc_set_logfile(const char *logfile);
-void nc_log_delay(void);
 void nc_tx_sock_prio(int prio);
 
 /* socket helpers
