@@ -364,6 +364,8 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 		return NULL;
 	}
 
+	/* We are ready to send, the first attempt should fly straight through */
+	ch->next_tx_ns = tai_get_ns();
 
 	if (verbose)
 		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
@@ -577,6 +579,11 @@ int wait_for_tx_slot(struct channel *ch)
 {
 	if (!chan_valid(ch))
 		return -EINVAL;
+	uint64_t ts_tai = tai_get_ns();
+
+	/* No need to wait */
+	if (ts_tai > ch->next_tx_ns)
+		return 0;
 
 	struct timespec ts = {
 		.tv_sec = ch->next_tx_ns / 1000000000,
@@ -607,6 +614,9 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 	 */
 	uint64_t tai_now = tai_get_ns() + 20000; /* + 20us */
 	uint64_t txtime = tai_now > ch->next_tx_ns ? tai_now : ch->next_tx_ns;
+	if (tx_ns && *tx_ns > tai_now && *tx_ns < (tai_now + ch->next_tx_ns))
+		txtime = *tx_ns;
+
 	do {
 		ch->next_tx_ns = txtime + ch->interval_ns;
 	} while (ch->next_tx_ns < tai_now);
