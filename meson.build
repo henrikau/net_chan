@@ -57,7 +57,7 @@ install_subdir('include/srp', install_dir: 'include/')
 executable(
    'talker',
    'examples/talker.c',
-   'tools/netchan_args.c',
+   'src/netchan_args.c',
    include_directories: include_directories('include'),
    build_by_default: true,
 	dependencies: deps,
@@ -66,7 +66,7 @@ executable(
 executable(
    'listener',
    'examples/listener.c',
-   'tools/netchan_args.c',
+   'src/netchan_args.c',
    include_directories: include_directories('include'),
    build_by_default: true,
 	dependencies: deps,
