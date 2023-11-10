@@ -13,15 +13,15 @@ namespace netchan {
 
 class NetHandler {
 public:
-    NetHandler(std::string ifname, std::string logfile, int hmap_size, bool srp = false) :
+    NetHandler(std::string ifname, std::string logfile, bool srp = false) :
         logfile(logfile),
-        hmap_size(hmap_size),
+        hmap_size(127),
         use_srp(srp),
         valid(true)
     {
         if (use_srp)
             nc_use_srp();
-        // nc_verbose();
+        nc_verbose();
         nh = nh_create_init(ifname.c_str(), hmap_size, logfile.length() > 0 ? logfile.c_str() : NULL);
 
         if (!nh) {
@@ -30,9 +30,9 @@ public:
         }
     };
 
-    NetHandler(std::string ifname) : NetHandler(ifname, "", 127) {};
-    NetHandler(std::string ifname, int hmap_size) : NetHandler(ifname, "", hmap_size) {};
-    NetHandler(std::string ifname, bool use_srp) : NetHandler(ifname, "", 127, use_srp) {};
+    NetHandler(std::string ifname) : NetHandler(ifname, "") {};
+    NetHandler(std::string ifname, std::string logfile) : NetHandler(ifname, logfile, false) {};
+    NetHandler(std::string ifname, bool use_srp) : NetHandler(ifname, "", use_srp) {};
 
     ~NetHandler()
     {
@@ -65,7 +65,6 @@ private:
     bool valid;
 };
 
-
 /**
  * Extremely simple C++ wrapper to recreate C-macro behavior
  */
@@ -89,7 +88,7 @@ public:
     bool send(void *data) {
         if (!ch)
             return false;
-
+        wait_for_tx_slot(ch);
         return chan_send_now(ch, data) == ch->payload_size;
     }
 
