@@ -44,7 +44,7 @@ struct channel_attrs nc_channels[] = {
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x18},
 		.stream_id = 18,
 		.sc	   = CLASS_A,
-		.size      =  8,
+		.size      =  sizeof(uint64_t),
 		.interval_ns  = 100000000L, /* 10 Hz */
 		.name      = "mcast18"
 	}

@@ -24,22 +24,22 @@
 #include <unistd.h>
 #include "manifest.h"
 
+#define LIMIT 1024
+
 int main()
 {
-    netchan::NetHandler nh("enp6s0", false);
-    netchan::NetChanTx tx(nh, &nc_channels[0]);
+    netchan::NetHandler nh("enp6s0", "talker.csv", false);
+    netchan::NetChanTx tx(nh, &nc_channels[3]);
+    uint64_t ts = 0;
 
-    struct sensor s = { .val = 0xdeadbeefa0a0a0a0, .seqnr = 1337 };
-    for (int i = 0; i < 50; i++) {
-        s.seqnr = i;
-        if (!tx.send(&s)) {
-            printf("%s(): sending failed\n", __func__);
+    for (int i = 0; i < LIMIT; i++) {
+        ts = tai_get_ns();
+        if (!tx.send(&ts)) {
             break;
         }
-        usleep(100000);
     }
-    s.seqnr = -1;
-    tx.send(&s);
+    ts = -1;
+    tx.send(&ts);
 
     return 0;
 }
