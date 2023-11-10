@@ -794,6 +794,9 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 
 	size_t rpsz = sizeof(struct pipe_meta) + ch->payload_size;
 
+	/*
+	 * Ingress point: Read data from pipe
+	 */
 	int res = read(ch->fd_r, &ch->cbp->meta, rpsz);
 
 	memcpy(data, &ch->cbp->meta.payload, ch->payload_size);
@@ -1175,6 +1178,9 @@ int nh_reg_callback(struct nethandler *nh,
 	return 0;
 }
 
+/*
+ * we arrive here from nh_feed_pdu_ts()
+ */
 int nh_std_cb(void *priv, struct avtpdu_cshdr *du)
 {
 	if (!priv || !du) {
@@ -1192,6 +1198,9 @@ int nh_std_cb(void *priv, struct avtpdu_cshdr *du)
 	void *payload = (void *)du + sizeof(*du);
 	memcpy(&cbp->meta.payload, payload, cbp->sz);
 
+	/*
+	 * Egress-point: Publish data to awaiting listener
+	 */
 	int wsz = write(cbp->fd, (void *)&cbp->meta, sizeof(struct pipe_meta) + cbp->sz);
 	if (wsz == -1) {
 		perror("Failed writing to fifo");
@@ -1240,8 +1249,9 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *cshdr,
 		cbp->meta.ts_recv_ptp_ns = recv_ptp_ns;
 		cbp->meta.avtp_timestamp = ntohl(cshdr->avtp_timestamp);
 
-		/* printf("%s(): ts_rx_ns=%lu, ts_recv_ptp_ns=%lu, avtp_timestamp=%u\n", */
-		/* 	__func__, cbp->meta.ts_rx_ns, cbp->meta.ts_recv_ptp_ns, cbp->meta.avtp_timestamp); */
+		/* Unless otherwise configured, standard callback
+		 * (nh_std_cb) is used
+		 */
 		return nh->hmap[idx].cb(cbp, cshdr);
 	}
 
