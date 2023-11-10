@@ -79,7 +79,6 @@ static bool use_tracebuffer = false;
 static int break_us = -1;
 static bool verbose = false;
 static char nc_nic[IFNAMSIZ] = {0};
-static bool enable_logging = false;
 static char nc_logfile[129] = {0};
 static char nc_termdevice[129] = {0};
 static int nc_hmap_size = 42;
@@ -126,10 +125,8 @@ void nc_verbose(void)
 void nc_set_logfile(const char *logfile)
 {
 	strncpy(nc_logfile, logfile, 128);
-	enable_logging = true;
-	if (verbose) {
+	if (verbose)
 		printf("%s(): set logfile to %s\n", __func__, nc_logfile);
-	}
 }
 
 void nc_use_termtag(const char *devpath)
@@ -997,12 +994,16 @@ static void * nh_runner(void *data)
 			struct ethhdr *hdr = (struct ethhdr *)buffer;
 			struct avtpdu_cshdr *du = (struct avtpdu_cshdr *)((void *)buffer + sizeof(*hdr));
 			if (ntohs(hdr->h_proto) == 0x22f0) {
-				nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns);
-
-				/* we have all the timestamps, so we can safely
-				 * log this /after/ the data has been passed on
-				 */
-				log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
+				if (nh_feed_pdu_ts(nh, du, rx_hw_ns, recv_ptp_ns) == 0) {
+					/*
+					 * We have all the timestamps, so we can
+					 * safely log this /after/ the data has
+					 * been passed on.
+					 *
+					 * Only log for known StreamIDs
+					 */
+					log_rx(nh->logger, du, rx_hw_ns, recv_ptp_ns);
+				}
 			}
 		}
 	}
@@ -1113,12 +1114,10 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 	/*
 	 * Open logfile if provided
 	 */
-	if (enable_logging) {
+	if (logfile && strlen(logfile) > 0) {
 		nh->logger = log_create(logfile);
-		if (!nh->logger) {
+		if (!nh->logger)
 			fprintf(stderr, "%s() Something went wrong when enabling logger, datalogging disabled\n", __func__);
-			enable_logging = false;
-		}
 	}
 
 	if (use_tracebuffer)
@@ -1372,7 +1371,7 @@ void nh_destroy(struct nethandler **nh)
 
 		_nh_stop_rx(*nh);
 
-		if (enable_logging) {
+		if ((*nh)->logger) {
 			log_close((*nh)->logger);
 			free((*nh)->logger);
 			(*nh)->logger = NULL;
