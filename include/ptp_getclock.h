@@ -71,6 +71,15 @@ static inline void ts_normalize(struct timespec *ts)
 		ts->tv_sec++;
 	}
 }
+
+static inline void ts_add_ns(struct timespec *ts, uint64_t add)
+{
+	if (!ts)
+		return;
+	ts->tv_nsec += add;
+	ts_normalize(ts);
+}
+
 #ifdef __cplusplus
 }
 #endif
