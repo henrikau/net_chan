@@ -133,10 +133,21 @@ t_chan = executable('testchan',
 		    dependencies: deps,
 		    link_with : netchan)
 
+# include netchan_utils.c directly into test internals
+t_utils = executable('testutils',
+		    'test/test_utils.c',
+		    'src/ptp_getclock.c',
+		    'test/unity.c',
+		    include_directories: include_directories('include'),
+		    build_by_default: true,
+		    dependencies: deps)
+
+
 test('pdu test', t_pdu)
 test('nh test', t_nh)
 test('nh net fifo', t_net_fifo)
 test('channel test', t_chan)
+test('test utils', t_utils)
 
 # MRP test is unstable, so it only adds noise
 # test('mrp', t_mrp)

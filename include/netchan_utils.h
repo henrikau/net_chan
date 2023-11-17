@@ -11,6 +11,8 @@
 
 static inline void ts_normalize(struct timespec *ts)
 {
+	if (!ts)
+		return;
 	while (ts->tv_nsec >= NS_IN_SEC) {
 		ts->tv_nsec -= NS_IN_SEC;
 		ts->tv_sec++;
