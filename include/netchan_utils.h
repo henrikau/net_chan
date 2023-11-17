@@ -37,3 +37,30 @@ static inline void ts_add_ns(struct timespec *ts, uint64_t add)
 	ts->tv_nsec += add;
 	ts_normalize(ts);
 }
+
+/* periodic timer
+ *
+ * Helper for creating a periodic timer (useful for testing and example
+ * codes that wants to run at a precise interval)
+ */
+
+struct periodic_timer;
+
+/**
+ * pt_init() Initialize a periodic timer.
+ *
+ * @params base base time to use for timer. 0 indicates use a current timestamp.
+ * @params phase time to wait each cycle
+ * @params clockid which clock to use (CLOCK_MONOTONIC, CLOCK_REALTIME, CLOCK_TAI)
+ *
+ * @returns container for pt.
+ */
+struct periodic_timer * pt_init(uint64_t base, uint64_t phase, int clockid);
+
+/**
+ * pt_next_cycle() wait for next timer cycle
+ *
+ * This function blocks until the timer expires. It will use the base timer and wi
+ *
+ */
+int pt_next_cycle(struct periodic_timer *);
