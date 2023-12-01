@@ -14,11 +14,17 @@
 
 static struct periodic_timer *pt_tai;
 static uint64_t ts_ns = 0;
-uint64_t checkpoint(void)
+
+uint64_t time_now(void)
 {
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
-	uint64_t ts_now = ts.tv_sec * NS_IN_SEC + ts.tv_nsec;
+	return  ts.tv_sec * NS_IN_SEC + ts.tv_nsec;
+}
+
+uint64_t checkpoint(void)
+{
+	uint64_t ts_now = time_now();
 	uint64_t ts_diff = ts_now - ts_ns;
 	ts_ns = ts_now;
 	return ts_diff;
@@ -136,6 +142,20 @@ static void test_pt_real_full(void)
 	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, 2*10*NS_IN_MS, diff);
 }
 
+static void test_pt_tai_offset(void)
+{
+	uint64_t now_ns = time_now() + 50 * NS_IN_MS;
+
+	/* First timer should start 50ms into the future and every iteration should be 10ms */
+	struct periodic_timer *pt = pt_init(now_ns, 10*NS_IN_MS, CLOCK_REALTIME);
+
+	checkpoint();
+	TEST_ASSERT(pt_next_cycle(pt) == 0);
+	uint64_t diff = checkpoint();
+
+	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, 60*NS_IN_MS, diff);
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -146,5 +166,6 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_pt_tai_cycle);
 	RUN_TEST(test_pt_mono_full);
 	RUN_TEST(test_pt_real_full);
+	RUN_TEST(test_pt_tai_offset);
 	return UNITY_END();
 }
