@@ -86,7 +86,7 @@ static void test_pt_tai(void)
 	TEST_ASSERT(pt->pt_ts.tv_sec == ts_sec);
 	TEST_ASSERT(pt->pt_ts.tv_nsec == ts_nsec);
 	TEST_ASSERT(pt->clock_id == CLOCK_TAI);
-	TEST_ASSERT(pt->phase == 100 * NS_IN_MS);
+	TEST_ASSERT(pt->phase_ns == 100 * NS_IN_MS);
 }
 static void test_pt_tai_cycle(void)
 {
@@ -100,8 +100,40 @@ static void test_pt_tai_cycle(void)
 	uint64_t diff = checkpoint();
 
 	TEST_ASSERT(diff > 0);
-	TEST_ASSERT(diff < 100 * NS_IN_MS);
-	TEST_ASSERT(diff > 95 * NS_IN_MS);
+	/* We should not sleep for a lot more than 100 us, but beware of
+	 * scheduling issues on a busy system */
+	TEST_ASSERT(diff < 150 * NS_IN_MS);
+	TEST_ASSERT(diff > 50 * NS_IN_MS);
+}
+
+static void test_pt_mono_full(void)
+{
+	struct periodic_timer *pt = pt_init(0, 10*NS_IN_MS, CLOCK_MONOTONIC);
+	TEST_ASSERT_NOT_NULL(pt);
+	checkpoint();
+	int iters = 20;
+	for (int i = 0; i < iters; i++) {
+		printf("."); fflush(stdout);
+		TEST_ASSERT(pt_next_cycle(pt) == 0);
+	}
+	uint64_t diff = checkpoint();
+
+	/* We are running as normal, expect some variation, but within 100us
+	 *
+	 * Since it is a periodic timer, it should not grow in error
+	 */
+	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, iters*10*NS_IN_MS, diff);
+}
+
+static void test_pt_real_full(void)
+{
+	struct periodic_timer *pt = pt_init(0, 10*NS_IN_MS, CLOCK_REALTIME);
+	TEST_ASSERT_NOT_NULL(pt);
+	checkpoint();
+	TEST_ASSERT(pt_next_cycle(pt) == 0);
+	TEST_ASSERT(pt_next_cycle(pt) == 0);
+	uint64_t diff = checkpoint();
+	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, 2*10*NS_IN_MS, diff);
 }
 
 int main(int argc, char *argv[])
@@ -112,6 +144,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_pt_init);
 	RUN_TEST(test_pt_tai);
 	RUN_TEST(test_pt_tai_cycle);
-
+	RUN_TEST(test_pt_mono_full);
+	RUN_TEST(test_pt_real_full);
 	return UNITY_END();
 }

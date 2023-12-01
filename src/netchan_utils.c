@@ -3,15 +3,15 @@
 
 struct periodic_timer {
 	struct timespec pt_ts;
-	uint64_t phase;
+	uint64_t phase_ns;
 	int clock_id;
 };
 
 
-struct periodic_timer * pt_init(uint64_t base, uint64_t phase, int clockid)
+struct periodic_timer * pt_init(uint64_t base_ns, uint64_t phase_ns, int clockid)
 {
 	/* phase needs to be at lest 100us */
-	if (phase < 100 * NS_IN_US)
+	if (phase_ns < 100 * NS_IN_US)
 		return NULL;
 
 	/* Supported IDs, anything else fails. */
@@ -24,7 +24,7 @@ struct periodic_timer * pt_init(uint64_t base, uint64_t phase, int clockid)
 	if (!pt)
 		return NULL;
 	pt->clock_id = clockid;
-	pt->phase = phase;
+	pt->phase_ns = phase_ns;
 
 	switch (clockid) {
 	case CLOCK_REALTIME:
@@ -42,16 +42,16 @@ struct periodic_timer * pt_init(uint64_t base, uint64_t phase, int clockid)
 	}
 	uint64_t time_now_ns = pt->pt_ts.tv_sec * NS_IN_SEC + pt->pt_ts.tv_nsec;
 	/* Use different base than *time now* */
-	if (base != 0) {
+	if (base_ns != 0) {
 		/* Set the limit for phase into the past for  the timer */
-		if (base < (time_now_ns - phase)) {
+		if (base_ns < (time_now_ns - phase_ns)) {
 			fprintf(stderr, "%s(): TimerBase too old (%lu) , more than 1 phase (%lu) in the past, use a newer base. Time now: %lu\n",
-				__func__, base, phase, time_now_ns);
+				__func__, base_ns, phase_ns, time_now_ns);
 			return NULL;
 		}
 
-		pt->pt_ts.tv_sec = base / NS_IN_SEC;
-		pt->pt_ts.tv_nsec = base % NS_IN_SEC;
+		pt->pt_ts.tv_sec = base_ns / NS_IN_SEC;
+		pt->pt_ts.tv_nsec = base_ns % NS_IN_SEC;
 	}
 	return pt;
 }
@@ -61,6 +61,6 @@ int pt_next_cycle(struct periodic_timer *pt)
 	if (!pt)
 		return -1;
 
-	ts_add_ns(&(pt->pt_ts), pt->phase);
+	ts_add_ns(&(pt->pt_ts), pt->phase_ns);
 	return clock_nanosleep(pt->clock_id, TIMER_ABSTIME, &pt->pt_ts, NULL);
 }

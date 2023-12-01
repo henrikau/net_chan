@@ -49,13 +49,13 @@ struct periodic_timer;
 /**
  * pt_init() Initialize a periodic timer.
  *
- * @params base base time to use for timer. 0 indicates use a current timestamp.
- * @params phase time to wait each cycle
+ * @params base_ns time to use as starting point for timer. 0 indicates use a current timestamp.
+ * @params phase_ns time to wait each cycle
  * @params clockid which clock to use (CLOCK_MONOTONIC, CLOCK_REALTIME, CLOCK_TAI)
  *
  * @returns container for pt.
  */
-struct periodic_timer * pt_init(uint64_t base, uint64_t phase, int clockid);
+struct periodic_timer * pt_init(uint64_t base_ns, uint64_t phase_ns, int clockid);
 
 /**
  * pt_next_cycle() wait for next timer cycle
