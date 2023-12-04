@@ -23,29 +23,78 @@
 #include <netchan.hpp>
 #include <unistd.h>
 #include <netchan_utils.h>
+#include <signal.h>
 #include "manifest.h"
 
-#define LIMIT 1024*1024
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
 
-int main()
+static std::string nic = "enp7s0";
+static int loops = 1000;
+static bool running(false);
+
+netchan::NetChanRx *rx;
+netchan::NetChanTx *tx;
+
+void sighandler(int signum)
 {
-    netchan::NetHandler nh("enp7s0", "talker.csv", false);
-    netchan::NetChanTx tx(nh, &nc_channels[IDX_17]);
-    netchan::NetChanRx rx(nh, &nc_channels[IDX_18]);
+    if (running)
+        rx->stop();
+
+    running = false;
+    printf("%s(): Got signal (%d), closing\n", __func__, signum);
+    fflush(stdout);
+}
+
+
+int main(int argc, char *argv[])
+{
+    po::options_description desc("Talker options");
+    desc.add_options()
+        ("help,h", "Show help")
+        ("interface,i", po::value<std::string>(&nic), "Change network interface")
+        ("loops,l", po::value<int>(&loops), "Number of iterations (default 1000)")
+        ;
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        exit(0);
+    }
+    std::cout << "Using NIC " << nic << ", running for " << loops << " iterations" << std::endl;
+
+    netchan::NetHandler nh(nic, "talker.csv", false);
+    tx = new netchan::NetChanTx(nh, &nc_channels[IDX_17]);
+    rx = new netchan::NetChanRx(nh, &nc_channels[IDX_18]);
     struct periodic_timer *pt = pt_init(0, 100*NS_IN_MS, CLOCK_TAI);
 
     uint64_t ts = 0;
-    for (int i = 0; i < LIMIT; i++) {
+    running = true;
+    signal(SIGINT, sighandler);
+    while (--loops > 0 && running) {
         ts = tai_get_ns();
-        if (!tx.send(&ts))
+        if (!tx->send(&ts))
             break;
-        if (!rx.read_wait(&ts))
+
+        printf("Reading new\n"); fflush(stdout);
+        if (!rx->read_wait(&ts)) {
+            printf("rx read failed\n");
+            break;
+        }
+
+        if (ts == -1)
             break;
         pt_next_cycle(pt);
     }
 
+    printf("Loop stopped, signalling other end\n");
     ts = -1;
-    tx.send(&ts);
+    tx->send(&ts);
 
+    // rx->stop();
+    tx->stop();
+    delete rx;
+    delete tx;
     return 0;
 }

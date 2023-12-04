@@ -21,52 +21,65 @@
 
 #include <iostream>
 #include <netchan.hpp>
+#include <signal.h>
 #include "manifest.h"
-struct ts {
-    uint64_t tx;
-    uint64_t rx;
-};
 
-#define LIMIT 1024*1024L
-int main()
+static std::string nic = "enp7s0";
+static bool running(false);
+netchan::NetChanRx *rx;
+netchan::NetChanTx *tx;
+
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
+
+void sighandler(int signum)
 {
-    netchan::NetHandler nh("enp7s0", "listener.csv", false);
-    netchan::NetChanRx rx(nh, &nc_channels[IDX_17]);
-    netchan::NetChanTx tx(nh, &nc_channels[IDX_18]);
+	printf("%s(): Got signal (%d), closing\n", __func__, signum);
+	fflush(stdout);
+	running = false;
+        rx->stop();
+}
+int main(int argc, char *argv[])
+{
+    po::options_description desc("Talker options");
+    desc.add_options()
+        ("help,h", "Show help")
+        ("interface,i", po::value<std::string>(&nic), "Change network interface")
+        ;
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    if (vm.count("help")) {
+        std::cout << desc << std::endl;
+        exit(0);
+    }
+    std::cout << "Using NIC " << nic << std::endl;
+
+    netchan::NetHandler nh(nic, "listener.csv", false);
+    rx = new netchan::NetChanRx(nh, &nc_channels[IDX_17]);
+    tx = new netchan::NetChanTx(nh, &nc_channels[IDX_18]);
 
     uint64_t recv_ts = 0;
-    struct ts *tss = (struct ts *)calloc(sizeof(*tss), LIMIT);
-    if (!tss) {
-        printf("Unable to allocate memory for log, closing\n");
-        return 0;
-    }
-
-    int idx = 0;
-
-    struct ts *ts = tss;
-
-    for (; idx < LIMIT; idx++) {
-        if (rx.read(&recv_ts)) {
-            uint64_t rx_ts = tai_get_ns();
+    running = true;
+    signal(SIGINT, sighandler);
+    while (running) {
+        if (rx->read(&recv_ts)) {
             if (recv_ts == -1)
                 break;
-            ts->tx = recv_ts;
-            ts->rx = rx_ts;
-            ts++;
+
+            uint64_t rx_ts = tai_get_ns();
+            if (!tx->send_wait(&recv_ts))
+                break;
         }
-        if (!tx.send_wait(&recv_ts))
-            break;
     }
 
-    FILE *fp = fopen("ts.csv", "w+");
-    if (fp) {
-        fprintf(fp,"idx,tx,rx\n");
-        ts = tss;
-        for (int i = 0; i < idx; i++) {
-            fprintf(fp,"%d,%" PRIu64 ",%" PRIu64 "\n", i, ts->tx, ts->rx);
-            ts++;
-        }
-        fclose(fp);
-    }
+    // Signal other end that we're closing down
+    recv_ts = -1;
+    tx->send(&recv_ts);
+
+    rx->stop();
+    tx->stop();
+    delete rx;
+    delete tx;
     return 0;
 }

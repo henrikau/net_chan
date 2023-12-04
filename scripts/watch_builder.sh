@@ -21,8 +21,8 @@ while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
     test -d build/ || { mkdir build; meson build; }
     ninja -C build/ &&  {
 	echo "Building C++ apps"
-	g++ -o build/cpp_listener examples/listener.cpp build/libnetchan.a build/libmrp.a -pthread -I include
-	g++ -o build/cpp_talker examples/talker.cpp build/libnetchan.a build/libmrp.a -pthread -I include
+	g++ -o build/cpp_listener examples/listener.cpp build/libnetchan.a build/libmrp.a -lboost_program_options -pthread -I include
+	g++ -o build/cpp_talker examples/talker.cpp build/libnetchan.a build/libmrp.a -lboost_program_options -pthread -I include
 	# only run tests if build was ok
 	./scripts/fix_perms.sh
 	pushd build > /dev/null
