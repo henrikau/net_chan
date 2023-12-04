@@ -12,6 +12,18 @@ struct sensor {
 	uint64_t seqnr;
 };
 
+enum attr_idx {
+	IDX_42,
+	IDX_154,
+	IDX_17,
+	IDX_18,
+};
+
+
+#define HZ_100  (10 * NS_IN_MS)
+#define HZ_50   (20 * NS_IN_MS)
+#define HZ_10  (100 * NS_IN_MS)
+
 struct channel_attrs nc_channels[] = {
 	{
 		/* DEFAULT_MCAST */
@@ -35,8 +47,8 @@ struct channel_attrs nc_channels[] = {
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x17},
 		.stream_id = 17,
 		.sc	   = CLASS_A,
-		.size      =  8,
-		.interval_ns  = 100000000L, /* 10 Hz */
+		.size      =  sizeof(uint64_t),
+		.interval_ns  = HZ_100,
 		.name      = "mcast17"
 	},
 	{
@@ -45,7 +57,7 @@ struct channel_attrs nc_channels[] = {
 		.stream_id = 18,
 		.sc	   = CLASS_A,
 		.size      =  sizeof(uint64_t),
-		.interval_ns  = 100000000L, /* 10 Hz */
+		.interval_ns  = HZ_100,
 		.name      = "mcast18"
 	}
 };

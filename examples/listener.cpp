@@ -27,29 +27,44 @@ struct ts {
     uint64_t rx;
 };
 
-#define LIMIT 1024
+#define LIMIT 1024*1024L
 int main()
 {
-    netchan::NetHandler nh("enp6s0", "listener.csv", false);
-    netchan::NetChanRx rx(nh, &nc_channels[3]);
+    netchan::NetHandler nh("enp7s0", "listener.csv", false);
+    netchan::NetChanRx rx(nh, &nc_channels[IDX_17]);
+    netchan::NetChanTx tx(nh, &nc_channels[IDX_18]);
 
     uint64_t recv_ts = 0;
-    struct ts ts[LIMIT];
+    struct ts *tss = (struct ts *)calloc(sizeof(*tss), LIMIT);
+    if (!tss) {
+        printf("Unable to allocate memory for log, closing\n");
+        return 0;
+    }
+
     int idx = 0;
+
+    struct ts *ts = tss;
+
     for (; idx < LIMIT; idx++) {
         if (rx.read(&recv_ts)) {
             uint64_t rx_ts = tai_get_ns();
             if (recv_ts == -1)
                 break;
-            ts[idx].tx = recv_ts;
-            ts[idx].rx = rx_ts;
+            ts->tx = recv_ts;
+            ts->rx = rx_ts;
+            ts++;
         }
+        if (!tx.send_wait(&recv_ts))
+            break;
     }
+
     FILE *fp = fopen("ts.csv", "w+");
     if (fp) {
         fprintf(fp,"idx,tx,rx\n");
+        ts = tss;
         for (int i = 0; i < idx; i++) {
-            fprintf(fp,"%d,%" PRIu64 ",%" PRIu64 "\n", i, ts[i].tx, ts[i].rx);
+            fprintf(fp,"%d,%" PRIu64 ",%" PRIu64 "\n", i, ts->tx, ts->rx);
+            ts++;
         }
         fclose(fp);
     }

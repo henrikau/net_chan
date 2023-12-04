@@ -22,22 +22,28 @@
 #include <iostream>
 #include <netchan.hpp>
 #include <unistd.h>
+#include <netchan_utils.h>
 #include "manifest.h"
 
-#define LIMIT 1024
+#define LIMIT 1024*1024
 
 int main()
 {
-    netchan::NetHandler nh("enp6s0", "talker.csv", false);
-    netchan::NetChanTx tx(nh, &nc_channels[3]);
-    uint64_t ts = 0;
+    netchan::NetHandler nh("enp7s0", "talker.csv", false);
+    netchan::NetChanTx tx(nh, &nc_channels[IDX_17]);
+    netchan::NetChanRx rx(nh, &nc_channels[IDX_18]);
+    struct periodic_timer *pt = pt_init(0, 100*NS_IN_MS, CLOCK_TAI);
 
+    uint64_t ts = 0;
     for (int i = 0; i < LIMIT; i++) {
         ts = tai_get_ns();
-        if (!tx.send(&ts)) {
+        if (!tx.send(&ts))
             break;
-        }
+        if (!rx.read_wait(&ts))
+            break;
+        pt_next_cycle(pt);
     }
+
     ts = -1;
     tx.send(&ts);
 
