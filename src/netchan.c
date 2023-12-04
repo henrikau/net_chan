@@ -798,6 +798,11 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	 * Ingress point: Read data from pipe
 	 */
 	int res = read(ch->fd_r, &ch->cbp->meta, rpsz);
+	if (res < 0) {
+		fprintf(stderr, "%s(): read() from channel (sid=%" PRId64 ") FAILED (%d: %s)\n",
+			__func__, ch->sidw.s64, errno, strerror(errno));
+		return res;
+	}
 
 	memcpy(data, &ch->cbp->meta.payload, ch->payload_size);
 
