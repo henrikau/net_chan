@@ -5,6 +5,7 @@ import statistics
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import datetime
 
 def filter_sids(dft, dfl, sids):
     """Dataframe captured from both Talker and Receiver, filter out the desired streams.
@@ -53,7 +54,18 @@ def filter_sids(dft, dfl, sids):
     return dfs
 
 
+def get_duration(df):
+    """
+    Find the first and last timestamp and find how long the timeseries is (as a str)
+    """
+    start = int(df['cap_ptp_ns'].iloc[0])
+    end = int(df['recv_ptp_ns'].iloc[-1])
+    return str(datetime.timedelta(seconds=(end-start)/1e9))
+
+
+
 def print_statistics(sid, df):
+    print(f"StreamID={sid} Duration={get_duration(df)}")
     print(f"{'-'*9}+{'-'*20}+{'-'*20}+{'-'*20}+")
     print(f"{sid:^9}|{'E2E':^20s}|{'Tx Period':^20s}|{'Rx Period':^20s}|")
     print(f"{'-'*9}+{'-'*20}+{'-'*20}+{'-'*20}+")
@@ -69,30 +81,35 @@ def plot_e2e(ax, df, title):
     x = df['cap_ptp_ns'].values / 1e9
     x = x - x[0]
     ax.set_xlim((0, x[-1]))
-    ax.plot(x, df['e2e'], color='green', alpha=0.4)
-    ax.plot(x, df['e2e_sma'], color='red')
+    ax.plot(x, df['e2e']/1e3, color='green', alpha=0.4)
+    ax.plot(x, df['e2e_sma']/1e3, color='red')
+    ax.set_ylabel('E2E $\mu$s')
+    ax.set_xlabel(f'Duration {get_duration(df)}')
 
 def plot_tx_period(ax, df, title):
     ax.set_title(title)
+
     # counts, bins = np.histogram(df['tx_diff']/1000, bins=10)
     # counts = counts / len(df['tx_diff'])
     # ax.set_xlim((0, bins[-1]))
     # ax.hist(bins[:-1], bins, weights=counts)
     x = range(len(df['tx_diff']))
     ax.set_xlim((0, x[-1]))
-    ax.plot(x, df['tx_diff'], color='green', alpha=0.4)
-    ax.plot(x, df['tx_diff_sma'], color='red')
+    ax.plot(x, df['tx_diff']/1e6, color='green', alpha=0.4)
+    ax.plot(x, df['tx_diff_sma']/1e6, color='red')
+    ax.set_ylabel("Tx Period (ms)")
+    ax.ticklabel_format(useOffset=False)
 
 
 
 def plot_rx_period(ax, df, title):
     ax.set_title(title)
-    counts, bins = np.histogram(df['rx_diff']/1000, bins=10)
-    print(df['rx_diff'])
-    counts = counts / len(df['rx_diff'])
-    ax.set_xlim((0, bins[-1]))
+    counts, bins = np.histogram(df['rx_diff']/1000, bins=20)
+    # print(df['rx_diff'])
+    # counts = counts / len(df['rx_diff'])
+    ax.set_xlim((0, bins[-1]*1.05))
     ax.hist(bins[:-1], bins, weights=counts)
-
+    ax.set_xlabel("Rx period distribution ($\mu$s)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Helper for analyzing testruns using netchans built-in logging facilities. "\
@@ -120,6 +137,7 @@ if __name__ == "__main__":
         dpi = 160
     fig = plt.figure(num=None, figsize=figsize, dpi=dpi, facecolor='w', edgecolor='k')
     # Determine size of subplot
+    plt.suptitle(f"Traffic analysis, {len(dfs)} streams")
     rows = 3
     cols = len(dfs)
     idx = 1
@@ -129,5 +147,6 @@ if __name__ == "__main__":
         plot_rx_period(fig.add_subplot(rows, cols, 2*cols + idx), dfs[sid], f"RxPeriod StreamID={sid}")
         idx += 1
 
+    plt.tight_layout()
     if args.out_file:
         fig.savefig(args.out_file)
