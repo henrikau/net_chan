@@ -86,7 +86,6 @@ int main(int argc, char *argv[])
         if (!tx->send(&ts))
             break;
 
-        printf("Reading new\n"); fflush(stdout);
         if (!rx->read_wait(&ts)) {
             printf("rx read failed\n");
             break;

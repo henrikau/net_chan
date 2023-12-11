@@ -22,6 +22,8 @@
 #include <iostream>
 #include <netchan.hpp>
 #include <signal.h>
+#include <thread>
+
 #include "manifest.h"
 
 static std::string nic = "enp7s0";
@@ -39,6 +41,32 @@ void sighandler(int signum)
 	running = false;
         rx->stop();
 }
+
+static int rx_ctr = 0;
+void async_rx_ctr(void)
+{
+    struct timespec ts_cpu;
+    if (clock_gettime(CLOCK_REALTIME, &ts_cpu) == -1) {
+        std::cerr << "Failed getting timespec, aborting thread::async_rx_ctr!" << std::endl;
+        return;
+    }
+
+    int last_ctr = rx_ctr;
+    printf("Starting async_rx_ctr() as own thread, running=%d\n", running);
+    while (running) {
+        ts_cpu.tv_sec++;
+        if (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts_cpu, NULL) == -1) {
+            std::cerr << "Aborting thread::async_rx_ctr" << std::endl;
+            return;
+        }
+        int diff = rx_ctr - last_ctr;
+        last_ctr = rx_ctr;
+        printf("\r[%08d] Rate: %5d/sec", rx_ctr, diff);
+        fflush(stdout);
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     po::options_description desc("Talker options");
@@ -70,16 +98,27 @@ int main(int argc, char *argv[])
     uint64_t recv_ts = 0;
     running = true;
     signal(SIGINT, sighandler);
+
+    std::thread th_rate { [&] { async_rx_ctr(); }};
     while (running) {
         if (rx->read(&recv_ts)) {
-            if (recv_ts == -1)
-                break;
+            rx_ctr++;
+            if (recv_ts == -1) {
+                printf("Received stop-signal\n");
+                running = false;
+                continue;
+            }
 
             uint64_t rx_ts = tai_get_ns();
             if (!tx->send_wait(&recv_ts))
                 break;
+        } else {
+            printf("Read failed\n");
+            running = false;
         }
     }
+    running = false;
+    th_rate.join();
 
     // Signal other end that we're closing down
     recv_ts = -1;
