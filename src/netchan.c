@@ -1063,23 +1063,21 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 		res = -1;
 	}
 
-	/* disable dma latency */
-	if (!keep_cstate) {
-		nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
-		if (nh->dma_lat_fd < 0) {
-			if (verbose)
-				fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
-					__func__, errno, strerror(errno));
-		} else {
-			int lat_val = 0;
-			int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
-			if (wres < 1) {
-				fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
-					__func__, lat_val, errno, strerror(errno));
-				res = -2;
-			} else if (verbose) {
-				printf("%s(): Disabled cstate on CPU\n", __func__);
-			}
+	/* disable dma latency, this avoids c-state transitions */
+	nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
+	if (nh->dma_lat_fd < 0) {
+		if (verbose)
+			fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
+				__func__, errno, strerror(errno));
+	} else {
+		int lat_val = 0;
+		int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
+		if (wres < 1) {
+			fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
+				__func__, lat_val, errno, strerror(errno));
+			res = -2;
+		} else if (verbose) {
+			printf("%s(): Disabled cstate on CPU\n", __func__);
 		}
 	}
 
