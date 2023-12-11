@@ -44,7 +44,9 @@ int main(int argc, char *argv[])
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
+        ("verbose,v", "Increase logging output")
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
+        ("use_srp,S", "Run with SRP enabled")
         ;
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -54,8 +56,14 @@ int main(int argc, char *argv[])
         exit(0);
     }
     std::cout << "Using NIC " << nic << std::endl;
+    bool use_srp = false;
+    if (vm.count("use_srp"))
+        use_srp = true;
 
-    netchan::NetHandler nh(nic, "listener.csv", false);
+    netchan::NetHandler nh(nic, "listener.csv", use_srp);
+    if (vm.count("verbose"))
+        nh.verbose();
+
     rx = new netchan::NetChanRx(nh, &nc_channels[IDX_17]);
     tx = new netchan::NetChanTx(nh, &nc_channels[IDX_18]);
 

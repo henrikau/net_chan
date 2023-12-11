@@ -49,11 +49,14 @@ void sighandler(int signum)
 
 int main(int argc, char *argv[])
 {
+    bool use_srp = false;
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
+        ("verbose,v", "Increase logging output")
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
         ("loops,l", po::value<int>(&loops), "Number of iterations (default 1000)")
+        ("use_srp,S", "Run with SRP enabled")
         ;
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -62,9 +65,15 @@ int main(int argc, char *argv[])
         std::cout << desc << std::endl;
         exit(0);
     }
+    if (vm.count("use_srp"))
+        use_srp = true;
+
     std::cout << "Using NIC " << nic << ", running for " << loops << " iterations" << std::endl;
 
-    netchan::NetHandler nh(nic, "talker.csv", false);
+    netchan::NetHandler nh(nic, "talker.csv", use_srp);
+    if (vm.count("verbose"))
+        nh.verbose();
+
     tx = new netchan::NetChanTx(nh, &nc_channels[IDX_17]);
     rx = new netchan::NetChanRx(nh, &nc_channels[IDX_18]);
     struct periodic_timer *pt = pt_init(0, 100*NS_IN_MS, CLOCK_TAI);
