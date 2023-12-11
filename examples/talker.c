@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <netchan.h>
+#include <netchan_standalone.h>
 #include <netchan_args.h>
 
 #include "manifest.h"

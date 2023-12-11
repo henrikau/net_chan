@@ -36,28 +36,6 @@ extern "C" {
 #include <linux/net_tstamp.h>	/* sock_txtime */
 
 
-/* --------------------------
- * Main NetChan Macros
- *
- * These macros rely heavily upon a sort-of singleton approach. If you
- * are concerned with interference from other threads, then avoid the
- * macros and use the non-standalone functions.
- */
-#define NETCHAN_RX(x) struct channel * x ## _du = \
-		chan_create_standalone(#x, 0, nc_channels, \
-		ARRAY_SIZE(nc_channels))
-#define NETCHAN_TX(x) struct channel * x ## _du = \
-		chan_create_standalone(#x, 1, nc_channels, \
-		ARRAY_SIZE(nc_channels))
-
-#define WRITE(x,v) chan_send_now(x ## _du, v)
-#define WRITE_WAIT(x,v) chan_send_now_wait(x ## _du, v)
-#define READ(x,v) chan_read(x ## _du, v)
-#define READ_WAIT(x,v) chan_read_wait(x ## _du, v)
-
-#define CLEANUP() nh_destroy_standalone()
-
-
 /* Empty mac multicast (ip multicast should be appended (low order 23
  * bit to low order 23)
  */
@@ -78,6 +56,8 @@ union stream_id_wrapper {
 	uint64_t s64;
 	uint8_t s8[8];
 };
+
+	#define DEFAULT_TX_SOCKET_PRIO 3
 
 /**
  * @struct channel_attrs
@@ -217,7 +197,6 @@ struct channel
 	int tx_sock;
 	int tx_sock_prio;
 
-
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
 	struct cb_priv *cbp;
@@ -266,6 +245,10 @@ struct nethandler {
 	struct channel *du_rx_head;
 	struct channel *du_rx_tail;
 
+	bool verbose;
+	bool use_srp;
+	int tx_sock_prio;
+
 	/*
 	 * We have one Rx socket, but each datastream will have its own
 	 * SRP context, look to netchan_avtp for SRP related fields.
@@ -299,15 +282,11 @@ struct nethandler {
 	 */
 	int dma_lat_fd;
 
-	/* terminal TTY, used if we want to tag event to the output
-	 * serial port (for attaching a scope or some external timing
-	 * measure).
-	 */
-	int ttys;
 	/*
 	 * Tag tracebuffer, useful to tag trace when frames have arrived
 	 * etc to pinpoint delays etc.
 	 */
+	int ftrace_break_us;
 	FILE *tb;
 
 	/*
@@ -319,17 +298,6 @@ struct nethandler {
 	size_t hmap_sz;
 	struct cb_entity *hmap;
 };
-
-int nc_set_nic(char *nic);
-void nc_keep_cstate();
-void nc_set_hmap_size(int sz);
-void nc_use_srp(void);
-void nc_use_ftrace(void);
-void nc_breakval(int break_us);
-void nc_verbose(void);
-void nc_use_termtag(const char *devpath);
-void nc_set_logfile(const char *logfile);
-void nc_tx_sock_prio(int prio);
 
 /* socket helpers
  */
@@ -394,26 +362,6 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
  * @returns new channel or NULL on error
  */
 struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs);
-
-/**
- * chan_create_standalone - create a new channel using internal refs as much as possible
- *
- * This is a multiplexing function primarily inteded to be used with the
- * macros. In time, this function will be deprecated, use
- * nh_create_init() and chan_create_tx() and chan_create_rx() instead.
- *
- * @param name : name of channel in attribute list
- * @param tx : flag indicating if channel is tx or rx
- * @param arr : channel_attrs array of values
- * @param arr_size : size of channel_attrs array
- *
- * @returns new channel, NULL on error
- */
-struct channel *chan_create_standalone(char *name,
-				bool tx,
-				struct channel_attrs *attrs,
-				int arr_size);
-
 
 /**
  * chan_destroy : clean up and destroy a channel
@@ -571,22 +519,6 @@ int chan_read_wait(struct channel *ch, void *data);
 struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const char *logfile);
 
 /**
- * nh_create_init_standalone - create and initialize a standalone instance of nethandler
- *
- * This creates a 'hidden' nethandler instance kept by the library. It
- * is intended to be used alongside the various macros (in particular
- * NETCHAN_(T|R)X_CREATE()) to hide away resource management etc.
- *
- * It will use the values stored in nc_nic (see nc_set_nic) and
- * nc_hmap_size.
- *
- * @params : void
- * @returns: 0 on success, -1 on error
- */
-int nh_create_init_standalone(void);
-
-
-/**
  * nh_reg_callback - Register a callback for a given stream_id
  *
  * Whenever a new frame arrives with the registred streamID, the
@@ -664,6 +596,53 @@ int nh_add_tx(struct nethandler *nh, struct channel *du);
 int nh_add_rx(struct nethandler *nh, struct channel *du);
 
 /**
+ * nh_set_verbose() - set or disable verbose logging
+ *
+ * @param: nh nethandler container
+ * @param: verbose bool flag
+ */
+void nh_set_verbose(struct nethandler *nh, bool verbose);
+
+/**
+ * nh_set_srp() - set or disable SRP
+ *
+ * @param: nh nethandler container
+ * @param: srp bool flag
+ */
+void nh_set_srp(struct nethandler *nh, bool use_srp);
+
+/**
+ * nh_set_trace_breakval() - set breakvalue for tracebuffer.
+ *
+ * This will also enable logging to the kernel tracebuffer, and when a
+ * break-value has been encountered, stop tracing and abort, allowing
+ * the user to extract the tracebuffer to determine the cause of the
+ * excessive delay.
+ *
+ * If break_us <= 0, tracebuffer and break is disabled.
+ * If break_us > 1e6, tracebuffer is also disabled since a tracebuffer seldom holds several seconds worth of tracing data.
+ *
+ * @param: nh nethandler container
+ * @param: break_us: int, if delay is longer than break_us, stop tracing.
+ * flag
+ */
+void nh_set_trace_breakval(struct nethandler *nh, int break_us);
+
+/**
+ * nh_set_tx_prio() - set Tx socket prio
+ *
+ * Default prio: 3
+ *
+ * Note: this is the *socket* priority, i.e. the priority used to select
+ * the correct mqprio socket, *not* the SRP priority for a given stream
+ * class.
+ *
+ * @param: nh nethandler container
+ * @param: tx_prio int socket priority
+ */
+void nh_set_tx_prio(struct nethandler *nh, int tx_prio);
+
+/**
  * nh_remove_(tx|rx) - remove channel
  *
  * This function will only remve the erference to a channel from the
@@ -681,14 +660,6 @@ int nh_remove_rx(struct channel *ch);
  * @param nh: indirect ref to nh pointer (caller's ref will be NULL'd)
  */
 void nh_destroy(struct nethandler **nh);
-
-/**
- * nh_destroy_standalone: destroy singular nethandler created by nh_create_init_standalone()
- *
- * @param void
- * @return: void
- */
-void nh_destroy_standalone();
 
 /**
  * get_class_delay_ns(): get the correct delay offset for the current class

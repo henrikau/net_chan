@@ -6,14 +6,11 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #include <netchan_args.h>
-#include <netchan.h>
+#include <netchan_standalone.h>
 
 error_t parser(int key, char *arg, struct argp_state *state)
 {
       switch (key) {
-      case 'D':
-	      nc_keep_cstate();
-	      break;
       case 'i':
 	      nc_set_nic(arg);
 	      break;
@@ -31,9 +28,6 @@ error_t parser(int key, char *arg, struct argp_state *state)
 	      break;
       case 'b':
 	      nc_breakval(atoi(arg));
-	      break;
-      case 'T':
-	      nc_use_termtag(arg);
 	      break;
       case 'v':
 	      nc_verbose();

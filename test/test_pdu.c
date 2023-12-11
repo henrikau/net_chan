@@ -8,6 +8,7 @@
  */
 #include "../src/netchan.c"
 #include "../src/netchan_socket.c"
+#include "../src/netchan_standalone.c"
 
 char data17[DATA17SZ] = {0};
 struct channel *pdu17;
