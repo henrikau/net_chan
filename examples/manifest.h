@@ -20,6 +20,7 @@ enum attr_idx {
 };
 
 
+#define HZ_500   (2 * NS_IN_MS)
 #define HZ_100  (10 * NS_IN_MS)
 #define HZ_50   (20 * NS_IN_MS)
 #define HZ_10  (100 * NS_IN_MS)

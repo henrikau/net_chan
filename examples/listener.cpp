@@ -69,13 +69,16 @@ void async_rx_ctr(void)
 
 int main(int argc, char *argv[])
 {
+    std::string logfile;
+
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
         ("verbose,v", "Increase logging output")
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
+        ("log,L", po::value<std::string>(&logfile), "Log to file")
         ("use_srp,S", "Run with SRP enabled")
-        ;
+         ;
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -88,7 +91,7 @@ int main(int argc, char *argv[])
     if (vm.count("use_srp"))
         use_srp = true;
 
-    netchan::NetHandler nh(nic, "listener.csv", use_srp);
+    netchan::NetHandler nh(nic, logfile, use_srp);
     if (vm.count("verbose"))
         nh.verbose();
 

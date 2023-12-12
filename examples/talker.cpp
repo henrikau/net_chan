@@ -50,14 +50,17 @@ void sighandler(int signum)
 int main(int argc, char *argv[])
 {
     bool use_srp = false;
+    std::string logfile;
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
         ("verbose,v", "Increase logging output")
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
         ("loops,l", po::value<int>(&loops), "Number of iterations (default 1000)")
+        ("log,L", po::value<std::string>(&logfile), "Log to file")
         ("use_srp,S", "Run with SRP enabled")
         ;
+
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -70,7 +73,7 @@ int main(int argc, char *argv[])
 
     std::cout << "Using NIC " << nic << ", running for " << loops << " iterations" << std::endl;
 
-    netchan::NetHandler nh(nic, "talker.csv", use_srp);
+    netchan::NetHandler nh(nic, logfile, use_srp);
     if (vm.count("verbose"))
         nh.verbose();
 
