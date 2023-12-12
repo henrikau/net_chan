@@ -76,40 +76,42 @@ def print_statistics(sid, df):
 
 
 def plot_e2e(ax, df, title):
-    ax.set_title(title)
-    # x = range(len(df))
-    x = df['cap_ptp_ns'].values / 1e9
-    x = x - x[0]
-    ax.set_xlim((0, x[-1]))
+    ax.set_title(f"{title}\nDuration {get_duration(df)}, samples={len(df)}")
+    x = df['cap_ptp_ns'].values / 1000000000
+    ax.set_xlim((x[0], x[-1]))
     ax.plot(x, df['e2e']/1e3, color='green', alpha=0.4)
     ax.plot(x, df['e2e_sma']/1e3, color='red')
     ax.set_ylabel('E2E $\mu$s')
-    ax.set_xlabel(f'Duration {get_duration(df)}')
+    ax.set_xlabel("Capture time")
 
-def plot_tx_period(ax, df, title):
-    ax.set_title(title)
+def plot_tx_period(ax, df, title, bins=100, do_hist=False):
 
-    # counts, bins = np.histogram(df['tx_diff']/1000, bins=10)
-    # counts = counts / len(df['tx_diff'])
-    # ax.set_xlim((0, bins[-1]))
-    # ax.hist(bins[:-1], bins, weights=counts)
-    x = range(len(df['tx_diff']))
-    ax.set_xlim((0, x[-1]))
-    ax.plot(x, df['tx_diff']/1e6, color='green', alpha=0.4)
-    ax.plot(x, df['tx_diff_sma']/1e6, color='red')
-    ax.set_ylabel("Tx Period (ms)")
-    ax.ticklabel_format(useOffset=False)
+    ax.set_title(f"{title}")
+    if do_hist:
+        counts,b = np.histogram(df['tx_diff']/1000, bins=bins)
+        counts = counts / len(df['tx_diff'])
+        # ax.set_xlim((b[0], b[-1]))
+        ax.hist(b[:-1], b, weights=counts)
+    else:
+        x = df['tx_ns'].values / 1e9
+        ax.set_xlim((x[0], x[-1]))
+        ax.plot(x, df['tx_diff']/1e6, color='green', alpha=0.4)
+        ax.plot(x, df['tx_diff_sma']/1e6, color='red')
+        ax.set_ylabel("Tx Period (ms)")
+        ax.set_xlabel("Tx time (TAI)")
+
+        # Disable scientific notation
+        ax.ticklabel_format(useOffset=False)
 
 
-
-def plot_rx_period(ax, df, title):
-    ax.set_title(title)
-    counts, bins = np.histogram(df['rx_diff']/1000, bins=20)
+def plot_rx_period(ax, df, title, bins=100):
+    ax.set_title(f"{title}, bins={bins}, {len(df)} samples")
+    c, b = np.histogram(df['rx_diff']/1000, bins=bins)
     # print(df['rx_diff'])
     # counts = counts / len(df['rx_diff'])
-    ax.set_xlim((0, bins[-1]*1.05))
-    ax.hist(bins[:-1], bins, weights=counts)
-    ax.set_xlabel("Rx period distribution ($\mu$s)")
+    ax.set_xlim((b[0], b[-1]))
+    ax.hist(b[:-1], b, weights=c)
+    ax.set_xlabel(f"Rx period distribution ($\mu$s)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Helper for analyzing testruns using netchans built-in logging facilities. "\
