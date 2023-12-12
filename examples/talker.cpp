@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
     tx = new netchan::NetChanTx(nh, &nc_channels[IDX_17]);
     rx = new netchan::NetChanRx(nh, &nc_channels[IDX_18]);
-    struct periodic_timer *pt = pt_init(0, 100*NS_IN_MS, CLOCK_TAI);
+    struct periodic_timer *pt = pt_init(0, HZ_100, CLOCK_TAI);
 
     uint64_t ts = 0;
     running = true;
