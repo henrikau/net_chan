@@ -50,7 +50,8 @@ void async_rx_ctr(void)
         std::cerr << "Failed getting timespec, aborting thread::async_rx_ctr!" << std::endl;
         return;
     }
-
+    uint64_t start_ts_ns = ts_cpu.tv_nsec + ts_cpu.tv_sec*1000000000;
+    int start = rx_ctr;
     int last_ctr = rx_ctr;
     printf("Starting async_rx_ctr() as own thread, running=%d\n", running);
     while (running) {
@@ -64,6 +65,8 @@ void async_rx_ctr(void)
         printf("\r[%08d] Rate: %5d/sec", rx_ctr, diff);
         fflush(stdout);
     }
+    uint64_t end_ts_ns = ts_cpu.tv_nsec + ts_cpu.tv_sec*1000000000;
+    printf("\nReceived %d packets in %.3f sec\n", rx_ctr - start, (double)(end_ts_ns - start_ts_ns)/1e9);
 }
 
 
