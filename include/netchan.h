@@ -205,6 +205,7 @@ struct channel
 
 	/* payload size */
 	uint16_t payload_size;
+	uint16_t full_size;
 
 	/*
 	 * To enforce the channel frequency, keep track of next time

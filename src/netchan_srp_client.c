@@ -123,13 +123,12 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	 *
 	 * 125000/125000 := 1
 	 */
-	int pktsz = pdu->payload_size + 22 + 20 + sizeof(struct ether_addr);
+	int pktsz = pdu->full_size;
 	int interval = 125000/125000;
 	res = mrp_advertise_stream(pdu->sidw.s8, pdu->dst,
 				pktsz,
 				interval,
 				3900, pdu->ctx);
-	printf("%s(): advertised stream: %d\n", __func__, res);
 
 	/*
 	 * WARNING: mrp-awai_listener BLOCKS

@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <linux/net_tstamp.h>
+#include <linux/if_vlan.h>
 #include <netinet/ether.h>
 
 #include <linux/ethtool.h>
@@ -180,6 +181,13 @@ static void _chan_set_streamclass(struct channel *ch,
 	}
 }
 
+#define PREAMBLE_SZ		7
+#define SFD_SZ			1
+#define CRC_SZ			4
+#define IPG_SZ			12
+#define L1_SZ			(PREAMBLE_SZ + SFD_SZ + CRC_SZ + IPG_SZ)
+
+
 /*
  * _chan_create - create and initialize a new channel.
  *
@@ -210,7 +218,9 @@ static struct channel * _chan_create(struct nethandler *nh,
 		return NULL;
 	ch->nh = nh;
 	ch->payload_size = attrs->size;
-
+	ch->full_size = L1_SZ + sizeof(struct ethhdr) + 4 + sizeof(struct avtpdu_cshdr) + ch->payload_size;
+	if (nh->verbose)
+		printf("%s(): payload_size=%d, full_size=%d\n", __func__, ch->payload_size, ch->full_size);
 	_chan_avtpdu_init(ch, attrs->stream_id);
 
 
