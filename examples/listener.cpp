@@ -65,8 +65,6 @@ void async_rx_ctr(void)
         printf("\r[%08d] Rate: %5d/sec", rx_ctr, diff);
         fflush(stdout);
     }
-    uint64_t end_ts_ns = ts_cpu.tv_nsec + ts_cpu.tv_sec*1000000000;
-    printf("\nReceived %d packets in %.3f sec\n", rx_ctr - start, (double)(end_ts_ns - start_ts_ns)/1e9);
 }
 
 
@@ -106,8 +104,11 @@ int main(int argc, char *argv[])
     signal(SIGINT, sighandler);
 
     std::thread th_rate { [&] { async_rx_ctr(); }};
+    uint64_t start, end;
     while (running) {
         if (rx->read(&recv_ts)) {
+            if (rx_ctr == 0)
+                start = tai_get_ns();
             rx_ctr++;
             if (recv_ts == -1) {
                 printf("Received stop-signal\n");
@@ -123,9 +124,10 @@ int main(int argc, char *argv[])
             running = false;
         }
     }
+    end = tai_get_ns();
+
     running = false;
     th_rate.join();
-
     // Signal other end that we're closing down
     recv_ts = -1;
     tx->send(&recv_ts);
@@ -134,5 +136,8 @@ int main(int argc, char *argv[])
     tx->stop();
     delete rx;
     delete tx;
+
+    printf("Run complete, received %d frames in %f secs\n",
+           rx_ctr, (double)(end-start)/1e9);
     return 0;
 }
