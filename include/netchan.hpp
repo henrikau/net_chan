@@ -19,10 +19,8 @@ public:
         use_srp(srp),
         valid(true)
     {
-        if (use_srp)
-            nc_use_srp();
-        nc_verbose();
         nh = nh_create_init(ifname.c_str(), hmap_size, logfile.length() > 0 ? logfile.c_str() : NULL);
+        nh_set_srp(nh, srp);
 
         if (!nh) {
             fprintf(stderr, "%s() FAILED creating handler\n", __func__);
@@ -56,6 +54,8 @@ public:
 
     int active_tx(void) { return nh_get_num_tx(nh); }
     int active_rx(void) { return nh_get_num_rx(nh); }
+
+    void verbose(void) { nh_set_verbose(nh, true); }
 
 private:
     struct nethandler *nh;

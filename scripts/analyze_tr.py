@@ -157,7 +157,7 @@ def get_duration(df):
 
 
 def print_statistics(sid, df):
-    print(f"StreamID={sid} Duration={get_duration(df)}")
+    print(f"StreamID={sid} Duration={get_duration(df)} count={len(df)}")
     print(f"{'-'*9}+{'-'*20}+{'-'*20}+{'-'*20}+")
     print(f"{sid:^9}|{'E2E':^20s}|{'Tx Period':^20s}|{'Rx Period':^20s}|")
     print(f"{'-'*9}+{'-'*20}+{'-'*20}+{'-'*20}+")
@@ -195,7 +195,7 @@ def plot_e2e(ax, df, title, invalid_periods=None, invalid_e2e=None):
 
 
     ax.set_ylabel('E2E $\mu$s')
-    ax.set_xlabel(f'Duration {get_duration(df)}')
+    ax.set_xlabel("Capture time")
 
 def plot_tx_period(ax, df, title, invalid_periods=None, invalid_e2e=None):
     ax.set_title(title)

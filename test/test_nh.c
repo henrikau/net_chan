@@ -11,6 +11,7 @@
  * internals (and we want to produce a single file for ktc later)
  */
 #include "../src/netchan.c"
+#include "../src/netchan_standalone.c"
 #include "../src/netchan_socket.c"
 
 #define DATA17SZ 32

@@ -6,6 +6,9 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <netchan.h>
 struct sensor {
 	uint64_t val;
@@ -20,6 +23,7 @@ enum attr_idx {
 };
 
 
+#define HZ_500   (2 * NS_IN_MS)
 #define HZ_100  (10 * NS_IN_MS)
 #define HZ_50   (20 * NS_IN_MS)
 #define HZ_10  (100 * NS_IN_MS)
@@ -32,7 +36,9 @@ struct channel_attrs nc_channels[] = {
 		.sc	   = CLASS_A,
 		.size      =  sizeof(struct sensor),
 		.interval_ns = 5000000L, /* 200 Hz */
+#ifndef __cplusplus
 		.name      = "mcast42",
+#endif
 	},
 	{
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x9A},
@@ -40,7 +46,9 @@ struct channel_attrs nc_channels[] = {
 		.sc	   = CLASS_A,
 		.size      =  sizeof(struct sensor),
 		.interval_ns = (200 * NS_IN_MS), /* 5 Hz */
+#ifndef __cplusplus
 		.name      = "mcast154",
+#endif
 	},
 	{
 		/* DEFAULT_MCAST */
@@ -49,7 +57,9 @@ struct channel_attrs nc_channels[] = {
 		.sc	   = CLASS_A,
 		.size      =  sizeof(uint64_t),
 		.interval_ns  = HZ_100,
+#ifndef __cplusplus
 		.name      = "mcast17"
+#endif
 	},
 	{
 		/* DEFAULT_MCAST */
@@ -58,6 +68,12 @@ struct channel_attrs nc_channels[] = {
 		.sc	   = CLASS_A,
 		.size      =  sizeof(uint64_t),
 		.interval_ns  = HZ_100,
+#ifndef __cplusplus
 		.name      = "mcast18"
+#endif
 	}
 };
+
+#ifdef __cplusplus
+}
+#endif

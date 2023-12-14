@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
-#include <netchan.h>
+#include <netchan_standalone.h>
 #include <netchan_args.h>
 
 #include "manifest.h"

@@ -22,6 +22,8 @@
 #include <iostream>
 #include <netchan.hpp>
 #include <signal.h>
+#include <thread>
+
 #include "manifest.h"
 
 static std::string nic = "enp7s0";
@@ -39,13 +41,45 @@ void sighandler(int signum)
 	running = false;
         rx->stop();
 }
+
+static int rx_ctr = 0;
+void async_rx_ctr(void)
+{
+    struct timespec ts_cpu;
+    if (clock_gettime(CLOCK_REALTIME, &ts_cpu) == -1) {
+        std::cerr << "Failed getting timespec, aborting thread::async_rx_ctr!" << std::endl;
+        return;
+    }
+    uint64_t start_ts_ns = ts_cpu.tv_nsec + ts_cpu.tv_sec*1000000000;
+    int start = rx_ctr;
+    int last_ctr = rx_ctr;
+    printf("Starting async_rx_ctr() as own thread, running=%d\n", running);
+    while (running) {
+        ts_cpu.tv_sec++;
+        if (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts_cpu, NULL) == -1) {
+            std::cerr << "Aborting thread::async_rx_ctr" << std::endl;
+            return;
+        }
+        int diff = rx_ctr - last_ctr;
+        last_ctr = rx_ctr;
+        printf("\r[%08d] Rate: %5d/sec", rx_ctr, diff);
+        fflush(stdout);
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
+    std::string logfile;
+
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
+        ("verbose,v", "Increase logging output")
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
-        ;
+        ("log,L", po::value<std::string>(&logfile), "Log to file")
+        ("use_srp,S", "Run with SRP enabled")
+         ;
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -54,25 +88,46 @@ int main(int argc, char *argv[])
         exit(0);
     }
     std::cout << "Using NIC " << nic << std::endl;
+    bool use_srp = false;
+    if (vm.count("use_srp"))
+        use_srp = true;
 
-    netchan::NetHandler nh(nic, "listener.csv", false);
+    netchan::NetHandler nh(nic, logfile, use_srp);
+    if (vm.count("verbose"))
+        nh.verbose();
+
     rx = new netchan::NetChanRx(nh, &nc_channels[IDX_17]);
     tx = new netchan::NetChanTx(nh, &nc_channels[IDX_18]);
 
     uint64_t recv_ts = 0;
     running = true;
     signal(SIGINT, sighandler);
+
+    std::thread th_rate { [&] { async_rx_ctr(); }};
+    uint64_t start, end;
     while (running) {
         if (rx->read(&recv_ts)) {
-            if (recv_ts == -1)
-                break;
+            if (rx_ctr == 0)
+                start = tai_get_ns();
+            rx_ctr++;
+            if (recv_ts == -1) {
+                printf("Received stop-signal\n");
+                running = false;
+                continue;
+            }
 
             uint64_t rx_ts = tai_get_ns();
             if (!tx->send_wait(&recv_ts))
                 break;
+        } else {
+            printf("Read failed\n");
+            running = false;
         }
     }
+    end = tai_get_ns();
 
+    running = false;
+    th_rate.join();
     // Signal other end that we're closing down
     recv_ts = -1;
     tx->send(&recv_ts);
@@ -81,5 +136,8 @@ int main(int argc, char *argv[])
     tx->stop();
     delete rx;
     delete tx;
+
+    printf("Run complete, received %d frames in %f secs\n",
+           rx_ctr, (double)(end-start)/1e9);
     return 0;
 }

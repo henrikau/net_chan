@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <linux/net_tstamp.h>
+#include <linux/if_vlan.h>
 #include <netinet/ether.h>
 
 #include <linux/ethtool.h>
@@ -29,8 +30,6 @@
 #include <netchan_srp_client.h>
 #include <logger.h>
 #include <tracebuffer.h>
-
-/* #include <terminal.h> */
 
 struct pipe_meta {
 	uint64_t ts_rx_ns;
@@ -71,88 +70,6 @@ struct cb_entity {
 	void *priv_data;
 	int (*cb)(void *priv_data, struct avtpdu_cshdr *du);
 };
-static struct nethandler *_nh;
-
-static bool do_srp = false;
-static bool keep_cstate = false;
-static bool use_tracebuffer = false;
-static int break_us = -1;
-static bool verbose = false;
-static char nc_nic[IFNAMSIZ] = {0};
-static char nc_logfile[129] = {0};
-static char nc_termdevice[129] = {0};
-static int nc_hmap_size = 42;
-static int tx_sock_prio = 3;
-
-int nc_set_nic(char *nic)
-{
-	strncpy(nc_nic, nic, IFNAMSIZ-1);
-	if (verbose)
-		printf("%s(): set nic to %s\n", __func__, nc_nic);
-	return 0;
-}
-
-void nc_keep_cstate()
-{
-	keep_cstate = true;
-	if (verbose)
-		printf("%s(): keep CSTATE (probably bad for RT!)\n", __func__);
-}
-
-void nc_set_hmap_size(int sz)
-{
-	nc_hmap_size = sz;
-}
-void nc_use_srp(void)
-{
-	do_srp = true;
-}
-void nc_use_ftrace(void)
-{
-	use_tracebuffer = true;
-}
-void nc_breakval(int b_us)
-{
-	if (b_us > 0 && b_us < 1000000)
-		break_us = b_us;
-}
-
-void nc_verbose(void)
-{
-	verbose = true;
-}
-
-void nc_set_logfile(const char *logfile)
-{
-	strncpy(nc_logfile, logfile, 128);
-	if (verbose)
-		printf("%s(): set logfile to %s\n", __func__, nc_logfile);
-}
-
-void nc_use_termtag(const char *devpath)
-{
-	if (!devpath || strlen(devpath) <= 0)
-		return;
-
-	/* basic sanity check
-	 * exists?
-	 * device?
-	 */
-	struct stat s;
-	if (stat(devpath, &s) == -1) {
-		printf("%s() Error stat on %s (%d, %s)\n",
-			__func__, devpath, errno, strerror(errno));
-		return;
-	}
-
-	strncpy(nc_termdevice, devpath, 128);
-}
-void nc_tx_sock_prio(int prio)
-{
-	if (prio < 0 || prio > 15)
-		return;
-	tx_sock_prio = prio;
-}
 
 int nc_get_chan_idx(char *name, const struct channel_attrs *attrs, int arr_size)
 {
@@ -190,16 +107,6 @@ const struct channel_attrs * nc_get_chan_ref(char *name, const struct channel_at
 	return &attrs[idx];
 }
 
-/* DEPRECATED */
-int nc_rx_create(char *name, struct channel_attrs *attrs, int sz)
-{
-	struct channel *chan = chan_create_standalone(name, 0, attrs, sz);
-	if (!chan)
-		return -1;
-
-	return chan->fd_r;
-}
-
 static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_t sz)
 {
 	/* Smallest possible unit to send: no payload, only headers, IPG etc
@@ -213,7 +120,7 @@ static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_
 
 	int ns_to_tx = min_sz * 1e9 / nh->link_speed;
 	if (interval_ns <= ns_to_tx) {
-		if (verbose)
+		if (nh->verbose)
 			printf("Requested interval too short: %zd, minimum ns_to_tx: %d\n", interval_ns, ns_to_tx);
 		return false;
 	}
@@ -222,7 +129,7 @@ static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_
 
 	/* Test utilization */
 	if ((tx_sz * 1e9/nh->link_speed) > interval_ns) {
-		if (verbose)
+		if (nh->verbose)
 			printf("Cannot send %zu bits (%d) in %lu ns\n", tx_sz, sz, interval_ns);
 		return false;
 	}
@@ -235,7 +142,7 @@ static bool _valid_size(struct nethandler *nh, uint16_t sz)
 		return false;
 
 	if ((sz + 24 + 22) > 1522) {
-		if (verbose)
+		if (nh->verbose)
 			printf("Requested size too large (%d yields total framesize > MTU of 1522)\n", sz);
 		return false;
 	}
@@ -274,6 +181,13 @@ static void _chan_set_streamclass(struct channel *ch,
 	}
 }
 
+#define PREAMBLE_SZ		7
+#define SFD_SZ			1
+#define CRC_SZ			4
+#define IPG_SZ			12
+#define L1_SZ			(PREAMBLE_SZ + SFD_SZ + CRC_SZ + IPG_SZ)
+
+
 /*
  * _chan_create - create and initialize a new channel.
  *
@@ -304,7 +218,9 @@ static struct channel * _chan_create(struct nethandler *nh,
 		return NULL;
 	ch->nh = nh;
 	ch->payload_size = attrs->size;
-
+	ch->full_size = L1_SZ + sizeof(struct ethhdr) + 4 + sizeof(struct avtpdu_cshdr) + ch->payload_size;
+	if (nh->verbose)
+		printf("%s(): payload_size=%d, full_size=%d\n", __func__, ch->payload_size, ch->full_size);
 	_chan_avtpdu_init(ch, attrs->stream_id);
 
 
@@ -332,7 +248,7 @@ static struct channel * _chan_create(struct nethandler *nh,
 	ch->fd_w = pfd[1];
 
 	/* SRP common setup */
-	if (do_srp)
+	if (nh->use_srp)
 		nc_srp_client_setup(ch);
 
 	return ch;
@@ -347,12 +263,7 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 	if (!ch)
 		return NULL;
 
-	/* Set socket priority option (for sending to the right socket)
-	 *
-	 * FIXME: allow for outside config of socket prio (see
-	 * scripts/setup_nic.sh)
-	 */
-	ch->tx_sock_prio = tx_sock_prio;
+	ch->tx_sock_prio = nh->tx_sock_prio;
 	ch->tx_sock = nc_create_tx_sock(ch);
 
 	if (ch->tx_sock < 0) {
@@ -364,10 +275,10 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 	/* We are ready to send, the first attempt should fly straight through */
 	ch->next_tx_ns = tai_get_ns();
 
-	if (verbose)
+	if (nh->verbose)
 		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
 
-	if (do_srp) {
+	if (nh->use_srp) {
 		if (!nc_srp_client_talker_setup(ch)) {
 			chan_destroy(&ch);
 			printf("%s() Talker setup FAILED!\n", __func__);
@@ -390,7 +301,7 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 		return NULL;
 
 	if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
-		if (verbose)
+		if (nh->verbose)
 			printf("%s() receive data on a multicast group, adding membership\n", __func__);
 
 		struct packet_mreq mr;
@@ -404,7 +315,7 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 	}
 
 	/* Rx SRP subscribe */
-	if (do_srp) {
+	if (nh->use_srp) {
 		if (!nc_srp_client_listener_setup(ch)) {
 			chan_destroy(&ch);
 			return NULL;
@@ -436,8 +347,8 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 	 *
 	 * !!! WARNING: await_talker() BLOCKS !!!
 	 */
-	if (do_srp) {
-		printf("%s(): do_srp, awaiting talker\n", __func__);
+	if (nh->use_srp) {
+		printf("%s(): use_srp, awaiting talker\n", __func__);
 		fflush(stdout);
 		await_talker(ch->ctx);
 		send_ready(ch->ctx);
@@ -445,25 +356,9 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 	return ch;
 }
 
-struct channel *chan_create_standalone(char *name,
-				bool tx_update,
-				struct channel_attrs *attrs,
-				int sz)
-{
-	if (!name || !attrs || sz <= 0)
-		return NULL;
-
-	int idx = nc_get_chan_idx(name, attrs, sz);
-	if (idx < 0)
-		return NULL;
-
-	nh_create_init_standalone();
-	return tx_update ? chan_create_tx(_nh, &attrs[idx]) : chan_create_rx(_nh, &attrs[idx]);
-}
-
 static void _chan_destroy(struct channel **ch, bool unlink)
 {
-	if (do_srp)
+	if ((*ch)->nh->use_srp)
 		nc_srp_client_destroy((*ch));
 	if ((*ch)->fd_r >= 0)
 		close((*ch)->fd_r);
@@ -494,11 +389,12 @@ void chan_destroy(struct channel **ch)
 {
 	if (!*ch)
 		return;
-	if (verbose)
+	struct nethandler *nh = (*ch)->nh;
+	if (nh->verbose)
 		printf("%s(): Destroying channel=%ld\n", __func__, (*ch)->sidw.s64);
 	_chan_destroy(ch, true);
 
-	if (verbose)
+	if (nh->verbose)
 		printf("%s(): Channel destroyed\n", __func__);
 }
 
@@ -723,19 +619,17 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 	int64_t error_cpu_ns = cpu_target_delay_ns - cpu_wakeup_ns;
 
 	log_wakeup_delay(du->nh->logger, ptp_target_delay_ns, cpu_target_delay_ns, cpu_wakeup_ns);
-
-	if (use_tracebuffer) {
+	if (du->nh->tb) {
 		char tbmsg[128] = {0};
 		snprintf(tbmsg, 127, "_delay(), target=%lu, current=%lu, error=%ld (%s)",
 			ptp_target_delay_ns,
 			cpu_wakeup_ns,
 			error_cpu_ns,
 			error_cpu_ns < 0 ? "late" : "early");
-
 		tb_tag(du->nh->tb, tbmsg);
 	}
 
-	if (verbose) {
+	if (du->nh->verbose) {
 		printf("%s(): PTP Target: %lu, actual: %lu, error: %.3f (us) (%s)\n",
 			__func__, cpu_target_delay_ns, cpu_wakeup_ns,
 			1.0 * error_cpu_ns / 1000,
@@ -753,7 +647,7 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 		return -1;
 	}
 
-	if (verbose)
+	if (ch->nh->verbose)
 		printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
 
 	uint64_t tx_ns = 0;
@@ -809,7 +703,7 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	/* Reconstruct PTP capture timestamp from sender */
 	uint64_t lavtp = tai_to_avtp_ns(ch->cbp->meta.ts_recv_ptp_ns);
 	if (lavtp < ch->cbp->meta.avtp_timestamp) {
-		if (verbose)
+		if (ch->nh->verbose)
 			printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
 		lavtp += ((uint64_t)1<<32)-1;
 	}
@@ -817,9 +711,9 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	uint64_t ptp_capture = ch->cbp->meta.ts_recv_ptp_ns - avtp_diff;
 
 	/* track E2E delay if --break is passed */
-	if (break_us > 0 && (avtp_diff/1000)  > break_us) {
+	if (ch->nh->ftrace_break_us > 0 && (avtp_diff/1000)  > ch->nh->ftrace_break_us) {
 		char tbmsg[128] = {0};
-		snprintf(tbmsg, 127, "E2E delay (%.3f us) exceeded break_value (%d)", (float)avtp_diff/1000, break_us);
+		snprintf(tbmsg, 127, "E2E delay (%.3f us) exceeded break_value (%d)", (float)avtp_diff/1000, ch->nh->ftrace_break_us);
 		fprintf(stderr, "%s\n", tbmsg);
 		tb_tag(ch->nh->tb, tbmsg);
 		tb_close(ch->nh->tb);
@@ -835,7 +729,7 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	if (read_delay) {
 		int64_t err = _delay(ch, ptp_capture + ch->sc);
 
-		if (verbose) {
+		if (ch->nh->verbose) {
 			printf("%s() Sample spent %ld ns from capture to recvmsg()\n",
 				__func__, avtp_diff);
 			printf("%s() Reconstructed timestamp: %lu\n",
@@ -1063,23 +957,21 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 		res = -1;
 	}
 
-	/* disable dma latency */
-	if (!keep_cstate) {
-		nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
-		if (nh->dma_lat_fd < 0) {
-			if (verbose)
-				fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
-					__func__, errno, strerror(errno));
-		} else {
-			int lat_val = 0;
-			int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
-			if (wres < 1) {
-				fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
-					__func__, lat_val, errno, strerror(errno));
-				res = -2;
-			} else if (verbose) {
-				printf("%s(): Disabled cstate on CPU\n", __func__);
-			}
+	/* disable dma latency, this avoids c-state transitions */
+	nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
+	if (nh->dma_lat_fd < 0) {
+		if (nh->verbose)
+			fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
+				__func__, errno, strerror(errno));
+	} else {
+		int lat_val = 0;
+		int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
+		if (wres < 1) {
+			fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
+				__func__, lat_val, errno, strerror(errno));
+			res = -2;
+		} else if (nh->verbose) {
+			printf("%s(): Disabled cstate on CPU\n", __func__);
 		}
 	}
 
@@ -1094,7 +986,7 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
 		return NULL;
-
+	nh->tx_sock_prio = DEFAULT_TX_SOCKET_PRIO;
 	nh->hmap_sz = hmap_size;
 	nh->hmap = calloc(sizeof(struct cb_entity), nh->hmap_sz);
 	if (!nh->hmap) {
@@ -1128,7 +1020,7 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 			fprintf(stderr, "%s() Something went wrong when enabling logger, datalogging disabled\n", __func__);
 	}
 
-	if (use_tracebuffer)
+	if (nh->ftrace_break_us > 0)
 		nh->tb = tb_open();
 
 	/* get PTP fd for timekeeping
@@ -1147,18 +1039,6 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 out:
 	return nh;
 }
-
-int nh_create_init_standalone(void)
-{
-	/* avoid double-create */
-	if (_nh != NULL)
-		return -1;
-	_nh = nh_create_init(nc_nic, nc_hmap_size, nc_logfile);
-	if (_nh)
-		return 0;
-	return -1;
-}
-
 
 int nh_reg_callback(struct nethandler *nh,
 		uint64_t stream_id,
@@ -1240,14 +1120,14 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *cshdr,
 		return -EINVAL;
 	int idx = get_hm_idx(nh, be64toh(cshdr->stream_id));
 
-	if (use_tracebuffer) {
+	if (nh->tb > 0) {
 		char tbmsg[128] = {0};
 		snprintf(tbmsg, 127, "feed_pdu_ts, feed to hmapidx=%d", idx);
 		tb_tag(nh->tb, tbmsg);
 	}
 
 	if (idx >= 0) {
-		if (verbose)
+		if (nh->verbose)
 			printf("%s(): received msg, hmidx: %d\n", __func__, idx);
 		struct cb_priv *cbp = nh->hmap[idx].priv_data;
 		cbp->meta.ts_rx_ns = rx_hw_ns;
@@ -1375,10 +1255,40 @@ int nh_add_rx(struct nethandler *nh, struct channel *du)
 	return 0;
 }
 
+void nh_set_verbose(struct nethandler *nh, bool verbose)
+{
+	if (!nh)
+		return;
+	nh->verbose = verbose;
+}
+
+void nh_set_srp(struct nethandler *nh, bool use_srp)
+{
+	if (!nh)
+		return;
+	nh->use_srp = use_srp;
+}
+
+void nh_set_trace_breakval(struct nethandler *nh, int break_us)
+{
+	if (!nh)
+		return;
+	if (break_us <= 0 || break_us > 1000000)
+		nh->ftrace_break_us = -1;
+	nh->ftrace_break_us = break_us;
+}
+
+void nh_set_tx_prio(struct nethandler *nh, int tx_prio)
+{
+	if (!nh || tx_prio < 0 || tx_prio > 8)
+		return;
+	nh->tx_sock_prio = tx_prio;
+}
+
 void nh_destroy(struct nethandler **nh)
 {
 	if (*nh) {
-		if (use_tracebuffer)
+		if ((*nh)->tb)
 			tb_close((*nh)->tb);
 		if ((*nh)->dma_lat_fd > 0)
 			close((*nh)->dma_lat_fd);
@@ -1414,12 +1324,6 @@ void nh_destroy(struct nethandler **nh)
 		free(*nh);
 	}
 	*nh = NULL;
-}
-
-void nh_destroy_standalone()
-{
-	if (_nh)
-		nh_destroy(&_nh);
 }
 
 uint64_t get_class_delay_bound_ns(struct channel *du)
