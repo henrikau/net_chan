@@ -1,0 +1,7 @@
+*~
+*.csv
+*.csv_d
+*.png
+*.log
+doxygen.in
+*.tar.gz
