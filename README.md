@@ -11,6 +11,7 @@ remote systems.
 A fundamental part of the reliability provided by NetChan is Time
 Sensitive Networking (TSN) which is used to reserve capacity and guard
 the data being transmitted. This is not to say that NetChan *require*
+
 TSN, but without a hard QoS scheme, determinism cannot be guaranteed.
 
 The motivation for NetChan is to make it easier to create large,
@@ -34,7 +35,7 @@ readings or from a microphone being continously sampled).
 
 ![NetChan](imgs/net_chan.png)
 
-Central to all of this, is 'the Manifest' where all the streams are
+Central to all of this, is *'the Manifest'* where all the streams are
 listed.  Each stream is described using payload size, target
 destination, traffic class, transmitting frequency and a unique ID. This
 is then used by the core NetChan machinery to allocate buffers, start
@@ -71,6 +72,7 @@ from NetChan: namely
 Note: this example is stripped of all excessive commands, includes
 etc. Have a gander at [the talker](examples/talker.c) for the full example.
 ```C
+#include <netchan.h>
 int main(int argc, char *argv[])
 {
 	NETCHAN_TX(mcast42);
@@ -86,6 +88,25 @@ int main(int argc, char *argv[])
 The examples directory also contains a sample listener to be used
 alongside the talker example above.
 
+### Simple C++ Listener example
+Starting from v0.1.2, a C++ wrapper has been added to net_chan, exposing
+Rx and Tx channels in a class hierarchy.
+
+```C++
+#include <netchan.hpp>
+int main(int argc, char *argv[])
+{
+    netchan::NetHandler nh("eth0", "listener_log.csv", true);
+    netchan::NetChanRx rx(nh, &attrs[0]);
+    uint64_t data;
+    while (1) {
+        if (rx.read(&data)) {
+            // handle data
+        }
+    }
+}
+```
+
 ## Build instructions
 
 NetChan uses meson and ninja to build and details can be found in [the
@@ -96,6 +117,16 @@ meson build
 ninja -C build/
 ```
 
+The C++ examples are not built by default as meson is not particularly
+happy for building a C application and library and then also run a C++
+compiler. For the time being, the C++ examples must be compiled
+manually:
+
+```bash
+g++ -o build/cpp_listener examples/listener.cpp build/libnetchan.a build/libmrp.a -lboost_program_options -pthread -I include && \
+g++ -o build/cpp_talker examples/talker.cpp build/libnetchan.a build/libmrp.a -lboost_program_options -pthread -I include && {
+```
+
 ### Installing NetChan
 To install, run ```meson install``` from within the build directory or
 manually grab the generated files:
@@ -103,14 +134,6 @@ manually grab the generated files:
 + build/libtimedavtp_avtp.a
 + build/libmrp.a
 
-
-### Notes
-Note: in the **very** near future, libtimedavtp_avtp.a will be renamed
-along with a substantial rewrite of the API. The current naming-scheme
-is the result of this project being initially targeted for Timed C, an
-extension to C which adds time as a primitive. As NetChan is a more
-generic construct, we aim to move this out from under the umbrella of
-Timed C.
 
 ## Running tests
 
@@ -159,7 +182,7 @@ modified version of AvNUs mrp-client. This is kept separate to avoid
 licensing issues. The other librarly (libnetchan.a) contains the
 NetChan functionality.
 
-The headers, apart from definig functions and #defines, also contains a
+The headers, apart from defining functions and #defines, also contains a
 few helper-macros which is useful for testing the system. For a more
 mature system, using the functions directly is recommended as you get a
 bit more intuitive help from the compiler.
@@ -170,10 +193,13 @@ To use TSN, a few components must be configured outside the project
 ### generalized Precision Timing Protocol (gPTP)
 
 TSN relies on accurate timestamps and gPTP is a required
-component. LinuxPTP is compatible with gPTP and comes with a gPTP config
+component. LinuxPTP is compatible with gPTP and comes with a gPTP
+config. In this example the NIC is 'enp2s0', replace it with the correct
+one for your network:
 
 ```bash
-sudo ptp4l -i enp2s0 -f gPTP.cfg -m
+sudo ptp4l -i enp2s0 -f gPTP.cfg -m --step_threshold=1 --socket_priority=4
+sudo phc2sys -s enp2s0 -c CLOCK_REALTIME --step_threshold=1 --transportSpecific=1 -w
 ```
 
 There's no need to run phc2sys as we will read the timestamp directly
