@@ -1,6 +1,5 @@
-# Reliable Network Channels
-
-Reliable, or deterministic **network channel** (*net_chan*) is a logical
+# NetChan - Reliable Network Channels <img src="/imgs/netchan_logo.png" alt="NetChan Logo" width="150" height="auto" align="left">
+Reliable, or deterministic **network channel** (*NetChan*) is a logical
 construct that can be added to a distributed system to provide
 deterministic and reliable connections. The core idea is to make it
 simple to express the traffic for a channel in a concise, provable
@@ -9,19 +8,23 @@ manner and provide constructs for creating and using the channels.
 In essence, a logical channel can be used as a local UNIX pipe between
 remote systems.
 
-A fundamental part of the reliability provided by net_chan is Time
+A fundamental part of the reliability provided by NetChan is Time
 Sensitive Networking (TSN) which is used to reserve capacity and guard
-the data being transmitted. This is not to say that net_chan *require*
+the data being transmitted. This is not to say that NetChan *require*
 TSN, but without a hard QoS scheme, determinism cannot be guaranteed.
 
+The motivation for NetChan is to make it easier to create large,
+distributed systems without being bogged down in the minute details of
+networking.
+![Robot production](imgs/robot_production.png)
 ## Overall Design
 
-**Net_chan** is intended to create a logical channel between to processes
+**NetChan** is intended to create a logical channel between to processes
 running on different hosts in a network. The process need not run on
 different hosts (but if you're on the same host, perhaps other means of
 communicating is a better fit).
 
-Conceptually, net_chan provide a channel that is undisturbed by outside
+Conceptually, NetChan provide a channel that is undisturbed by outside
 events such as other people using **your** network capacity. A channel
 is used by a sender (often called *Talker* in TSN terminology) and one
 or more receivers (*Listeners*). The data in the channel is sent in a
@@ -29,12 +32,12 @@ or more receivers (*Listeners*). The data in the channel is sent in a
 packages that logically belong together (think periodic temperature
 readings or from a microphone being continously sampled).
 
-![net_chan](imgs/net_chan.png)
+![NetChan](imgs/net_chan.png)
 
 Central to all of this, is 'the Manifest' where all the streams are
 listed.  Each stream is described using payload size, target
 destination, traffic class, transmitting frequency and a unique ID. This
-is then used by the core net_chan machinery to allocate buffers, start
+is then used by the core NetChan machinery to allocate buffers, start
 receivers, reserve bandwidth etc.
 
 ```C
@@ -54,14 +57,14 @@ struct channel_attrs attrs[] = {
 All participants in the distributed system will use the manifest to
 configure the channels.
 
-net_chan will compile a static library which can be used to link your
+NetChan will compile a static library which can be used to link your
 application. The project has a couple of examples, look at
 [the meson build file](meson.build).
 
 
 ### Simple talker example
 A talker (the task or process that **produces** data) need only 2 macros
-from net_chan: namely
+from NetChan: namely
 + instantiate the channel locally
 + write data to channel
 
@@ -85,7 +88,7 @@ alongside the talker example above.
 
 ## Build instructions
 
-net_chan uses meson and ninja to build and details can be found in [the
+NetChan uses meson and ninja to build and details can be found in [the
 meson build file](meson.build).
 
 ```bash
@@ -93,7 +96,7 @@ meson build
 ninja -C build/
 ```
 
-### Installing net_chan
+### Installing NetChan
 To install, run ```meson install``` from within the build directory or
 manually grab the generated files:
 + include/
@@ -105,13 +108,13 @@ manually grab the generated files:
 Note: in the **very** near future, libtimedavtp_avtp.a will be renamed
 along with a substantial rewrite of the API. The current naming-scheme
 is the result of this project being initially targeted for Timed C, an
-extension to C which adds time as a primitive. As net_chan is a more
+extension to C which adds time as a primitive. As NetChan is a more
 generic construct, we aim to move this out from under the umbrella of
 Timed C.
 
 ## Running tests
 
-net_chan has a few unit-test written in
+NetChan has a few unit-test written in
 [Unity](http://www.throwtheswitch.org/unity), a lightweight C-framework
 for tests that is reasonable small and (importantly) very fast. It does
 require that an mrpd-daemon is running (see below). See
@@ -122,7 +125,7 @@ and watch the system kick into action when files are saved
 
 ```bash
 ./scripts/watch_builder.sh
-~/dev/net_chan ~/dev/net_chan
+~/dev/netchan ~/dev/netchan
 . ./examples ./include ./include/srp ./src ./srp ./test ./tools
 Setting up watches.
 Watches established.
@@ -130,7 +133,7 @@ Watches established.
 ./ MODIFY README.md
 ninja: Entering directory `build/'
 ninja: no work to do.
-ninja: Entering directory `/home/henrikau/dev/net_chan/build'
+ninja: Entering directory `/home/henrikau/dev/netchan/build'
 ninja: no work to do.
 1/5 mrp                OK              0.26s
 2/5 nh macro           OK              0.47s
@@ -146,7 +149,7 @@ Unexpected Pass:    0
 Skipped:            0
 Timeout:            0
 
-Full log written to /home/henrikau/dev/net_chan/build/meson-logs/testlog.txt
+Full log written to /home/henrikau/dev/netchan/build/meson-logs/testlog.txt
 ```
 
 ## Including Reliable Network Channels in other projects
@@ -154,7 +157,7 @@ Full log written to /home/henrikau/dev/net_chan/build/meson-logs/testlog.txt
 The system builds 2 static libraries, one of which is a slightly
 modified version of AvNUs mrp-client. This is kept separate to avoid
 licensing issues. The other librarly (libnetchan.a) contains the
-net_chan functionality.
+NetChan functionality.
 
 The headers, apart from definig functions and #defines, also contains a
 few helper-macros which is useful for testing the system. For a more
@@ -186,14 +189,14 @@ sudo make install
 ```
 
 ### Stream Reservation
-A key feature of net_chan is the ability to reserve bandwidth and buffer
+A key feature of NetChan is the ability to reserve bandwidth and buffer
 capacity through the network (provided the network supports TSN). This
 is done using the stream reservation protocol (SRP) and AvNU has an
 excellent project (OpenAvnu) to support this. In this project, the
 *mrpd* daemon must be built and started locally *on each
-machine*. net_chan comes with the client-side of AvNUs mrp code,
+machine*. NetChan comes with the client-side of AvNUs mrp code,
 slightly tailored and adapted for our need (this can be found in the
-srp/ subfolder). This allows net_chan to communicate with the
+srp/ subfolder). This allows NetChan to communicate with the
 mrpd-daemon and send reservations, receive subscribe requests etc.
 
 ```bash
@@ -211,8 +214,8 @@ sudo ./daemons/mrpd/mrpd -i enp2s0 -mvs
 ```
 
 #### Enabling SRP
-To instruct net_chan to attach to the srp daemon and reserve bandwidth
+To instruct NetChan to attach to the srp daemon and reserve bandwidth
 and buffers, the startup-section of your code must contain calls to
-```nc_use_srp();```. This will cause net_chan to hook into the
+```nc_use_srp();```. This will cause NetChan to hook into the
 mrp-client library and ensure that the stream is properly protected. In
 a network with other noise, this has a very noticable effect.
