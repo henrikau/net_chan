@@ -124,6 +124,20 @@ err_out:
 	return NULL;
 }
 
+void log_reset(struct logc *logc)
+{
+	if (!logc)
+		return;
+	pthread_mutex_lock(&logc->m);
+	if (logc->lb)
+		logc->lb->idx = 0;
+
+	if (logc->wdb)
+		logc->wdb->idx = 0;
+
+	pthread_mutex_unlock(&logc->m);
+}
+
 static void _flush_ts(const char *logfile, struct log_buffer *lb)
 {
 	if (!logfile || !lb)

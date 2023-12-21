@@ -49,6 +49,18 @@ struct logc * log_create(const char *logfile);
 void log_close(struct logc *logc);
 
 /**
+ * log_reset() clear log and re-start from this point in time (now)
+ *
+ * In some settings, we do not want to log the firest frames being sent
+ * and instead signal logger to clear and reset the mechanics and start
+ * logging from this point in time.
+ *
+ * @param: logc: log container
+ */
+void log_reset(struct logc *logc);
+
+
+/**
  * log_rx: log Rx entries to a CSV log (if enabled)
  *
  * This will add Rx-entries to a csv-log. It will log
