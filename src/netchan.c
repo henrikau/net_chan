@@ -1339,3 +1339,32 @@ uint64_t get_class_delay_bound_ns(struct channel *du)
 		return 0;
 	}
 }
+
+void chan_print_details(struct channel *ch)
+{
+	if (!ch)
+		return;
+	printf("%s %s sid=0x%08lx, sz=%d, interval=%.3f ms\n",
+		ch->nh->use_srp ? "[SRP]" : "     ",
+		ch->tx_sock == -1 ? "Rx" : "Tx",
+		ch->sidw.s64,
+		ch->payload_size,
+		(double)ch->interval_ns / 1e6);
+}
+void nh_list_active_channels(struct nethandler *nh)
+{
+	printf("%s(): listing active channels\n", __func__);
+	if (!nh)
+		return;
+	printf("Rx channels:\n");
+	struct channel *curr = nh->du_rx_head;
+	while (curr) {
+		chan_print_details(curr);
+		curr = curr->next;
+	}
+	curr = nh->du_tx_head;
+	while (curr) {
+		chan_print_details(curr);
+		curr = curr->next;
+	}
+}
