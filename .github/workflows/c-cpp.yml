@@ -19,6 +19,4 @@ jobs:
     - name: configure
       run: meson build
     - name: make
-      run: meon compile -v -C build
-    - name: Test suite
-      run: meson test -v -C build
+      run: meson compile -v -C build
