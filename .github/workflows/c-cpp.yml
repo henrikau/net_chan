@@ -12,10 +12,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: checkout
+      uses: actions/checkout@v3
+    - name: Install Python Dependencies
+      run: pip install meson ninja
     - name: configure
       run: meson build
     - name: make
-      run: ninja -C build/
-    - name: make check
-      run: cd build; meson test
+      run: meon compile -v -C build
+    - name: Test suite
+      run: meson test -v -C build
