@@ -1,0 +1,22 @@
+name: netchan CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v3
+    - name: Install Python Dependencies
+      run: pip install meson ninja
+    - name: configure
+      run: meson build
+    - name: make
+      run: meson compile -v -C build
