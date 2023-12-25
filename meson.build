@@ -75,6 +75,14 @@ executable(
 	dependencies: deps,
    link_with : netchan)
 
+executable(
+   'manychan',
+   'examples/manychan.c',
+   include_directories: include_directories('include'),
+   build_by_default: true,
+	dependencies: deps,
+   link_with : netchan)
+
 # includes netchan.c directly to test internals
 t_pdu = executable('testpdu',
 		   'test/test_pdu.c',

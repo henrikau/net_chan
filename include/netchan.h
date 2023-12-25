@@ -662,6 +662,8 @@ int nh_remove_rx(struct channel *ch);
  */
 void nh_destroy(struct nethandler **nh);
 
+void nh_list_active_channels(struct nethandler *nh);
+
 /**
  * get_class_delay_ns(): get the correct delay offset for the current class
  *
