@@ -1,5 +1,5 @@
 #pragma once
-#include <netchan.h>
+#include <netchan_standalone.h>
 #define INT_10HZ 100000000L
 #define INT_50HZ  20000000L
 
