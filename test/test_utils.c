@@ -154,6 +154,19 @@ static void test_pt_tai_offset(void)
 	uint64_t diff = checkpoint();
 
 	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, 60*NS_IN_MS, diff);
+
+	// Adding this will cause the test to fail as we sleep outside
+	// of periodic timer
+	//
+	// usleep(500000);
+	checkpoint();
+	int iters = 20;
+	for (int i = 0; i < iters; i++) {
+		printf("."); fflush(stdout);
+		TEST_ASSERT(pt_next_cycle(pt) == 0);
+	}
+	diff = checkpoint();
+	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, iters*10*NS_IN_MS, diff);
 }
 
 int main(int argc, char *argv[])
