@@ -269,12 +269,6 @@ int main(int argc, char *argv[])
 	printf("%s(): All ready, starting man capture\n", __func__);
 	log_reset(nh->logger);
 
-	/* After resetting log, hopefully all other entities are doing
-	 * the same after resetting the log so we don't drop any valid
-	 * frames
-	 */
-	usleep(500000);
-
 	/* Sending periodic signals */
 	while (iterations != 0 && running) {
 		iterations--;
