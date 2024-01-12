@@ -33,23 +33,18 @@ static std::string nic = "enp7s0";
 static int loops = 1000;
 static bool running(false);
 
-netchan::NetChanRx *rx;
 netchan::NetChanTx *tx;
 
 void sighandler(int signum)
 {
-    if (running)
-        rx->stop();
-
     running = false;
     printf("%s(): Got signal (%d), closing\n", __func__, signum);
     fflush(stdout);
 }
 
-
 int main(int argc, char *argv[])
 {
-    bool use_srp = false;
+    struct channel_attrs attr = nc_channels[IDX_17];
     std::string logfile;
     po::options_description desc("Talker options");
     desc.add_options()
@@ -58,7 +53,8 @@ int main(int argc, char *argv[])
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
         ("loops,l", po::value<int>(&loops), "Number of iterations (default 1000)")
         ("log,L", po::value<std::string>(&logfile), "Log to file")
-        ("use_srp,S", "Run with SRP enabled")
+        ("stream_id", po::value<uint64_t>(&attr.stream_id), "Use different StreamID (base10)")
+        ("use_srp,S", "Enable SRP")
         ;
 
     po::variables_map vm;
@@ -68,8 +64,7 @@ int main(int argc, char *argv[])
         std::cout << desc << std::endl;
         exit(0);
     }
-    if (vm.count("use_srp"))
-        use_srp = true;
+    bool use_srp = vm.count("use_srp");
 
     std::cout << "Using NIC " << nic << ", running for " << loops << " iterations" << std::endl;
 
@@ -77,8 +72,8 @@ int main(int argc, char *argv[])
     if (vm.count("verbose"))
         nh.verbose();
 
-    tx = new netchan::NetChanTx(nh, &nc_channels[IDX_17]);
-    rx = new netchan::NetChanRx(nh, &nc_channels[IDX_18]);
+
+    tx = new netchan::NetChanTx(nh, &attr);
     struct periodic_timer *pt = pt_init(0, HZ_100, CLOCK_TAI);
 
     uint64_t ts = 0;
@@ -89,13 +84,6 @@ int main(int argc, char *argv[])
         if (!tx->send(&ts))
             break;
 
-        if (!rx->read_wait(&ts)) {
-            printf("rx read failed\n");
-            break;
-        }
-
-        if (ts == -1)
-            break;
         pt_next_cycle(pt);
     }
 
@@ -103,9 +91,7 @@ int main(int argc, char *argv[])
     ts = -1;
     tx->send(&ts);
 
-    // rx->stop();
     tx->stop();
-    delete rx;
     delete tx;
     return 0;
 }

@@ -4,6 +4,8 @@
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not distributed
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ *
+ * This implements a *one-way* listener
  */
 
 // This file is not included in the meson build script (meson does not
@@ -29,7 +31,6 @@
 static std::string nic = "enp7s0";
 static bool running(false);
 netchan::NetChanRx *rx;
-netchan::NetChanTx *tx;
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
@@ -42,6 +43,14 @@ void sighandler(int signum)
         rx->stop();
 }
 
+
+/*
+ * Very rough rate estimator.
+ *
+ * Run every 1sec and count received packets. Only used to give an
+ * indication that the listener is actually working and that the
+ * received rate is as expected.
+ */
 static int rx_ctr = 0;
 void async_rx_ctr(void)
 {
@@ -71,6 +80,7 @@ void async_rx_ctr(void)
 int main(int argc, char *argv[])
 {
     std::string logfile;
+    struct channel_attrs attr = nc_channels[IDX_17];
 
     po::options_description desc("Talker options");
     desc.add_options()
@@ -78,32 +88,34 @@ int main(int argc, char *argv[])
         ("verbose,v", "Increase logging output")
         ("interface,i", po::value<std::string>(&nic), "Change network interface")
         ("log,L", po::value<std::string>(&logfile), "Log to file")
-        ("use_srp,S", "Run with SRP enabled")
+        ("stream_id", po::value<uint64_t>(&attr.stream_id), "Use different StreamID (base10)")
+        ("use_srp,S", "Enable SRP")
          ;
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
+    bool use_srp = vm.count("use_srp");
+
     if (vm.count("help")) {
         std::cout << desc << std::endl;
         exit(0);
     }
+
     std::cout << "Using NIC " << nic << std::endl;
-    bool use_srp = false;
-    if (vm.count("use_srp"))
-        use_srp = true;
 
     netchan::NetHandler nh(nic, logfile, use_srp);
     if (vm.count("verbose"))
         nh.verbose();
 
-    rx = new netchan::NetChanRx(nh, &nc_channels[IDX_17]);
-    tx = new netchan::NetChanTx(nh, &nc_channels[IDX_18]);
+    rx = new netchan::NetChanRx(nh, &attr);
 
     uint64_t recv_ts = 0;
     running = true;
     signal(SIGINT, sighandler);
 
+    // Rx rate estimator
     std::thread th_rate { [&] { async_rx_ctr(); }};
+
     uint64_t start, end;
     while (running) {
         if (rx->read(&recv_ts)) {
@@ -116,28 +128,19 @@ int main(int argc, char *argv[])
                 continue;
             }
 
-            uint64_t rx_ts = tai_get_ns();
-            if (!tx->send_wait(&recv_ts))
-                break;
-        } else {
-            printf("Read failed\n");
-            running = false;
         }
     }
     end = tai_get_ns();
-
     running = false;
+
+    // wait for async_ctr
     th_rate.join();
-    // Signal other end that we're closing down
-    recv_ts = -1;
-    tx->send(&recv_ts);
 
     rx->stop();
-    tx->stop();
-    delete rx;
-    delete tx;
 
     printf("Run complete, received %d frames in %f secs\n",
            rx_ctr, (double)(end-start)/1e9);
+
+    delete rx;
     return 0;
 }
