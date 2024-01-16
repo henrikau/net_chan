@@ -94,7 +94,8 @@ int nh_create_init_standalone(void)
 		nh_set_verbose(_nh, verbose);
 		nh_set_srp(_nh, do_srp);
 		nh_set_trace_breakval(_nh, break_us);
-		nh_set_tx_prio(_nh, tx_sock_prio);
+		if (!nh_set_tx_prio(_nh, tx_sock_prio))
+			return -1;
 	}
 	return 0;
 }

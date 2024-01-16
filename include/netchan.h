@@ -638,10 +638,14 @@ void nh_set_trace_breakval(struct nethandler *nh, int break_us);
  * the correct mqprio socket, *not* the SRP priority for a given stream
  * class.
  *
+ * The prio will be used for all sockets and must be called *before* any
+ * Tx sockets are created. Once there are active Tx-sockets, it will not
+ * be possible to change the priority.
+ *
  * @param: nh nethandler container
  * @param: tx_prio int socket priority
  */
-void nh_set_tx_prio(struct nethandler *nh, int tx_prio);
+bool nh_set_tx_prio(struct nethandler *nh, int tx_prio);
 
 /**
  * nh_remove_(tx|rx) - remove channel

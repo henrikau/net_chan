@@ -1278,11 +1278,18 @@ void nh_set_trace_breakval(struct nethandler *nh, int break_us)
 	nh->ftrace_break_us = break_us;
 }
 
-void nh_set_tx_prio(struct nethandler *nh, int tx_prio)
+bool nh_set_tx_prio(struct nethandler *nh, int tx_prio)
 {
 	if (!nh || tx_prio < 0 || tx_prio > 8)
-		return;
+		return false;
+
+	/* Do not allow updating Tx socket prio once we have sockets
+	 * using the old prio
+	 */
+	if (nh_get_num_tx(nh) > 0)
+		return false;
 	nh->tx_sock_prio = tx_prio;
+	return true;
 }
 
 void nh_destroy(struct nethandler **nh)

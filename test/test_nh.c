@@ -303,6 +303,30 @@ static void test_sc_values(void)
 	TEST_ASSERT_EQUAL_MESSAGE(2*NS_IN_MS, CLASS_A, "Class A should have default value 2 ms");
 	TEST_ASSERT_EQUAL_MESSAGE(50*NS_IN_MS, CLASS_B, "Class B should have default value 50 ms");
 }
+
+
+static void test_invalid_txprio(void)
+{
+	TEST_ASSERT(nh_set_tx_prio(nh, 0));
+	TEST_ASSERT(!nh_set_tx_prio(NULL, 1));
+	TEST_ASSERT(!nh_set_tx_prio(nh, -1));
+	TEST_ASSERT(!nh_set_tx_prio(nh, 9));
+
+	/* Set a valid Tx prio */
+	TEST_ASSERT(nh_get_num_tx(nh) == 0);
+	TEST_ASSERT(nh_set_tx_prio(nh, 3));
+	/* create a channel. It should no longer be possible to change Tx-prio */
+	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43]);
+
+	TEST_ASSERT(nh_get_num_tx(nh) == 1);
+	TEST_ASSERT_MESSAGE(!nh_set_tx_prio(nh, 3), "It should not be possible to change Tx prio once a Tx socket has been created.");
+
+	/* Once the channel is gone, changing Tx prio should be possible */
+	TEST_ASSERT(nh_remove_tx(ch1) == 0);
+	TEST_ASSERT(nh_get_num_tx(nh) == 0);
+	TEST_ASSERT_MESSAGE(nh_set_tx_prio(nh, 3), "It should be possible to change Tx prio once all tx-sockets are gone.");
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -318,6 +342,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_nh_add_remove_tx_chan);
 	RUN_TEST(test_nh_add_remove_rx_chan);
 	RUN_TEST(test_sc_values);
+	RUN_TEST(test_invalid_txprio);
 
 	return UNITY_END();
 }
