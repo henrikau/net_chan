@@ -38,6 +38,11 @@ public:
             nh_destroy(&nh);
     };
 
+    bool set_tx_prio(int tx_prio)
+    {
+        return nh_set_tx_prio(nh, tx_prio);
+    }
+
     struct channel * new_tx_channel(struct channel_attrs *attrs)
     {
         if (!valid)

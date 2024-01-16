@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
 {
     struct channel_attrs attr = nc_channels[IDX_17];
     std::string logfile;
+    int tx_prio = -1;
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
@@ -54,6 +55,7 @@ int main(int argc, char *argv[])
         ("loops,l", po::value<int>(&loops), "Number of iterations (default 1000)")
         ("log,L", po::value<std::string>(&logfile), "Log to file")
         ("stream_id", po::value<uint64_t>(&attr.stream_id), "Use different StreamID (base10)")
+        ("tx_prio", po::value<int>(&tx_prio), "Use different Tx-prio than the default.")
         ("use_srp,S", "Enable SRP")
         ;
 
@@ -71,7 +73,12 @@ int main(int argc, char *argv[])
     netchan::NetHandler nh(nic, logfile, use_srp);
     if (vm.count("verbose"))
         nh.verbose();
-
+    if (vm.count("tx_prio")) {
+        if (!nh.set_tx_prio(tx_prio)) {
+            std::cerr << "Failed setting Tx-prio for handler" << std::endl;
+            return -1;
+        }
+    }
 
     tx = new netchan::NetChanTx(nh, &attr);
     struct periodic_timer *pt = pt_init(0, HZ_100, CLOCK_TAI);
