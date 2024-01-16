@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-bool nc_srp_client_setup(struct channel *pdu)
+static bool nc_srp_client_setup(struct channel *pdu)
 {
 	pdu->ctx = malloc(sizeof(*pdu->ctx));
 	pdu->class_a = malloc(sizeof(*pdu->class_a));
@@ -15,8 +15,7 @@ bool nc_srp_client_setup(struct channel *pdu)
 		return false;
 	}
 
-
-	return true;
+	return mrp_ctx_init(pdu->ctx) == 0;
 }
 
 static bool _set_socket_prio(struct channel *pdu)
@@ -44,21 +43,43 @@ static bool _set_socket_prio(struct channel *pdu)
 
 bool nc_srp_client_listener_setup(struct channel *pdu)
 {
-	if (create_socket(pdu->ctx) < 0) {
-		fprintf(stderr, "Failed creating MRP CTX socket\n");
+	if (!nc_srp_client_setup(pdu)) {
+		fprintf(stderr, "%s(): Failed SRP Client Common setup\n", __func__);
 		return false;
 	}
 
+	if (create_socket(pdu->ctx) < 0) {
+ 		fprintf(stderr, "Failed creating MRP CTX socket\n");
+ 		return false;
+ 	}
+
+	/* FIXME:
+	 *
+	 * Is this optimal for a single listener thread, or can
+	 * it handle multiple threads for when we have several Rx
+	 * channels? */
 	if (mrp_listener_monitor(pdu->ctx) != 0) {
 		fprintf(stderr, "Failed creating MRP listener monitor\n");
 		return false;
 	}
 
-	printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
-		__func__,
-		pdu->class_a->priority,
-		pdu->class_b->priority,
-		pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
+	int res = mrp_get_domain(pdu->ctx, pdu->class_a, pdu->class_b);
+	if (res == -1) {
+		fprintf(stderr, "%s(): mrp_get_domaion() failed (%d; %s)\n",
+			__func__, errno, strerror(errno));
+		return false;
+	}
+
+	if (pdu->nh->verbose) {
+		printf("\n%s(): domain PCP_A=%d VID=0x%04x, PCP_B=%d VID=0x%04x, stream_class: %s\n",
+			__func__,
+			pdu->class_a->priority,
+			pdu->class_a->vid,
+			pdu->class_b->priority,
+			pdu->class_b->vid,
+			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
+	}
+
 
 	report_domain_status(pdu->class_a, pdu->ctx);
 	mrp_join_vlan(pdu->class_a, pdu->ctx);
@@ -68,36 +89,30 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 
 bool nc_srp_client_talker_setup(struct channel *pdu)
 {
-	int res = mrp_ctx_init(pdu->ctx);
-	if (res == -1) {
-		fprintf(stderr, "%s(): CTX init failed (%d; %s)\n",
-			__func__, errno, strerror(errno));
+	if (!nc_srp_client_setup(pdu)) {
+		fprintf(stderr, "%s(): Failed SRP Client Common setup\n", __func__);
 		return false;
 	}
 
-	res = mrp_connect(pdu->ctx);
-	if (res == -1) {
+	if (mrp_connect(pdu->ctx) == -1) {
 		fprintf(stderr, "%s(): mrp_connect() failed (%d; %s)\n",
 			__func__, errno, strerror(errno));
 		return false;
 	}
 
-	res = mrp_get_domain(pdu->ctx, pdu->class_a, pdu->class_b);
-	if (res == -1) {
+	if (mrp_get_domain(pdu->ctx, pdu->class_a, pdu->class_b) == -1) {
 		fprintf(stderr, "%s(): mrp_get_domaion() failed (%d; %s)\n",
 			__func__, errno, strerror(errno));
 		return false;
 	}
 
-	res = mrp_register_domain(pdu->class_a, pdu->ctx);
-	if (res == -1) {
+	if (mrp_register_domain(pdu->class_a, pdu->ctx) == -1) {
 		fprintf(stderr, "%s(): register-domain failed (%d; %s)\n",
 			__func__, errno, strerror(errno));
 		return false;
 	}
 
-	res = mrp_join_vlan(pdu->class_a, pdu->ctx);
-	if (res == -1) {
+	if (mrp_join_vlan(pdu->class_a, pdu->ctx) == -1) {
 		fprintf(stderr, "%s(): join VLAN failed (%d; %s)\n",
 			__func__, errno, strerror(errno));
 		return false;
@@ -125,19 +140,23 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	 */
 	int pktsz = pdu->full_size;
 	int interval = 125000/125000;
-	res = mrp_advertise_stream(pdu->sidw.s8, pdu->dst,
-				pktsz,
-				interval,
-				3900, pdu->ctx);
+	if (mrp_advertise_stream(pdu->sidw.s8, pdu->dst,
+					pktsz,
+					interval,
+					3900, pdu->ctx) == -1) {
+		fprintf(stderr, "%s(): advertising stream FAILED (%d : %s)\n",
+			__func__, errno, strerror(errno));
+		return false;
+	}
 
 	/*
 	 * WARNING: mrp-awai_listener BLOCKS
 	 *
 	 * If netchan is aborted at this stage, the stream will not be torn down!
 	 */
-	res = mrp_await_listener(pdu->sidw.s8, pdu->ctx);
-	if (res) {
-		printf("%s(): mrp_await_listener failed\n", __func__);
+	if (mrp_await_listener(pdu->sidw.s8, pdu->ctx) == -1) {
+		fprintf(stderr, "%s(): mrp_await_listener failed (%d : %s)\n",
+			__func__, errno, strerror(errno));
 		return false;
 	}
 	return true;

@@ -247,10 +247,6 @@ static struct channel * _chan_create(struct nethandler *nh,
 	ch->fd_r = pfd[0];
 	ch->fd_w = pfd[1];
 
-	/* SRP common setup */
-	if (nh->use_srp)
-		nc_srp_client_setup(ch);
-
 	return ch;
 }
 

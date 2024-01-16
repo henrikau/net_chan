@@ -8,8 +8,6 @@ extern "C" {
 /**
  * srp_client_setup() SRP setup helpers
  */
-bool nc_srp_client_setup(struct channel *pdu);
-
 bool nc_srp_client_talker_setup(struct channel *pdu);
 bool nc_srp_client_listener_setup(struct channel *pdu);
 
