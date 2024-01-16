@@ -212,7 +212,17 @@ static void test_nh_standalone_create(void)
 	TEST_ASSERT_NULL(_nh);
 	TEST_ASSERT(nh_create_init_standalone() == 0);
 	TEST_ASSERT_NOT_NULL(_nh);
-	TEST_ASSERT(nh_create_init_standalone() == -1);
+
+	/* make sure default values have been set */
+	TEST_ASSERT(!_nh->verbose);
+	TEST_ASSERT(!_nh->use_srp);
+	TEST_ASSERT(_nh->ftrace_break_us == -1);
+
+
+	/* make sure default values have not been changed set */
+	nh_set_trace_breakval(_nh, 50000);
+	TEST_ASSERT(nh_create_init_standalone() == 0);
+	TEST_ASSERT(_nh->ftrace_break_us == 50000);
 }
 
 static void test_nh_standalone_destroy(void)

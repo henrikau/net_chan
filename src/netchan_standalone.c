@@ -85,18 +85,18 @@ int nc_rx_create(char *name, struct channel_attrs *attrs, int sz)
 
 int nh_create_init_standalone(void)
 {
-	/* avoid double-create */
-	if (_nh != NULL)
-		return -1;
-	_nh = nh_create_init(nc_nic, nc_hmap_size, nc_logfile);
-	if (_nh)
-		return 0;
-	nh_set_verbose(_nh, verbose);
-	nh_set_srp(_nh, do_srp);
-	nh_set_trace_breakval(_nh, break_us);
-	nh_set_tx_prio(_nh, tx_sock_prio);
-
-	return -1;
+	/* Make sure we have _nh, but only initialize it *once*
+	 */
+	if (!_nh) {
+		_nh = nh_create_init(nc_nic, nc_hmap_size, nc_logfile);
+		if (!_nh)
+			return -1;
+		nh_set_verbose(_nh, verbose);
+		nh_set_srp(_nh, do_srp);
+		nh_set_trace_breakval(_nh, break_us);
+		nh_set_tx_prio(_nh, tx_sock_prio);
+	}
+	return 0;
 }
 
 void nh_destroy_standalone()
