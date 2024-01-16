@@ -80,6 +80,12 @@ int main(int argc, char *argv[])
         }
     }
 
+    // When we allow for changing the streamID, we should also adapt the
+    // destination group somewhat.
+    // Updating the entire address is overkill, but at least avoid basic
+    // collisions when we run multiple talkers on the same network.
+    attr.dst[5]= ((uint8_t *)&attr.stream_id)[0];
+
     tx = new netchan::NetChanTx(nh, &attr);
     struct periodic_timer *pt = pt_init(0, HZ_100, CLOCK_TAI);
 

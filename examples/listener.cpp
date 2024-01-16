@@ -100,12 +100,17 @@ int main(int argc, char *argv[])
         std::cout << desc << std::endl;
         exit(0);
     }
-
     std::cout << "Using NIC " << nic << std::endl;
 
     netchan::NetHandler nh(nic, logfile, use_srp);
     if (vm.count("verbose"))
         nh.verbose();
+
+    // When we allow for changing the streamID, we should also adapt the
+    // destination group somewhat.
+    // Updating the entire address is overkill, but at least avoid basic
+    // collisions when we run multiple talkers on the same network.
+    attr.dst[5]= ((uint8_t *)&attr.stream_id)[0];
 
     rx = new netchan::NetChanRx(nh, &attr);
 
