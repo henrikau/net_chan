@@ -138,6 +138,7 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	 *
 	 * 125000/125000 := 1
 	 */
+retry:
 	int pktsz = pdu->full_size;
 	int interval = 125000/125000;
 	if (mrp_advertise_stream(pdu->sidw.s8, pdu->dst,
@@ -150,11 +151,18 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	}
 
 	/*
-	 * WARNING: mrp-await_listener BLOCKS
+	 * WARNING: mrp-await_listener BLOCKS (with an iter counter).
+	 *
+	 * If it returns -2, no new listener was found, so resend the
+	 * announce as the switch may not reply it
 	 *
 	 * If netchan is aborted at this stage, the stream will not be torn down!
 	 */
-	if (mrp_await_listener(pdu->sidw.s8, pdu->ctx) == -1) {
+	int res = mrp_await_listener(pdu->sidw.s8, pdu->ctx, 1000);
+	if (res == -2) {
+		printf("[TIMEOUT] No listener found, re-advertising\n");
+		goto retry;
+	} else if (res == -1) {
 		fprintf(stderr, "%s(): mrp_await_listener failed (%d : %s)\n",
 			__func__, errno, strerror(errno));
 		return false;

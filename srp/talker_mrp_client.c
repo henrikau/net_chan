@@ -413,7 +413,7 @@ mrp_unadvertise_stream(uint8_t * streamid,
 }
 
 
-int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx)
+int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx, int iters)
 {
 	char *msgbuf;
 	int rc;
@@ -425,13 +425,18 @@ int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx)
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S??");
 	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
+	printf("%s() -> %s\n", msgbuf);
 	free(msgbuf);
 	if (rc != 1500)
 		return -1;
 
 	/* either already there ... or need to wait ... */
-	while (!ctx->halt_tx && (ctx->listeners == 0))
+	while (!ctx->halt_tx && (ctx->listeners == 0) && iters > 0) {
 		usleep(20000);
-
+		iters--;
+	}
+	if (ctx->listeners == 0)
+		return -2;
+	printf("Got listener, ready to continue!\n");
 	return 0;
 }
