@@ -80,9 +80,17 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 	}
 
+	if (report_domain_status(pdu->class_a, pdu->ctx) == -1) {
+		fprintf(stderr, "%s(): unable to report domain status! (%d; %s)\n",
+			__func__, errno, strerror(errno));
+		return false;
+	}
 
-	report_domain_status(pdu->class_a, pdu->ctx);
-	mrp_join_vlan(pdu->class_a, pdu->ctx);
+	if (mrp_join_vlan(pdu->class_a, pdu->ctx) == -1) {
+		fprintf(stderr, "%s(): join VLAN failed (%d; %s)\n",
+			__func__, errno, strerror(errno));
+		return false;
+	}
 
 	return true;
 }
@@ -94,6 +102,7 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 		return false;
 	}
 
+	/* This forks out a thread to monitor incoming messages */
 	if (mrp_connect(pdu->ctx) == -1) {
 		fprintf(stderr, "%s(): mrp_connect() failed (%d; %s)\n",
 			__func__, errno, strerror(errno));
@@ -104,6 +113,15 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 		fprintf(stderr, "%s(): mrp_get_domaion() failed (%d; %s)\n",
 			__func__, errno, strerror(errno));
 		return false;
+	}
+	if (pdu->nh->verbose) {
+		printf("\n%s(): domain PCP_A=%d VID=0x%04x, PCP_B=%d VID=0x%04x, stream_class: %s\n",
+			__func__,
+			pdu->class_a->priority,
+			pdu->class_a->vid,
+			pdu->class_b->priority,
+			pdu->class_b->vid,
+			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 	}
 
 	if (mrp_register_domain(pdu->class_a, pdu->ctx) == -1) {
