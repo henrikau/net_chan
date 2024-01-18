@@ -41,8 +41,7 @@ volatile int mrp_error = 0;;
 pthread_t monitor_thread;
 pthread_attr_t monitor_attr;
 
-
-
+/* FIXME: this *really* ought to be cleaned up! */
 int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 {
 
@@ -59,15 +58,22 @@ int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 	k = 0;
  next_line:if (k >= buflen)
 		return 0;
+
+	if (ctx->verbose)
+		printf("<- %s\n", buf);
+
 	switch (buf[k]) {
 	case 'E':
-		printf("%s from mrpd\n", buf);
+		printf("[ERROR] %s from mrpd\n", buf);
 		fflush(stdout);
 		mrp_error = 1;
 		break;
 	case 'O':
+		/* mrp_okay is no longer actively used, but it indicates
+		 * a state we should(?) keep track of
+		 */
 		mrp_okay = 1;
-		break;
+		// break;
 	case 'M':
 	case 'V':
 		/* printf("%s unhandled from mrpd\n", buf); */
@@ -89,35 +95,38 @@ int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 		for (j = 0; j < 8; j++) {
 			sscanf(&(buf[i + 2 * j]), "%02x", &id);
 			recovered_streamid[j] = (unsigned char)id;
-		} printf
-		    ("FOUND STREAM ID=%02x%02x%02x%02x%02x%02x%02x%02x ",
-		     recovered_streamid[0], recovered_streamid[1],
-		     recovered_streamid[2], recovered_streamid[3],
-		     recovered_streamid[4], recovered_streamid[5],
-		     recovered_streamid[6], recovered_streamid[7]);
-		switch (substate) {
-		case 0:
-			printf("with state ignore\n");
-			break;
-		case 1:
-			printf("with state askfailed\n");
-			break;
-		case 2:
-			printf("with state ready\n");
-			break;
-		case 3:
-			printf("with state readyfail\n");
-			break;
-		default:
-			printf("with state UNKNOWN (%d)\n", substate);
-			break;
+		} 
+		if (ctx->verbose) {
+			printf("FOUND STREAM ID=%02x%02x%02x%02x%02x%02x%02x%02x ",
+				recovered_streamid[0], recovered_streamid[1],
+				recovered_streamid[2], recovered_streamid[3],
+				recovered_streamid[4], recovered_streamid[5],
+				recovered_streamid[6], recovered_streamid[7]);
+			switch (substate) {
+			case 0:
+				printf("with state ignore\n");
+				break;
+			case 1:
+				printf("with state askfailed\n");
+				break;
+			case 2:
+				printf("with state ready\n");
+				break;
+			case 3:
+				printf("with state readyfail\n");
+				break;
+			default:
+				printf("with state UNKNOWN (%d)\n", substate);
+				break;
+			}
 		}
 		if (substate > MSRP_LISTENER_ASKFAILED) {
 			if (memcmp
 			    (recovered_streamid, ctx->monitor_stream_id,
 			     sizeof(recovered_streamid)) == 0) {
-				ctx->listeners = 1;
-				printf("added listener\n");
+				ctx->listeners++;
+				if (ctx->verbose)
+					printf("added listener\n");
 			}
 		}
 		fflush(stdout);
@@ -195,42 +204,47 @@ int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 			for (j = 0; j < 8; j++) {
 				sscanf(&(buf[i + 2 * j]), "%02x", &id);
 				recovered_streamid[j] = (unsigned char)id;
-			} printf
-			    ("EVENT on STREAM ID=%02x%02x%02x%02x%02x%02x%02x%02x ",
-			     recovered_streamid[0], recovered_streamid[1],
-			     recovered_streamid[2], recovered_streamid[3],
-			     recovered_streamid[4], recovered_streamid[5],
-			     recovered_streamid[6], recovered_streamid[7]);
-			switch (substate) {
-			case 0:
-				printf("with state ignore\n");
-				break;
-			case 1:
-				printf("with state askfailed\n");
-				break;
-			case 2:
-				printf("with state ready\n");
-				break;
-			case 3:
-				printf("with state readyfail\n");
-				break;
-			default:
-				printf("with state UNKNOWN (%d)\n", substate);
-				break;
+			} 
+			if (ctx->verbose) {
+				printf("EVENT on STREAM ID=%02x%02x%02x%02x%02x%02x%02x%02x ",
+					recovered_streamid[0], recovered_streamid[1],
+					recovered_streamid[2], recovered_streamid[3],
+					recovered_streamid[4], recovered_streamid[5],
+					recovered_streamid[6], recovered_streamid[7]);
+				switch (substate) {
+				case 0:
+					printf("with state ignore\n");
+					break;
+				case 1:
+					printf("with state askfailed\n");
+					break;
+				case 2:
+					printf("with state ready\n");
+					break;
+				case 3:
+					printf("with state readyfail\n");
+					break;
+				default:
+					printf("with state UNKNOWN (%d)\n", substate);
+					break;
+				}
 			}
 			switch (buf[k + 1]) {
 			case 'L':
-				printf("got a leave indication\n");
+				if (ctx->verbose)
+					printf("got a leave indication\n");
 				if (memcmp
 				    (recovered_streamid, ctx->monitor_stream_id,
 				     sizeof(recovered_streamid)) == 0) {
-					ctx->listeners = 0;
-					printf("listener left\n");
+					ctx->listeners--;
+					if (ctx->verbose)
+						printf("%s(): listener left\n", __func__);
 				}
 				break;
 			case 'J':
 			case 'N':
-				printf("got a new/join indication\n");
+				if (ctx->verbose)
+					printf("got a new/join indication\n");
 				if (substate > MSRP_LISTENER_ASKFAILED) {
 					if (memcmp
 					    (recovered_streamid,
@@ -340,7 +354,8 @@ int mrp_register_domain(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx)
 {
 	char msgbuf[64] = {0};
 	snprintf(msgbuf, sizeof(msgbuf), "S+D:C=%d,P=%d,V=%04x", reg_class->id, reg_class->priority, reg_class->vid);
-	printf("%s(): %s\n", __func__, msgbuf);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, msgbuf);
 	mrp_okay = 0;
 	return mrp_send_msg(msgbuf, strlen(msgbuf)+1, ctx->control_socket);
 }
@@ -372,6 +387,8 @@ mrp_advertise_stream(uint8_t * streamid,
 		interval, ctx->domain_class_a_priority << 5, latency);
 	mrp_okay = 0;
 	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, msgbuf);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -404,6 +421,8 @@ mrp_unadvertise_stream(uint8_t * streamid,
 		interval, ctx->domain_class_a_priority << 5, latency);
 	mrp_okay = 0;
 	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, msgbuf);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -425,7 +444,8 @@ int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx, int iters)
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S??");
 	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
-	printf("%s() -> %s\n", msgbuf);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, msgbuf);
 	free(msgbuf);
 	if (rc != 1500)
 		return -1;
@@ -437,6 +457,7 @@ int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx, int iters)
 	}
 	if (ctx->listeners == 0)
 		return -2;
-	printf("Got listener, ready to continue!\n");
+	if (ctx->verbose)
+		printf("Got listener, ready to continue!\n");
 	return 0;
 }

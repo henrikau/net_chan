@@ -15,7 +15,7 @@ static bool nc_srp_client_setup(struct channel *pdu)
 		return false;
 	}
 
-	return mrp_ctx_init(pdu->ctx) == 0;
+	return mrp_ctx_init(pdu->ctx, pdu->nh->verbose) == 0;
 }
 
 static bool _nc_set_class_pcp(struct channel *pdu)
@@ -32,11 +32,13 @@ static bool _nc_set_class_pcp(struct channel *pdu)
 		return false;
 	}
 
-	printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
-		__func__,
-		pdu->class_a->priority,
-		pdu->class_b->priority,
-		pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
+	if (pdu->nh->verbose) {
+		printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
+			__func__,
+			pdu->class_a->priority,
+			pdu->class_b->priority,
+			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
+	}
 
 	return true;
 }

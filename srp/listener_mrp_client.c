@@ -22,13 +22,14 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 #include <srp/mrp_client.h>
-
 int msg_process(char *buf, int buflen, struct mrp_ctx *ctx)
 {
 	uint32_t id;
 	int j, l=0;
 	unsigned int vid;
 	unsigned int priority;
+	if (ctx->verbose)
+		printf("<- %s\n", buf);
 
 	if (strncmp(buf, "SNE T:", 6) == 0 || strncmp(buf, "SJO T:", 6) == 0)
 	{
@@ -177,6 +178,8 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 	memset(msgbuf, 0, 1500);
 	sprintf(msgbuf, "S+D:C=%d,P=%d,V=%04x", class_a->id, class_a->priority, class_a->vid);
 	rc = mrp_send_msg(msgbuf, 1500, ctx->control_socket);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, msgbuf);
 	free(msgbuf);
 
 	if (rc != 1500)
@@ -207,6 +210,8 @@ int send_ready(struct mrp_ctx *ctx)
 		     ctx->stream_id[4], ctx->stream_id[5],
 		     ctx->stream_id[6], ctx->stream_id[7]);
 	rc = mrp_send_msg(databuf, 1500, ctx->control_socket);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, databuf);
 	free(databuf);
 
 	if (rc != 1500)
@@ -230,6 +235,8 @@ int send_leave(struct mrp_ctx *ctx)
 		     ctx->stream_id[4], ctx->stream_id[5],
 		     ctx->stream_id[6], ctx->stream_id[7]);
 	rc = mrp_send_msg(databuf, 1500, ctx->control_socket);
+	if (ctx->verbose)
+		printf("-> %s() %s\n", __func__, databuf);
 	free(databuf);
 
 	if (rc != 1500)

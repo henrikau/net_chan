@@ -38,6 +38,7 @@ extern "C" {
 #include <string.h>
 #include <pthread.h>
 #include <poll.h>
+#include <stdbool.h>
 
 #include <srp/mrpd.h>
 #include <srp/mrp.h>
@@ -45,6 +46,7 @@ extern "C" {
 
 struct mrp_ctx
 {
+	int verbose;
 	int control_socket;
 	volatile int halt_tx;
 	volatile int domain_a_valid;
@@ -78,7 +80,8 @@ struct mrp_domain_attr
 };
 
 /* common */
-int mrp_ctx_init(struct mrp_ctx *ctx);
+int mrp_ctx_init(struct mrp_ctx *ctx, bool verbose);
+
 int mrp_send_msg(char *data, int len, int control_socket);
 int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx);
 int mrp_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b);

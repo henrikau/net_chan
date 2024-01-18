@@ -1,11 +1,12 @@
 #include <errno.h>
 #include <srp/mrp_client.h>
-int mrp_ctx_init(struct mrp_ctx *ctx)
+int mrp_ctx_init(struct mrp_ctx *ctx, bool verbose)
 {
 	if (!ctx)
 		return -1;
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->control_socket = -1;
+	ctx->verbose = verbose;
 	return 0;
 }
 
@@ -62,7 +63,10 @@ int mrp_get_domain(struct mrp_ctx *ctx,
 	 */
 	while (!ctx->halt_tx && (ctx->domain_a_valid == 0) && (ctx->domain_b_valid == 0)) {
 		usleep(20000);
-		printf("."); fflush(stdout);
+		if (ctx->verbose) {
+			printf(".");
+			fflush(stdout);
+		}
 	}
 
 	if (ctx->halt_tx)
