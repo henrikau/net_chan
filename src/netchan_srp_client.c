@@ -150,7 +150,7 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	}
 
 	/*
-	 * WARNING: mrp-awai_listener BLOCKS
+	 * WARNING: mrp-await_listener BLOCKS
 	 *
 	 * If netchan is aborted at this stage, the stream will not be torn down!
 	 */
