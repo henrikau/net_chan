@@ -18,7 +18,7 @@ static bool nc_srp_client_setup(struct channel *pdu)
 	return mrp_ctx_init(pdu->ctx) == 0;
 }
 
-static bool _set_socket_prio(struct channel *pdu)
+static bool _nc_set_class_pcp(struct channel *pdu)
 {
 	switch (pdu->sc) {
 	case CLASS_A:
@@ -119,7 +119,7 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	}
 
 	/* we now have the priorites for class A and B */
-	if (!_set_socket_prio(pdu))
+	if (!_nc_set_class_pcp(pdu))
 		return false;
 
 	/*
