@@ -187,6 +187,12 @@ struct channel
 	enum stream_class sc;
 	int socket_prio;	/* Active priority (PCP) for this channel */
 
+
+	/* If a channel is ready for use or not. Relevant when using SRP
+	 * since we have to wait for the other end to become ready.
+	 */
+	bool ready;
+
 	/*
 	 * Each outgoing stream has its own socket, with corresponding
 	 * SRP attributes etc.
@@ -337,6 +343,9 @@ int nc_rx_create(char *name, struct channel_attrs *attrs, int arr_size);
  *    UPDATE -> SEND
  * DESTROY
  *
+ * WARNING: when SRP is enabled, this function will BLOCK until at least
+ * one valid listener (corresponding Rx channel) is found!
+ *
  * @param nh nethandler container
  * @param attrs channel attributes
  *
@@ -357,12 +366,31 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
  *    READ -> CONSUME
  * DESTROY
  *
+ * WARNING: when SRP is enabled, this function will BLOCK until a valid
+ * talker (corresponding Tx channel) is found!
+ *
  * @param nh nethandler container
  * @param attrs netfiro channel attributes
  *
  * @returns new channel or NULL on error
  */
 struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs);
+
+/**
+ * chan_ready(): test to see if the channel is ready for use
+ *
+ * This is mostly relevant when using SRP as chan_create_(r|t)x() will
+ * block awaiting for the other end of the channel. A common approach
+ * will be to create the channel asynchronously and wait for all
+ * channels to become ready.
+ *
+ * As long as a channel is not ready, neither chan_send() nor
+ * chan_read() will succeed.
+ *
+ * @param channel container
+ * @return true if channel ready, false otherwise
+ */
+bool chan_ready(struct channel *ch);
 
 /**
  * chan_destroy : clean up and destroy a channel
@@ -491,7 +519,7 @@ int chan_send_now_wait(struct channel *ch, void *data);
  * @param ch: channel
  * @param data: memory to store received data to
  *
- * @return bytes received or -1 on error
+ * @return bytes received or -EINVAL on error
  */
 int chan_read(struct channel *ch, void *data);
 

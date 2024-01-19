@@ -282,6 +282,9 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 		}
 		printf("%s() Talker setup success!\n", __func__);
 	}
+	/* channel is ready to be used */
+	ch->ready = true;
+
 	/* Add ref to internal list for memory mgmt */
 	nh_add_tx(ch->nh, ch);
 
@@ -310,14 +313,6 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 		}
 	}
 
-	/* Rx SRP subscribe */
-	if (nh->use_srp) {
-		if (!nc_srp_client_listener_setup(ch)) {
-			chan_destroy(&ch);
-			return NULL;
-		}
-	}
-
 	/* Add ref to internal list for memory mgmt */
 	nh_add_rx(ch->nh, ch);
 
@@ -343,14 +338,32 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 	 *
 	 * !!! WARNING: await_talker() BLOCKS !!!
 	 */
+	/* Rx SRP subscribe */
 	if (nh->use_srp) {
-		printf("%s(): use_srp, awaiting talker\n", __func__);
-		fflush(stdout);
-		await_talker(ch->ctx);
-		send_ready(ch->ctx);
+		if (!nc_srp_client_listener_setup(ch)) {
+			chan_destroy(&ch);
+			return NULL;
+		}
+		if (nh->verbose)
+			printf("%s(): use_srp, awaiting talker\n", __func__);
+
+		mrp_await_talker(ch->ctx);
+		if (nh->verbose)
+			printf("Got talker, sending ready\n");
+		mrp_send_ready(ch->ctx);
 	}
+
+	ch->ready = true;
 	return ch;
 }
+
+bool chan_ready(struct channel *ch)
+{
+	if (!ch)
+		return false;
+	return ch->ready;
+}
+
 
 static void _chan_destroy(struct channel **ch, bool unlink)
 {
@@ -397,6 +410,9 @@ void chan_destroy(struct channel **ch)
 bool chan_valid(struct channel *ch)
 {
 	if (!ch || !ch->nh)
+		return false;
+
+	if (!ch->ready)
 		return false;
 
 	/* Must always have a Rx socket */

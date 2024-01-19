@@ -38,6 +38,9 @@ void setUp(void)
 	pdu17 = _chan_create(nh, &nc_channels[MCAST17]);
 	pdu42 = _chan_create(nh, &nc_channels[MCAST42]);
 	pdu43_r = _chan_create(nh, &nc_channels[PDU43_R]);
+	pdu17->ready = true;
+	pdu42->ready = true;
+	pdu43_r->ready = true;
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 

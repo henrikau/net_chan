@@ -75,6 +75,7 @@ static void test_chan_valid(void)
 	ch.fd_r = 2;
 	TEST_ASSERT(!chan_valid(&ch));
 
+	ch.ready = true;
 	ch.interval_ns = 12345;
 	TEST_ASSERT(chan_valid(&ch));
 
@@ -120,6 +121,23 @@ static void test_chan_time_to_tx(void)
 					"next_tx_ns in the past should result in Tx-time to *now* (0)");
 }
 
+static void test_chan_ready(void)
+{
+	TEST_ASSERT(!chan_ready(NULL));
+	struct channel *cht = chan_create_tx(nh, &chanattr);
+	TEST_ASSERT(chan_ready(cht));
+	struct channel *chr = chan_create_rx(nh, &chanattr);
+	TEST_ASSERT(chan_ready(chr));
+	uint64_t data = 0xdeadbeef;
+	TEST_ASSERT(chan_send_now(cht, (void *)&data) > 0);
+
+	cht->ready = false;
+	TEST_ASSERT(chan_send_now(cht, (void *)&data) < 0);
+
+	chr->ready = false;
+	TEST_ASSERT(chan_read(chr, (void *)&data) == -EINVAL);
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -127,5 +145,6 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_create_rx_channel);
 	RUN_TEST(test_chan_valid);
 	RUN_TEST(test_chan_time_to_tx);
+	RUN_TEST(test_chan_ready);
 	return UNITY_END();
 }

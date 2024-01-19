@@ -41,11 +41,13 @@ void setUp(void)
 	nfc.size = DATA17SZ;
 	nfc.interval_ns = INT17;
 	pdu17 = _chan_create(nh, &nfc);
+	pdu17->ready = true;
 
 	nfc.stream_id = 42;
 	nfc.size = DATA42SZ;
 	nfc.interval_ns = INT42;
 	pdu42 = _chan_create(nh, &nfc);
+	pdu42->ready = true;
 
 	/* Must set all channel attributes before channel can be used */
 	pdu17->tx_sock = 3;
