@@ -27,9 +27,9 @@ void tearDown(void)
 
 static void test_create_tx_channel(void)
 {
-	TEST_ASSERT_NULL(chan_create_tx(NULL, &chanattr));
-	TEST_ASSERT_NULL(chan_create_tx(nh, NULL));
-	struct channel *ch = chan_create_tx(nh, &chanattr);
+	TEST_ASSERT_NULL(chan_create_tx(NULL, &chanattr, false));
+	TEST_ASSERT_NULL(chan_create_tx(nh, NULL, false));
+	struct channel *ch = chan_create_tx(nh, &chanattr, false);
 	TEST_ASSERT_NOT_NULL(ch);
 	TEST_ASSERT(ch->nh == nh);
 	TEST_ASSERT(ch->sidw.s64 == 42);
@@ -43,9 +43,9 @@ static void test_create_tx_channel(void)
 static void test_create_rx_channel(void)
 {
 	nc_verbose();
-	TEST_ASSERT_NULL(chan_create_rx(NULL, &chanattr));
-	TEST_ASSERT_NULL(chan_create_rx(nh, NULL));
-	struct channel *ch = chan_create_rx(nh, &chanattr);
+	TEST_ASSERT_NULL(chan_create_rx(NULL, &chanattr, false));
+	TEST_ASSERT_NULL(chan_create_rx(nh, NULL, false));
+	struct channel *ch = chan_create_rx(nh, &chanattr, false);
 
 	TEST_ASSERT_NOT_NULL_MESSAGE(ch, "Channel not created with valid arguments");
 	TEST_ASSERT_NOT_NULL_MESSAGE(ch->cbp, "Generic callback not created for Rx channel");
@@ -93,7 +93,7 @@ static void test_chan_valid(void)
 	ch.cbp = NULL;
 	TEST_ASSERT(chan_valid(&ch));
 
-	struct channel *ch2 = chan_create_tx(nh, &chanattr);
+	struct channel *ch2 = chan_create_tx(nh, &chanattr, false );
 	TEST_ASSERT(chan_valid(ch2));
 }
 
@@ -106,7 +106,7 @@ static void test_chan_time_to_tx(void)
 	TEST_ASSERT_EQUAL_UINT64_MESSAGE(UINT64_MAX, chan_time_to_tx(&ch),
 					"Invalid channel should result in MAXINT");
 
-	struct channel *ch2 = chan_create_tx(nh, &chanattr);
+	struct channel *ch2 = chan_create_tx(nh, &chanattr, false);
 	uint64_t now = tai_get_ns();
 	ch2->interval_ns = 10 * NS_IN_MS;
 	ch2->next_tx_ns = now + 9*NS_IN_SEC;
@@ -124,9 +124,9 @@ static void test_chan_time_to_tx(void)
 static void test_chan_ready(void)
 {
 	TEST_ASSERT(!chan_ready(NULL));
-	struct channel *cht = chan_create_tx(nh, &chanattr);
+	struct channel *cht = chan_create_tx(nh, &chanattr, false);
 	TEST_ASSERT(chan_ready(cht));
-	struct channel *chr = chan_create_rx(nh, &chanattr);
+	struct channel *chr = chan_create_rx(nh, &chanattr, false);
 	TEST_ASSERT(chan_ready(chr));
 	uint64_t data = 0xdeadbeef;
 	TEST_ASSERT(chan_send_now(cht, (void *)&data) > 0);

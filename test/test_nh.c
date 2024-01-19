@@ -240,11 +240,11 @@ static void test_nh_standalone_destroy(void)
 static void test_nh_add_remove_tx_chan(void)
 {
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
-	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43]);
+	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43], false);
 	TEST_ASSERT_NOT_NULL(ch1);
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 
-	struct channel *ch2 = chan_create_tx(nh, &nc_channels[MCAST42]);
+	struct channel *ch2 = chan_create_tx(nh, &nc_channels[MCAST42], false);
 	TEST_ASSERT(nh_get_num_tx(nh) == 2);
 
 	TEST_ASSERT(nh_remove_tx(NULL) == -ENOMEM);
@@ -271,7 +271,7 @@ static void test_nh_add_remove_rx_chan(void)
 	struct channel *ch[10];
 	for (int i = 0; i < 10; i++) {
 		chanattr.stream_id++;
-		ch[i] = chan_create_rx(nh, &chanattr);
+		ch[i] = chan_create_rx(nh, &chanattr, false);
 		TEST_ASSERT_NOT_NULL(ch[i]);
 		TEST_ASSERT(nh_get_num_rx(nh) == i+1);
 	}
@@ -319,7 +319,7 @@ static void test_invalid_txprio(void)
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
 	TEST_ASSERT(nh_set_tx_prio(nh, 3));
 	/* create a channel. It should no longer be possible to change Tx-prio */
-	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43]);
+	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43], false);
 
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
 	TEST_ASSERT_MESSAGE(!nh_set_tx_prio(nh, 3), "It should not be possible to change Tx prio once a Tx socket has been created.");

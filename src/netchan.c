@@ -250,7 +250,8 @@ static struct channel * _chan_create(struct nethandler *nh,
 	return ch;
 }
 
-struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs)
+
+struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
 {
 	if (!nh || !attrs)
 		return NULL;
@@ -291,7 +292,7 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 	return ch;
 }
 
-struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs)
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
 {
 	if (!nh || !attrs)
 		return NULL;

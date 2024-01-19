@@ -47,14 +47,14 @@ public:
     {
         if (!valid)
             return NULL;
-        return chan_create_tx(nh, attrs);
+        return chan_create_tx(nh, attrs, false);
     }
 
     struct channel * new_rx_channel(struct channel_attrs *attrs)
     {
         if (!valid)
             return NULL;
-        return chan_create_rx(nh, attrs);
+        return chan_create_rx(nh, attrs, false);
     }
 
     int active_tx(void) { return nh_get_num_tx(nh); }

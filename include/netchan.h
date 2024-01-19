@@ -348,10 +348,11 @@ int nc_rx_create(char *name, struct channel_attrs *attrs, int arr_size);
  *
  * @param nh nethandler container
  * @param attrs channel attributes
+ * @param async run setup asynchronously and signal when fully configured
  *
  * @returns new channel or NULL on error
  */
-struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs);
+struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs, bool async);
 
 /**
  * chan_create_rx create a Tx channel
@@ -371,10 +372,11 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
  *
  * @param nh nethandler container
  * @param attrs netfiro channel attributes
+ * @param async run setup asynchronously and signal when fully configured
  *
  * @returns new channel or NULL on error
  */
-struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs);
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async);
 
 /**
  * chan_ready(): test to see if the channel is ready for use
