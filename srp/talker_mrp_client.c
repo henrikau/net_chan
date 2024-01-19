@@ -42,7 +42,7 @@ pthread_t monitor_thread;
 pthread_attr_t monitor_attr;
 
 /* FIXME: this *really* ought to be cleaned up! */
-int process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
+static int _talker_process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 {
 
 	/*
@@ -308,7 +308,7 @@ void *mrp_monitor_thread(void *arg)
 		bytes = recvmsg(ctx->control_socket, &msg, 0);
 		if (bytes < 0)
 			continue;
-		process_mrp_msg(msgbuf, bytes, ctx);
+		_talker_process_mrp_msg(msgbuf, bytes, ctx);
 	}
 	free(msgbuf);
 	pthread_exit(NULL);

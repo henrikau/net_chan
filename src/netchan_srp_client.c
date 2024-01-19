@@ -1,5 +1,4 @@
 #include <netchan_srp_client.h>
-
 #include <netinet/ether.h>
 
 #include <stdio.h>
@@ -50,7 +49,7 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 		return false;
 	}
 
-	if (create_socket(pdu->ctx) < 0) {
+	if (mrp_create_socket(pdu->ctx) < 0) {
  		fprintf(stderr, "Failed creating MRP CTX socket\n");
  		return false;
  	}
@@ -82,7 +81,7 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 	}
 
-	if (report_domain_status(pdu->class_a, pdu->ctx) == -1) {
+	if (mrp_report_domain_status(pdu->class_a, pdu->ctx) == -1) {
 		fprintf(stderr, "%s(): unable to report domain status! (%d; %s)\n",
 			__func__, errno, strerror(errno));
 		return false;
@@ -206,7 +205,7 @@ void nc_srp_client_destroy(struct channel *pdu)
 
 		}
 	} else {
-		send_leave(pdu->ctx);
+		mrp_send_leave(pdu->ctx);
 	}
 
 	if (mrp_disconnect(pdu->ctx) < 0) {

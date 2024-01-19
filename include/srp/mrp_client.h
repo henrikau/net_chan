@@ -81,20 +81,17 @@ struct mrp_domain_attr
 
 /* common */
 int mrp_ctx_init(struct mrp_ctx *ctx, bool verbose);
-
 int mrp_send_msg(char *data, int len, int control_socket);
 int mrp_join_vlan(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx);
 int mrp_get_domain(struct mrp_ctx *ctx, struct mrp_domain_attr *class_a, struct mrp_domain_attr *class_b);
 
 /* listener */
-int create_socket(struct mrp_ctx *ctx);
+int mrp_create_socket(struct mrp_ctx *ctx);
 int mrp_listener_monitor(struct mrp_ctx *ctx);
-int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx);
-int await_talker(struct mrp_ctx *ctx);
-int send_ready(struct mrp_ctx *ctx);
-int send_leave(struct mrp_ctx *ctx);
-int mrp_listener_disconnect(struct mrp_ctx *ctx);
-int mrp_listener_client_init(struct mrp_ctx *ctx);
+int mrp_report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx);
+int mrp_await_talker(struct mrp_ctx *ctx);
+int mrp_send_ready(struct mrp_ctx *ctx);
+int mrp_send_leave(struct mrp_ctx *ctx);
 
 /* talker */
 extern volatile int mrp_error;
@@ -104,7 +101,6 @@ int mrp_register_domain(struct mrp_domain_attr *reg_class, struct mrp_ctx *ctx);
 int mrp_advertise_stream(uint8_t * streamid, uint8_t * destaddr, int pktsz, int interval, int latency, struct mrp_ctx *ctx);
 int mrp_unadvertise_stream(uint8_t * streamid, uint8_t * destaddr, int pktsz, int interval, int latency, struct mrp_ctx *ctx);
 int mrp_await_listener(unsigned char *streamid, struct mrp_ctx *ctx, int iters);
-int mrp_talker_client_init(struct mrp_ctx *ctx);
 #ifdef __cplusplus
 }
 #endif

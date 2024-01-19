@@ -22,7 +22,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 #include <srp/mrp_client.h>
-int msg_process(char *buf, int buflen, struct mrp_ctx *ctx)
+static int _listener_process_mrp_msg(char *buf, int buflen, struct mrp_ctx *ctx)
 {
 	uint32_t id;
 	int j, l=0;
@@ -81,37 +81,7 @@ int msg_process(char *buf, int buflen, struct mrp_ctx *ctx)
 	return 0;
 }
 
-/*
- * public
- */
-
-int create_socket(struct mrp_ctx *ctx) // TODO FIX! =:-|
-{
-	struct sockaddr_in addr;
-	ctx->control_socket = socket(AF_INET, SOCK_DGRAM, 0);
-
-	/** in POSIX fd 0,1,2 are reserved */
-	if (2 > ctx->control_socket)
-	{
-		if (-1 > ctx->control_socket)
-			close(ctx->control_socket);
-	return -1;
-	}
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(0);
-
-	if(0 > (bind(ctx->control_socket, (struct sockaddr*)&addr, sizeof(addr))))
-	{
-		fprintf(stderr, "Could not bind socket.\n");
-		close(ctx->control_socket);
-		return -1;
-	}
-	return 0;
-}
-
-void *mrp_listener_monitor_thread(void *arg)
+static void *_mrp_listener_monitor_thread(void *arg)
 {
 	char *msgbuf;
 	struct sockaddr_in client_addr;
@@ -152,10 +122,40 @@ void *mrp_listener_monitor_thread(void *arg)
 		bytes = recvmsg(ctx->control_socket, &msg, 0);
 		if (bytes < 0)
 			continue;
-		msg_process(msgbuf, bytes, ctx);
+		_listener_process_mrp_msg(msgbuf, bytes, ctx);
 	}
 	free(msgbuf);
 	pthread_exit(NULL);
+}
+
+/*
+ * public
+ */
+
+int mrp_create_socket(struct mrp_ctx *ctx) // TODO FIX! =:-|
+{
+	struct sockaddr_in addr;
+	ctx->control_socket = socket(AF_INET, SOCK_DGRAM, 0);
+
+	/** in POSIX fd 0,1,2 are reserved */
+	if (2 > ctx->control_socket)
+	{
+		if (-1 > ctx->control_socket)
+			close(ctx->control_socket);
+	return -1;
+	}
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(0);
+
+	if(0 > (bind(ctx->control_socket, (struct sockaddr*)&addr, sizeof(addr))))
+	{
+		fprintf(stderr, "Could not bind socket.\n");
+		close(ctx->control_socket);
+		return -1;
+	}
+	return 0;
 }
 
 
@@ -163,11 +163,11 @@ int mrp_listener_monitor(struct mrp_ctx *ctx)
 {
 	int rc;
 	rc = pthread_attr_init(&ctx->rx_monitor_attr);
-	rc |= pthread_create(&ctx->rx_monitor_thread, &ctx->rx_monitor_attr, mrp_listener_monitor_thread, ctx);
+	rc |= pthread_create(&ctx->rx_monitor_thread, &ctx->rx_monitor_attr, _mrp_listener_monitor_thread, ctx);
 	return rc;
 }
 
-int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
+int mrp_report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 {
 	char* msgbuf;
 	int rc;
@@ -188,14 +188,14 @@ int report_domain_status(struct mrp_domain_attr *class_a, struct mrp_ctx *ctx)
 		return 0;
 }
 
-int await_talker(struct mrp_ctx *ctx)
+int mrp_await_talker(struct mrp_ctx *ctx)
 {
 	while (0 == ctx->talker)
 		usleep(5000);
 	return 0;
 }
 
-int send_ready(struct mrp_ctx *ctx)
+int mrp_send_ready(struct mrp_ctx *ctx)
 {
 	char *databuf;
 	int rc;
@@ -220,7 +220,7 @@ int send_ready(struct mrp_ctx *ctx)
 		return 0;
 }
 
-int send_leave(struct mrp_ctx *ctx)
+int mrp_send_leave(struct mrp_ctx *ctx)
 {
 	char *databuf;
 	int rc;
