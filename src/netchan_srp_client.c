@@ -179,7 +179,7 @@ retry:
 	 */
 	int res = mrp_await_listener(pdu->sidw.s8, pdu->ctx, 1000);
 	if (res == -2) {
-		printf("[TIMEOUT] No listener found, re-advertising\n");
+		printf("[TIMEOUT] [%lu] No listener found, re-advertising\n", pdu->sidw.s64);
 		goto retry;
 	} else if (res == -1) {
 		fprintf(stderr, "%s(): mrp_await_listener failed (%d : %s)\n",
