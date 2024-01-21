@@ -28,7 +28,7 @@ extern "C" {
 #include <linux/if_ether.h>
 #include <linux/if.h>		/* IFNAMSIZ */
 #include <stdio.h>		/* FILE* */
-
+#include <pthread.h>
 
 #include <ptp_getclock.h>
 
@@ -166,6 +166,10 @@ struct channel
 	struct sockaddr_ll sk_addr;
 	uint8_t dst[ETH_ALEN];
 
+	/* Guardian mutex of internal state.
+	 */
+	pthread_mutex_t guard;
+
 	/*
 	 * payload (avtpdu_cshdr) uses htobe64 encoded streamid, we need
 	 * it as a byte array for mrp, so keep an easy ref to it here
@@ -192,6 +196,12 @@ struct channel
 	 * since we have to wait for the other end to become ready.
 	 */
 	bool ready;
+	pthread_mutex_t ready_mtx;
+	pthread_cond_t ready_cond;
+
+	/* FIXME: need to update code to use cvlock and not mutex for CV */
+	pthread_mutex_t cvlock;
+	pthread_t tid;
 
 	/*
 	 * Each outgoing stream has its own socket, with corresponding
@@ -393,6 +403,19 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
  * @return true if channel ready, false otherwise
  */
 bool chan_ready(struct channel *ch);
+
+/**
+ * chan_ready_timedwait() wait for channel to become ready with a timeout
+ *
+ * If the channel is not ready within a set timeout, -EINTR is
+ * returned. Once the channel is marked ready, the function will return
+ * immediately with 0 and chan_ready() will evaluate to true.
+ *
+ * @params channel container
+ * @params timeout_ns timeout before -ETIMEDOUT (-110) is returned
+ * @return 0 on successful wait, negative on error
+ */
+int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns);
 
 /**
  * chan_destroy : clean up and destroy a channel

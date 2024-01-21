@@ -6,7 +6,6 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #include <netchan.h>
-#include <pthread.h>
 #include <stdbool.h>
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
@@ -70,6 +69,8 @@ struct cb_entity {
 	void *priv_data;
 	int (*cb)(void *priv_data, struct avtpdu_cshdr *du);
 };
+#define GUARD pthread_mutex_lock(&ch->guard)
+#define UNGUARD pthread_mutex_unlock(&ch->guard)
 
 int nc_get_chan_idx(char *name, const struct channel_attrs *attrs, int arr_size)
 {
@@ -223,6 +224,16 @@ static struct channel * _chan_create(struct nethandler *nh,
 		printf("%s(): payload_size=%d, full_size=%d\n", __func__, ch->payload_size, ch->full_size);
 	_chan_avtpdu_init(ch, attrs->stream_id);
 
+	/* Create state guard */
+	pthread_mutexattr_t mtx_attr;
+	pthread_mutexattr_init(&mtx_attr);
+	pthread_mutexattr_setprotocol(&mtx_attr, PTHREAD_PRIO_INHERIT);
+	if (pthread_mutex_init(&ch->guard, &mtx_attr) != 0) {
+		fprintf(stderr, "%s(): Failed initializing channel guard, aborting (%d : %s)\n",
+			__func__, errno, strerror(errno));
+		chan_destroy(&ch);
+		return NULL;
+	}
 
 	/* It does not make sense to set the next-ts (socket is not
 	 * fully configured) just yet, leave this at 0 from calloc
@@ -247,9 +258,54 @@ static struct channel * _chan_create(struct nethandler *nh,
 	ch->fd_r = pfd[0];
 	ch->fd_w = pfd[1];
 
+	pthread_mutex_init(&ch->ready_mtx, NULL);
+	pthread_cond_init(&ch->ready_cond, NULL);
+
 	return ch;
 }
 
+static void * _chan_tx_last_setup(void *data)
+{
+	struct channel *ch = (struct channel *)data;
+	GUARD;
+
+	ch->tx_sock_prio = ch->nh->tx_sock_prio;
+	ch->tx_sock = nc_create_tx_sock(ch);
+
+	if (ch->tx_sock < 0) {
+		fprintf(stderr, "%s(): [%lu] Failed creating Tx-sock for channel\n", __func__, ch->sidw.s64);
+		UNGUARD;
+		chan_destroy(&ch);
+		return NULL;
+	}
+
+	/* We are ready to send, the first attempt should fly straight through */
+	ch->next_tx_ns = tai_get_ns();
+
+	if (ch->nh->verbose)
+		printf("%s(): [%lu] sending to %s\n", __func__, ch->sidw.s64, ether_ntoa((struct ether_addr *)&ch->dst));
+
+	if (ch->nh->use_srp) {
+		if (!nc_srp_client_talker_setup(ch)) {
+			fprintf(stderr, "%s() [%lu] Talker setup FAILED!\n", __func__, ch->sidw.s64);
+			UNGUARD;
+			chan_destroy(&ch);
+			return NULL;
+		}
+	}
+
+	/* Add ref to internal list for memory mgmt */
+	nh_add_tx(ch->nh, ch);
+
+	/* channel is ready to be used */
+	ch->ready = true;
+	pthread_cond_signal(&ch->ready_cond);
+
+	UNGUARD;
+
+	printf("%s(): [%lu] done, chan ready\n", __func__, ch->sidw.s64);
+	return NULL;
+}
 
 struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
 {
@@ -260,62 +316,32 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 	if (!ch)
 		return NULL;
 
-	ch->tx_sock_prio = nh->tx_sock_prio;
-	ch->tx_sock = nc_create_tx_sock(ch);
-
-	if (ch->tx_sock < 0) {
-		fprintf(stderr, "%s(): Failed creating Tx-sock for channel\n", __func__);
-		chan_destroy(&ch);
-		return NULL;
+	if (async) {
+		pthread_create(&ch->tid, NULL, _chan_tx_last_setup, (void *)ch);
+	} else {
+		_chan_tx_last_setup(ch);
 	}
-
-	/* We are ready to send, the first attempt should fly straight through */
-	ch->next_tx_ns = tai_get_ns();
-
-	if (nh->verbose)
-		printf("%s(): sending to %s\n", __func__, ether_ntoa((struct ether_addr *)&ch->dst));
-
-	if (nh->use_srp) {
-		if (!nc_srp_client_talker_setup(ch)) {
-			chan_destroy(&ch);
-			printf("%s() Talker setup FAILED!\n", __func__);
-			return NULL;
-		}
-		printf("%s() Talker setup success!\n", __func__);
-	}
-	/* channel is ready to be used */
-	ch->ready = true;
-
-	/* Add ref to internal list for memory mgmt */
-	nh_add_tx(ch->nh, ch);
-
 	return ch;
 }
 
-struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
+static void * _chan_rx_last_setup(void *data)
 {
-	if (!nh || !attrs)
-		return NULL;
-	struct channel *ch = _chan_create(nh, attrs);
-	if (!ch)
-		return NULL;
+	struct channel *ch = (struct channel *)data;
+	GUARD;
 
 	if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
-		if (nh->verbose)
-			printf("%s() receive data on a multicast group, adding membership\n", __func__);
+		if (ch->nh->verbose)
+			printf("%s(): [%lu] receive data on a multicast group, adding membership\n", __func__, ch->sidw.s64);
 
 		struct packet_mreq mr;
 		memset(&mr, 0, sizeof(mr));
-		mr.mr_ifindex = nh->ifidx;
+		mr.mr_ifindex = ch->nh->ifidx;
 		mr.mr_type = PACKET_MR_PROMISC;
 		if (setsockopt(ch->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
-			fprintf(stderr, "%s(): failed setting multicast membership, may not receive frames! => %s\n",
-				__func__, strerror(errno));
+			fprintf(stderr, "%s(): [%lu] failed setting multicast membership, may not receive frames! => %s\n",
+				__func__, ch->sidw.s64, strerror(errno));
 		}
 	}
-
-	/* Add ref to internal list for memory mgmt */
-	nh_add_rx(ch->nh, ch);
 
 	/* trigger on incoming DUs and attach a generic callback
 	 * and write data into correct pipe.
@@ -327,34 +353,59 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 	 */
 	ch->cbp = malloc(sizeof(struct cb_priv) + ch->payload_size);
 	if (!ch->cbp) {
+		UNGUARD;
 		chan_destroy(&ch);
 		return NULL;
 	}
 
 	ch->cbp->fd = ch->fd_w;
 	ch->cbp->sz = ch->payload_size;
-	nh_reg_callback(ch->nh, attrs->stream_id, ch->cbp, nh_std_cb);
+
+	/* Add ref to internal list for memory mgmt */
+	nh_add_rx(ch->nh, ch);
+	nh_reg_callback(ch->nh, ch->sidw.s64, ch->cbp, nh_std_cb);
 
 	/* Rx thread ready, wait for talker to start sending
 	 *
 	 * !!! WARNING: await_talker() BLOCKS !!!
 	 */
 	/* Rx SRP subscribe */
-	if (nh->use_srp) {
+	if (ch->nh->use_srp) {
 		if (!nc_srp_client_listener_setup(ch)) {
+			UNGUARD;
 			chan_destroy(&ch);
 			return NULL;
 		}
-		if (nh->verbose)
-			printf("%s(): use_srp, awaiting talker\n", __func__);
+		if (ch->nh->verbose)
+			printf("%s(): [%lu] use_srp, awaiting talker\n", __func__, ch->sidw.s64);
 
 		mrp_await_talker(ch->ctx);
-		if (nh->verbose)
-			printf("Got talker, sending ready\n");
+		if (ch->nh->verbose)
+			printf("%s(): [%lu] Got talker, sending ready\n", __func__, ch->sidw.s64);
 		mrp_send_ready(ch->ctx);
 	}
 
 	ch->ready = true;
+	pthread_cond_signal(&ch->ready_cond);
+
+	UNGUARD;
+	printf("%s(): [%lu] done, chan ready\n", __func__, ch->sidw.s64);
+	return NULL;
+}
+
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
+{
+	if (!nh || !attrs)
+		return NULL;
+	struct channel *ch = _chan_create(nh, attrs);
+	if (!ch)
+		return NULL;
+
+	if (async) {
+		pthread_create(&ch->tid, NULL, _chan_rx_last_setup, (void *)ch);
+	} else {
+		_chan_rx_last_setup(ch);
+	}
 	return ch;
 }
 
@@ -362,7 +413,34 @@ bool chan_ready(struct channel *ch)
 {
 	if (!ch)
 		return false;
-	return ch->ready;
+
+	bool ready = false;
+	GUARD;
+	ready = ch->ready;
+	UNGUARD;
+	return ready;
+}
+
+int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns)
+{
+	struct timespec ts;
+
+	if (!ch)
+		return -EINVAL;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	ts.tv_nsec += timeout_ns;
+	ts_normalize(&ts);
+
+	/* Fastpath, we are ready, so avoid CV dance */
+	if (ch->ready)
+		return 0;
+
+	pthread_mutex_lock(&ch->ready_mtx);
+        int ret  = pthread_cond_timedwait(&ch->ready_cond, &ch->ready_mtx, &ts);
+	pthread_mutex_unlock(&ch->ready_mtx);
+
+	return (ret == 0 ? 0 : -ret);
 }
 
 

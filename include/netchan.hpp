@@ -47,14 +47,14 @@ public:
     {
         if (!valid)
             return NULL;
-        return chan_create_tx(nh, attrs, false);
+        return chan_create_tx(nh, attrs, true);
     }
 
     struct channel * new_rx_channel(struct channel_attrs *attrs)
     {
         if (!valid)
             return NULL;
-        return chan_create_rx(nh, attrs, false);
+        return chan_create_rx(nh, attrs, true);
     }
 
     int active_tx(void) { return nh_get_num_tx(nh); }
@@ -76,6 +76,23 @@ private:
 class NetChan {
 public:
     void stop(void) {};
+    bool ready(void) {
+        return chan_ready(ch);
+    }
+
+    // Wait for 1 second before timing out
+    bool ready_wait_once(void) {
+        return chan_ready_timedwait(ch, 100000000) == 0;
+    }
+
+    void ready_wait(void) {
+        int ctr = 0;
+        do {
+            if (ch->nh->verbose)
+                std::cout << ctr++ << " ...waiting..." << std::endl;
+        } while (!ready_wait_once());
+    }
+
 protected:
     bool use_srp;
     struct channel *ch;
