@@ -39,6 +39,7 @@ void sighandler(int signum)
 {
     running = false;
     printf("%s(): Got signal (%d), closing\n", __func__, signum);
+    tx->stop();
     fflush(stdout);
 }
 
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
     attr.dst[5]= ((uint8_t *)&attr.stream_id)[0];
 
     tx = new netchan::NetChanTx(nh, &attr);
+    tx->ready_wait();
+
     struct periodic_timer *pt = pt_init(0, HZ_100, CLOCK_TAI);
 
     uint64_t ts = 0;

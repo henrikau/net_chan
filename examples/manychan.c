@@ -149,6 +149,10 @@ void * rx_drain(void *data)
 		return NULL;
 
 	struct channel *rx = (struct channel *)data;
+
+	/* Wait for Rx channel to become ready */
+	while (chan_ready_timedwait(rx, 100 * NS_IN_MS) != 0 && running) ;
+
 	while (running) {
 		uint64_t data = 0;
 		int res = chan_read(rx, &data);
@@ -236,7 +240,7 @@ int main(int argc, char *argv[])
 		int id = idx + ensemble_idx * ensemble_size + ID_BASE_OFFSET; /* avoid streamID 0 */
 		base.dst[5] = id;
 		base.stream_id = id;
-		tx[idx] = chan_create_tx(nh, &base);
+		tx[idx] = chan_create_tx(nh, &base, true);
 	}
 
 	/* Prepare for starting Rx threads */
@@ -249,10 +253,22 @@ int main(int argc, char *argv[])
 		int id = ensemble_idx + idx * ensemble_size + ID_BASE_OFFSET;
 		base.dst[5] = id;
 		base.stream_id = id;
-		pthread_create(&listeners[idx], NULL, rx_drain, chan_create_rx(nh, &base));
+		pthread_create(&listeners[idx], NULL, rx_drain, chan_create_rx(nh, &base, true));
 	}
+
 	nh_list_active_channels(nh);
 
+	/* wait for all Tx channels to become ready */
+	int ready_ctr = 0;
+	do {
+		ready_ctr = 0;
+		for (int idx = 0; idx < ensemble_size; idx++) {
+			if (chan_ready_timedwait(tx[idx], 100 * NS_IN_MS) == 0)
+				ready_ctr++;
+		}
+	} while (ready_ctr != ensemble_size);
+
+	printf("%s() all %d Tx channels ready, syncing ensemble to start.\n", __func__, ensemble_size);
 
 	/* Signal ready, wait for all in ensemble to signal same */
 	struct periodic_timer *pt = pt_init(0, period_ns, CLOCK_TAI);

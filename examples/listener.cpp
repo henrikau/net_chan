@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
     attr.dst[5]= ((uint8_t *)&attr.stream_id)[0];
 
     rx = new netchan::NetChanRx(nh, &attr);
+    rx->ready_wait();
 
     uint64_t recv_ts = 0;
     running = true;
