@@ -245,6 +245,7 @@ int main(int argc, char *argv[])
 
 	/* Prepare for starting Rx threads */
 	running = true;
+	signal(SIGINT, sighandler);
 
 	/* create all relevenat Rx channel idx
 	 * Rx = self + idx*sz
