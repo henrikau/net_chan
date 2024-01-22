@@ -157,9 +157,9 @@ bool nc_srp_client_talker_setup(struct channel *pdu)
 	 *
 	 * 125000/125000 := 1
 	 */
-retry:
 	int pktsz = pdu->full_size;
 	int interval = 125000/125000;
+retry:
 	if (mrp_advertise_stream(pdu->sidw.s8, pdu->dst,
 					pktsz,
 					interval,
