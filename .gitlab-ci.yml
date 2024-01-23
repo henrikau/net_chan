@@ -1,0 +1,7 @@
+build:
+    stage: build
+    tags:
+        - targetbuild
+    script:
+        - ./scripts/build.sh
+        - ./scripts/run_tests.sh
