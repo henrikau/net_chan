@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+test -e doxygen.in || touch doxygen.in
 test -d build/ && rm -rf build/
 
 mkdir build/
