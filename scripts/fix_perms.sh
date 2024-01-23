@@ -1,12 +1,24 @@
 #!/bin/bash
-pushd "$(dirname $(dirname $(realpath -s $0)))/build"
-sudo setcap cap_net_raw,cap_net_admin=eip testnetfifo
-sudo setcap cap_net_raw,cap_net_admin=eip testpdu
-sudo setcap cap_net_raw,cap_net_admin=eip testnh
-sudo setcap cap_net_raw,cap_net_admin=eip testchan
-sudo setcap cap_net_raw,cap_net_admin=eip talker
-sudo setcap cap_net_raw,cap_net_admin=eip listener
-sudo setcap cap_net_raw,cap_net_admin,cap_dac_override=eip cpp_listener
-sudo setcap cap_net_raw,cap_net_admin,cap_dac_override=eip cpp_talker
-sudo setcap cap_net_raw,cap_net_admin,cap_dac_override=eip manychan
-popd
+set -e
+filelist=("testnetfifo"
+	  "testpdu"
+	  "testnh"
+	  "testchan"
+	  "talker"
+	  "listener"
+	  "cpp_listener"
+	  "cpp_talker"
+	  "manychan"
+	 )
+
+pushd "$(dirname $(dirname $(realpath -s $0)))/build" > /dev/null
+if [[ $(id -u) -eq 0 ]]; then
+    for f in ${filelist[@]}; do
+	setcap cap_net_raw,cap_net_admin=eip ${f}
+    done
+else
+    for f in ${filelist[@]}; do
+	sudo setcap cap_net_raw,cap_net_admin=eip ${f}
+    done
+fi
+popd > /dev/null
