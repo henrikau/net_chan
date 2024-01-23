@@ -101,7 +101,7 @@ t_pdu = executable('testpdu',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplibso,
+	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
@@ -116,7 +116,7 @@ t_nh = executable('testnh',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplibso,
+	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
@@ -131,7 +131,7 @@ t_net_fifo = executable('testnetfifo',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplibso,
+	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
@@ -141,7 +141,7 @@ t_mrp =  executable('testmrp',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
 	       dependencies: deps,
-	       link_with : mrplibso)
+	       link_with : mrplib)
 
 t_chan = executable('testchan',
 		    'test/test_chan.c',
