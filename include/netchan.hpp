@@ -8,6 +8,7 @@
 #pragma once
 #include <netchan.h>
 #include <string>
+#include <stdexcept>
 
 namespace netchan {
 
@@ -20,6 +21,9 @@ public:
         valid(true)
     {
         nh = nh_create_init(ifname.c_str(), hmap_size, logfile.length() > 0 ? logfile.c_str() : NULL);
+        if (!nh)
+            throw std::invalid_argument("Failed creating netchan::NetHandler, invalid NIC?");
+
         nh_set_srp(nh, srp);
 
         if (!nh) {
@@ -93,7 +97,7 @@ public:
         int ctr = 0;
         do {
             if (ch->nh->verbose)
-                std::cout << ctr++ << " ...waiting..." << std::endl;
+                std::cout << "[" << ch->sidw.s64 << "] " << ctr++ << " ...waiting..." << std::endl;
         } while (!ready_wait_once());
     }
 
