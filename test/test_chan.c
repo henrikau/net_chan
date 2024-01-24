@@ -173,6 +173,31 @@ static void test_chan_timedwait(void)
 	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, 500*NS_IN_MS, after-before);
 }
 
+static void test_chan_stop(void)
+{
+	TEST_ASSERT(!chan_stop(NULL));
+	struct channel *rx = chan_create_rx(nh, &chanattr, false);
+	struct channel *tx = chan_create_tx(nh, &chanattr, false);
+	TEST_ASSERT_NOT_NULL(rx);
+	TEST_ASSERT_NOT_NULL(tx);
+	TEST_ASSERT(chan_ready(rx));
+
+	uint64_t data = 0xdeadbeef;
+	TEST_ASSERT(chan_send_now(tx, (void *)&data) > 0);
+	uint64_t rx_data = 0;
+	TEST_ASSERT(chan_read(rx, (void *)&rx_data) > 0);
+	TEST_ASSERT_EQUAL_UINT64_MESSAGE(data, rx_data, "Rx'd data should match Tx'd");
+	TEST_ASSERT(chan_stop(rx));
+
+	/* Stopping twice should not work */
+	TEST_ASSERT(!chan_stop(rx));
+
+	/* Channel should not be ready anymore */
+	TEST_ASSERT(!chan_ready(rx));
+	TEST_ASSERT(!chan_valid(rx));
+	TEST_ASSERT(chan_read(rx, (void *)&rx_data) < 0);
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -184,5 +209,6 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_chan_create_tx_async);
 	RUN_TEST(test_chan_create_rx_async);
 	RUN_TEST(test_chan_timedwait);
+	RUN_TEST(test_chan_stop);
 	return UNITY_END();
 }
