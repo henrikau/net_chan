@@ -75,6 +75,10 @@ private:
  */
 class NetChan {
 public:
+    // Re desructor: when Nethandler is destroyed, the channels are all
+    // registred with the handler, and nh_destroy() will call
+    // chan_destroy() for us.
+
     void stop(void) {};
     bool ready(void) {
         return chan_ready(ch);
@@ -145,8 +149,7 @@ public:
     }
 
     void stop(void) {
-        chan_destroy(&ch);
-        ch = NULL;
+        chan_stop(ch);
     }
 };
 } //  namespace netchan

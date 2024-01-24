@@ -443,9 +443,27 @@ int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns)
 	return (ret == 0 ? 0 : -ret);
 }
 
+bool chan_stop(struct channel *ch)
+{
+	if (!ch)
+		return false;
+	if (!chan_valid(ch))
+		return false;
+
+	ch->ready = false;
+
+	/* FIXME: abort current blocking reads to ch->fd_r but without
+	 * destroying the pipe.
+	 */
+	char *dummy = (char *)calloc(1, ch->payload_size);
+	write(ch->fd_w, dummy, ch->payload_size);
+
+	return true;
+}
 
 static void _chan_destroy(struct channel **ch, bool unlink)
 {
+	chan_stop(*ch);
 	if ((*ch)->nh->use_srp)
 		nc_srp_client_destroy((*ch));
 	if ((*ch)->fd_r >= 0)
@@ -469,8 +487,6 @@ static void _chan_destroy(struct channel **ch, bool unlink)
 
 	free(*ch);
 	*ch = NULL;
-
-
 }
 
 void chan_destroy(struct channel **ch)
@@ -788,6 +804,13 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 			__func__, ch->sidw.s64, errno, strerror(errno));
 		return res;
 	}
+
+	/* See if we have moved to an invalid state while blocking for a
+	 * value (chan_stop() uses this trick to kick us out of a
+	 * blocking read)
+	 */
+	if (!chan_valid(ch))
+		return -EINVAL;
 
 	memcpy(data, &ch->cbp->meta.payload, ch->payload_size);
 
@@ -1386,13 +1409,18 @@ bool nh_set_tx_prio(struct nethandler *nh, int tx_prio)
 void nh_destroy(struct nethandler **nh)
 {
 	if (*nh) {
+		/* Signal Rx thread and ask nh_runner to close down
+		 *
+		 * Rx-socket is created with timeout, so even if it does
+		 * not receive any frames, it will time out and detect
+		 * that running is false.
+		 */
+		_nh_stop_rx(*nh);
+
 		if ((*nh)->tb)
 			tb_close((*nh)->tb);
 		if ((*nh)->dma_lat_fd > 0)
 			close((*nh)->dma_lat_fd);
-
-
-		_nh_stop_rx(*nh);
 
 		if ((*nh)->logger) {
 			log_close((*nh)->logger);

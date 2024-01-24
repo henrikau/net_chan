@@ -418,6 +418,14 @@ bool chan_ready(struct channel *ch);
 int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns);
 
 /**
+ * chan_stop() stop channel, but do not destroy it.
+ *
+ * @param channel container
+ * @return true if channel was successfully stopped
+ */
+bool chan_stop(struct channel *ch);
+
+/**
  * chan_destroy : clean up and destroy a channel
  *
  * @param ch: pointer to channel
