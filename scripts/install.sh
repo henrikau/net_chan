@@ -11,7 +11,7 @@ mkdir ${TMPINSTALL}
 meson install --destdir ${TMPINSTALL}
 
 pushd ${TMPINSTALL} >/dev/null
-sudo cp -rv usr/local/include* /usr/local/include
+sudo cp -rv usr/local/include/* /usr/local/include/.
 sudo cp -v usr/local/lib/x86_64-linux-gnu/*.so /usr/local/lib/x86_64-linux-gnu/.
 sudo cp -v usr/local/lib/x86_64-linux-gnu/*.a /usr/local/lib/x86_64-linux-gnu/.
 
