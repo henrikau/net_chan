@@ -303,7 +303,7 @@ static void * _chan_tx_last_setup(void *data)
 
 	UNGUARD;
 
-	printf("%s(): [%lu] done, chan ready\n", __func__, ch->sidw.s64);
+	printf("[%lu] Found listener! Channel ready.\n", ch->sidw.s64);
 	return NULL;
 }
 
@@ -381,8 +381,14 @@ static void * _chan_rx_last_setup(void *data)
 
 		mrp_await_talker(ch->ctx);
 		if (ch->nh->verbose)
-			printf("%s(): [%lu] Got talker, sending ready\n", __func__, ch->sidw.s64);
-		mrp_send_ready(ch->ctx);
+			printf("[%lu] Rx stream found corersponding talker, sending ready\n", ch->sidw.s64);
+		if (mrp_send_ready(ch->ctx) < 0) {
+			fprintf(stderr, "[%lu] mrp_send_ready() FAILED (%d: %s)\n",
+				ch->sidw.s64, errno, strerror(errno));
+			UNGUARD;
+			chan_destroy(&ch);
+			return NULL;
+		}
 	}
 
 	ch->ready = true;
