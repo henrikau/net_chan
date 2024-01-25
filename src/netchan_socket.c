@@ -13,7 +13,7 @@ int nc_create_rx_sock(const char *ifname)
 	/* Can only get promiscous to work reliably for raw sockets  */
 	int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	if (sock < 0) {
-		fprintf(stderr, "%s(): Failed creating socket: %s\n", __func__, strerror(errno));
+		ERROR(NULL, "%s(): Failed creating socket: %s", __func__, strerror(errno));
 		return -1;
 	}
 
@@ -25,7 +25,7 @@ int nc_create_rx_sock(const char *ifname)
 	tv.tv_sec = 0;
 	tv.tv_usec = 250000;
 	if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
-		printf("%s(): Could not set timeout on socket (%d): %s\n",
+		WARN(NULL, " Could not set timeout on socket (%d): %s",
 			__func__, sock, strerror(errno));
 		close(sock);
 		return -1;
@@ -33,7 +33,7 @@ int nc_create_rx_sock(const char *ifname)
 
 	int enable_ts = 1;
 	if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &enable_ts, sizeof(enable_ts)) < 0) {
-		fprintf(stderr, "%s(): failed enabling SO_TIMESTAMPNS on Rx socket (%d, %s)\n",
+		ERROR(NULL, "%s(): failed enabling SO_TIMESTAMPNS on Rx socket (%d, %s)",
 			__func__, errno, strerror(errno));
 		close(sock);
 		return -1;
@@ -43,7 +43,7 @@ int nc_create_rx_sock(const char *ifname)
 	struct ifreq ifr = {0};
 	strncpy((char *)ifr.ifr_name, ifname, IFNAMSIZ);
 	if (ioctl(sock, SIOCGIFINDEX, &ifr)) {
-		fprintf(stderr, "%s(): Failed retrieving idx for %s\n", __func__, ifname);
+		ERROR(NULL, "%s(): Failed retrieving idx for %s", __func__, ifname);
 		close(sock);
 		return -1;
 	}
@@ -54,7 +54,7 @@ int nc_create_rx_sock(const char *ifname)
 	sock_address.sll_protocol = htons(ETH_P_ALL);
 	sock_address.sll_ifindex = ifidx;
 	if (bind(sock, (struct sockaddr *)&sock_address, sizeof(sock_address))) {
-		fprintf(stderr, "%s(): bind failed (%s)\n", __func__, strerror(errno));
+		ERROR(NULL, "%s(): bind failed (%s)", __func__, strerror(errno));
 		return -1;
 	}
 
@@ -64,7 +64,7 @@ int nc_create_rx_sock(const char *ifname)
 	mreq.mr_alen = 6;
 	if (setsockopt(sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
 			(void *)&mreq, (socklen_t)sizeof(mreq)) < 0) {
-		fprintf(stderr, "%s(): Failed adding membership for promiscous mode (%s)\n", __func__, strerror(errno));
+		ERROR(NULL, "%s(): Failed adding membership for promiscous mode (%s)", __func__, strerror(errno));
 		close(sock);
 		return -1;
 	}
@@ -79,7 +79,7 @@ int nc_create_tx_sock(struct channel *ch)
 
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
 	if (sock < 0) {
-		fprintf(stderr, "%s(): Failed creating Tx-socket: %s\n", __func__, strerror(errno));
+		ERROR(NULL, "%s(): Failed creating Tx-socket: %s", __func__, strerror(errno));
 		return -1;
 	}
 
@@ -89,7 +89,7 @@ int nc_create_tx_sock(struct channel *ch)
 	 * scripts/setup_nic.sh)
 	 */
 	if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &ch->tx_sock_prio, sizeof(ch->tx_sock_prio)) < 0) {
-		fprintf(stderr, "%s(): failed setting socket priority (%d, %s)\n",
+		ERROR(NULL, "%s(): failed setting socket priority (%d, %s)",
 			__func__, errno, strerror(errno));
 		goto err_out;
 	}
@@ -121,7 +121,7 @@ int nc_handle_sock_err(int sock)
 	int err = poll(&p_fd, 1, 0);
 
 	if (err == 1 && p_fd.revents == POLLERR) {
-		printf("%s(): Need to process errors\n", __func__);
+		INFO(NULL, "%s(): Need to process errors.", __func__);
 		uint8_t msg_control[CMSG_SPACE(sizeof(struct sock_extended_err))];
 		unsigned char err_buffer[2048];
 
@@ -144,18 +144,16 @@ int nc_handle_sock_err(int sock)
 					uint64_t tstamp = ((__u64) serr->ee_data << 32) + serr->ee_info;
 					switch(serr->ee_code) {
 					case SO_EE_CODE_TXTIME_INVALID_PARAM:
-
-						fprintf(stderr, "packet with tstamp %"PRIu64" dropped due to invalid params\n", tstamp);
+						ERROR(NULL, "packet with tstamp %"PRIu64" dropped due to invalid params", tstamp);
 						return -1;
 					case SO_EE_CODE_TXTIME_MISSED:
-						fprintf(stderr, "packet with tstamp %"PRIu64" dropped due to missed deadline\n", tstamp);
+						ERROR(NULL, "packet with tstamp %"PRIu64" dropped due to missed deadline", tstamp);
 						return -1;
 					default:
 						return -1;
 					}
 				}
 				cmsg = CMSG_NXTHDR(&msg, cmsg);
-
 			}
 		}
 	}

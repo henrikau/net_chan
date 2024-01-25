@@ -121,8 +121,7 @@ static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_
 
 	int ns_to_tx = min_sz * 1e9 / nh->link_speed;
 	if (interval_ns <= ns_to_tx) {
-		if (nh->verbose)
-			printf("Requested interval too short: %zd, minimum ns_to_tx: %d\n", interval_ns, ns_to_tx);
+		INFO(NULL, "Requested interval too short: %zd, minimum ns_to_tx: %d\n", interval_ns, ns_to_tx);
 		return false;
 	}
 	if (interval_ns >= NS_IN_HOUR)
@@ -130,8 +129,7 @@ static bool _valid_interval(struct nethandler *nh, uint64_t interval_ns, uint16_
 
 	/* Test utilization */
 	if ((tx_sz * 1e9/nh->link_speed) > interval_ns) {
-		if (nh->verbose)
-			printf("Cannot send %zu bits (%d) in %lu ns\n", tx_sz, sz, interval_ns);
+		INFO(NULL, "Cannot send %zu bits (%d) in %lu ns\n", tx_sz, sz, interval_ns);
 		return false;
 	}
 	return true;
@@ -143,8 +141,7 @@ static bool _valid_size(struct nethandler *nh, uint16_t sz)
 		return false;
 
 	if ((sz + 24 + 22) > 1522) {
-		if (nh->verbose)
-			printf("Requested size too large (%d yields total framesize > MTU of 1522)\n", sz);
+		INFO(NULL, "Requested size too large (%d yields total framesize > MTU of 1522)\n", sz);
 		return false;
 	}
 	return true;
@@ -172,12 +169,12 @@ static void _chan_set_streamclass(struct channel *ch,
 	case CLASS_A:
 		ch->socket_prio = DEFAULT_CLASS_A_PRIO;
 		if (interval_ns < 125*NS_IN_US)
-			fprintf(stderr, "[WARNING]: Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
+			WARN(ch, "Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
 		break;
 	case CLASS_B:
 		ch->socket_prio = DEFAULT_CLASS_B_PRIO;
 		if (interval_ns < 250*NS_IN_US)
-			fprintf(stderr, "[WARNING]: Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
+			WARN(ch, "Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
 		break;
 	}
 }
@@ -220,8 +217,9 @@ static struct channel * _chan_create(struct nethandler *nh,
 	ch->nh = nh;
 	ch->payload_size = attrs->size;
 	ch->full_size = L1_SZ + sizeof(struct ethhdr) + 4 + sizeof(struct avtpdu_cshdr) + ch->payload_size;
-	if (nh->verbose)
-		printf("%s(): payload_size=%d, full_size=%d\n", __func__, ch->payload_size, ch->full_size);
+
+	DEBUG(ch, "payload_size=%d, full_size=%d", ch->payload_size, ch->full_size);
+
 	_chan_avtpdu_init(ch, attrs->stream_id);
 
 	/* Create state guard */
@@ -229,8 +227,7 @@ static struct channel * _chan_create(struct nethandler *nh,
 	pthread_mutexattr_init(&mtx_attr);
 	pthread_mutexattr_setprotocol(&mtx_attr, PTHREAD_PRIO_INHERIT);
 	if (pthread_mutex_init(&ch->guard, &mtx_attr) != 0) {
-		fprintf(stderr, "%s(): Failed initializing channel guard, aborting (%d : %s)\n",
-			__func__, errno, strerror(errno));
+		ERROR(ch, "Failed initializing channel guard, aborting (%d : %s)", errno, strerror(errno));
 		chan_destroy(&ch);
 		return NULL;
 	}
@@ -252,6 +249,7 @@ static struct channel * _chan_create(struct nethandler *nh,
 	/* Set up pipes for Rx/Tx */
 	int pfd[2];
 	if (pipe(pfd) == -1) {
+		ERROR(ch, "Unable to create pipe-pair during setup (%d: %s)", errno, strerror(errno));
 		chan_destroy(&ch);
 		return NULL;
 	}
@@ -273,7 +271,7 @@ static void * _chan_tx_last_setup(void *data)
 	ch->tx_sock = nc_create_tx_sock(ch);
 
 	if (ch->tx_sock < 0) {
-		fprintf(stderr, "%s(): [%lu] Failed creating Tx-sock for channel\n", __func__, ch->sidw.s64);
+		ERROR(ch, "Failed creating Tx-sock for channel");
 		UNGUARD;
 		chan_destroy(&ch);
 		return NULL;
@@ -282,12 +280,11 @@ static void * _chan_tx_last_setup(void *data)
 	/* We are ready to send, the first attempt should fly straight through */
 	ch->next_tx_ns = tai_get_ns();
 
-	if (ch->nh->verbose)
-		printf("%s(): [%lu] sending to %s\n", __func__, ch->sidw.s64, ether_ntoa((struct ether_addr *)&ch->dst));
+	INFO(ch, "Tx channel, Sending to %s", ether_ntoa((struct ether_addr *)&ch->dst));
 
 	if (ch->nh->use_srp) {
 		if (!nc_srp_client_talker_setup(ch)) {
-			fprintf(stderr, "%s() [%lu] Talker setup FAILED!\n", __func__, ch->sidw.s64);
+			ERROR(ch, "Talker setup FAILED!");
 			UNGUARD;
 			chan_destroy(&ch);
 			return NULL;
@@ -302,8 +299,7 @@ static void * _chan_tx_last_setup(void *data)
 	pthread_cond_signal(&ch->ready_cond);
 
 	UNGUARD;
-
-	printf("[%lu] Found listener! Channel ready.\n", ch->sidw.s64);
+	INFO(ch, "TxSetup: Found listener! Channel ready.");
 	return NULL;
 }
 
@@ -330,16 +326,15 @@ static void * _chan_rx_last_setup(void *data)
 	GUARD;
 
 	if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
-		if (ch->nh->verbose)
-			printf("%s(): [%lu] receive data on a multicast group, adding membership\n", __func__, ch->sidw.s64);
+		DEBUG(ch, "receive data on a multicast group, adding membership");
 
 		struct packet_mreq mr;
 		memset(&mr, 0, sizeof(mr));
 		mr.mr_ifindex = ch->nh->ifidx;
 		mr.mr_type = PACKET_MR_PROMISC;
 		if (setsockopt(ch->nh->rx_sock, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) == -1) {
-			fprintf(stderr, "%s(): [%lu] failed setting multicast membership, may not receive frames! => %s\n",
-				__func__, ch->sidw.s64, strerror(errno));
+			WARN(ch, "failed setting multicast membership, may not receive frames! => %d: %s",
+				errno, strerror(errno));
 		}
 	}
 
@@ -376,15 +371,12 @@ static void * _chan_rx_last_setup(void *data)
 			chan_destroy(&ch);
 			return NULL;
 		}
-		if (ch->nh->verbose)
-			printf("%s(): [%lu] use_srp, awaiting talker\n", __func__, ch->sidw.s64);
+		DEBUG(ch, "use_srp, awaiting talker");
 
 		mrp_await_talker(ch->ctx);
-		if (ch->nh->verbose)
-			printf("[%lu] Rx stream found corersponding talker, sending ready\n", ch->sidw.s64);
+		INFO(ch, "Rx stream found corersponding talker, sending ready");
 		if (mrp_send_ready(ch->ctx) < 0) {
-			fprintf(stderr, "[%lu] mrp_send_ready() FAILED (%d: %s)\n",
-				ch->sidw.s64, errno, strerror(errno));
+			WARN(ch, "mrp_send_ready() FAILED (%d: %s)", errno, strerror(errno));
 			UNGUARD;
 			chan_destroy(&ch);
 			return NULL;
@@ -395,7 +387,7 @@ static void * _chan_rx_last_setup(void *data)
 	pthread_cond_signal(&ch->ready_cond);
 
 	UNGUARD;
-	printf("%s(): [%lu] done, chan ready\n", __func__, ch->sidw.s64);
+	INFO(ch, "Rx setup done, channel ready");
 	return NULL;
 }
 
@@ -499,13 +491,8 @@ void chan_destroy(struct channel **ch)
 {
 	if (!*ch)
 		return;
-	struct nethandler *nh = (*ch)->nh;
-	if (nh->verbose)
-		printf("%s(): Destroying channel=%ld\n", __func__, (*ch)->sidw.s64);
+	INFO((*ch), "Destroying channel");
 	_chan_destroy(ch, true);
-
-	if (nh->verbose)
-		printf("%s(): Channel destroyed\n", __func__);
 }
 
 bool chan_valid(struct channel *ch)
@@ -564,7 +551,7 @@ int chan_update(struct channel *ch, uint32_t ts, void *data)
 void chan_dump_state(struct channel *ch)
 {
 	if (!chan_valid(ch)) {
-		printf("%s(): No channel\n", __func__);
+		WARN(ch, "Invalid channel");
 		return;
 	}
 	printf("%18s : %s\n", "iface", ch->nh->ifname);
@@ -657,12 +644,11 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 
 	int txsz = sendmsg(ch->tx_sock, &msg, 0);
 	if (txsz < 1) {
-		fprintf(stderr, "%s() failed (%d,%d) %s\n",
-			__func__, txsz, errno, strerror(errno));
+		WARN(ch, "%s() failed, %d (%d: %s)", __func__, txsz, errno, strerror(errno));
 	}
 
 	if (nc_handle_sock_err(ch->tx_sock) < 0) {
-		fprintf(stderr, "%s(): failed handling remaining socket error(s)\n", __func__);
+		WARN(ch, "%s(): failed handling remaining socket error(s)", __func__);
 		return -1;
 	}
 
@@ -712,7 +698,7 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 
 	struct timespec ts_cpu = {0}, ts_wakeup = {0};
 	if (clock_gettime(CLOCK_MONOTONIC, &ts_cpu) == -1) {
-		fprintf(stderr, "%s() FAILED (%d, %s)\n", __func__, errno, strerror(errno));
+		WARN(du, "%s() FAILED (%d, %s)", __func__, errno, strerror(errno));
 		return -1;
 	}
 	ts_cpu.tv_nsec += rel_delay_ns;
@@ -725,7 +711,7 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 	 * sudo cyclictest --duration=60 -p 30 -m -n -t 3 -a --policy=rr
 	 */
 	if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts_cpu, NULL) == -1)
-		printf("%s(): clock_nanosleep failed (%d, %s)\n", __func__, errno, strerror(errno));
+		WARN(du, "%s(): clock_nanosleep failed (%d, %s)", __func__, errno, strerror(errno));
 
 	clock_gettime(CLOCK_MONOTONIC, &ts_wakeup);
 	uint64_t cpu_wakeup_ns = ts_wakeup.tv_sec * NS_IN_SEC + ts_wakeup.tv_nsec;
@@ -742,12 +728,10 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 		tb_tag(du->nh->tb, tbmsg);
 	}
 
-	if (du->nh->verbose) {
-		printf("%s(): PTP Target: %lu, actual: %lu, error: %.3f (us) (%s)\n",
-			__func__, cpu_target_delay_ns, cpu_wakeup_ns,
-			1.0 * error_cpu_ns / 1000,
-			error_cpu_ns < 0 ? "late" : "early");
-	}
+	INFO(du, "%s(): PTP Target: %lu, actual: %lu, error: %.3f (us) (%s)",
+		__func__, cpu_target_delay_ns, cpu_wakeup_ns,
+		1.0 * error_cpu_ns / 1000,
+		error_cpu_ns < 0 ? "late" : "early");
 
 	return error_cpu_ns;
 }
@@ -756,12 +740,11 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 {
 	uint64_t ts_ns = get_ptp_ts_ns(ch->nh->ptp_fd);
 	if (chan_update(ch, tai_to_avtp_ns(ts_ns), data)) {
-		fprintf(stderr, "%s(): chan_update failed\n", __func__);
+		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
 	}
 
-	if (ch->nh->verbose)
-		printf("%s(): data sent, capture_ts: %lu\n", __func__, ts_ns);
+	DEBUG(ch, "%s(): data sent, capture_ts: %lu", __func__, ts_ns);
 
 	uint64_t tx_ns = 0;
 	int res = chan_send(ch, &tx_ns);
@@ -806,8 +789,7 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	 */
 	int res = read(ch->fd_r, &ch->cbp->meta, rpsz);
 	if (res < 0) {
-		fprintf(stderr, "%s(): read() from channel (sid=%" PRId64 ") FAILED (%d: %s)\n",
-			__func__, ch->sidw.s64, errno, strerror(errno));
+		ERROR(ch, "read() from channel FAILED (%d: %s)", errno, strerror(errno));
 		return res;
 	}
 
@@ -823,8 +805,7 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	/* Reconstruct PTP capture timestamp from sender */
 	uint64_t lavtp = tai_to_avtp_ns(ch->cbp->meta.ts_recv_ptp_ns);
 	if (lavtp < ch->cbp->meta.avtp_timestamp) {
-		if (ch->nh->verbose)
-			printf("%s() avtp_timestamp wrapped along the way!\n", __func__);
+		INFO(ch, "avtp_timestamp wrapped along the way");
 		lavtp += ((uint64_t)1<<32)-1;
 	}
 	int64_t avtp_diff = lavtp - ch->cbp->meta.avtp_timestamp;
@@ -848,15 +829,8 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	 */
 	if (read_delay) {
 		int64_t err = _delay(ch, ptp_capture + ch->sc);
-
-		if (ch->nh->verbose) {
-			printf("%s() Sample spent %ld ns from capture to recvmsg()\n",
-				__func__, avtp_diff);
-			printf("%s() Reconstructed timestamp: %lu\n",
-				__func__, ptp_capture + ch->sc);
-			printf("%s() Delayed to %lu, missed by %ld ns\n",
-				__func__, ptp_capture + ch->sc, err);
-		}
+		INFO(ch, "%s() Sample spent %ld ns from capture to recvmsg() (reconstructed ts: %lu, missed by %ld ns",
+			__func__, avtp_diff, ptp_capture + ch->sc, err);
 	}
 
 	return res;
@@ -896,7 +870,7 @@ static unsigned int _get_link_speed_Mbps(struct nethandler *nh)
 	data.cmd = ETHTOOL_GSET;
 
 	if (ioctl(nh->rx_sock, SIOCETHTOOL, &ifr) < 0) {
-		fprintf(stderr, "Failed reading ethtool data (%s)\n", strerror(errno));
+		WARN(NULL, "Failed reading ethtool data (%s)", strerror(errno));
 		return -1;
 	}
 	return (unsigned int)ethtool_cmd_speed(&data);
@@ -913,7 +887,7 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 	struct ifreq req;
 	snprintf(req.ifr_name, sizeof(req.ifr_name), "%s", ifname);
 	if (ioctl(nh->rx_sock, SIOCGIFINDEX, &req) == -1) {
-		fprintf(stderr, "%s(): Could not get interface index for %s: %s\n", __func__, nh->ifname, strerror(errno));
+		WARN(NULL, "Could not get interface index for %s, %d: %s\n", nh->ifname, errno, strerror(errno));
 		return -1;
 	}
 	nh->ifidx = req.ifr_ifindex;
@@ -922,7 +896,7 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 	/* Don't bother about MAC for lo */
 	if (!nh->is_lo) {
 		if (ioctl(nh->rx_sock, SIOCGIFHWADDR, &req) == -1) {
-			fprintf(stderr, "%s(): Failed reading HW-addr from %s: %s\n",
+			ERROR(NULL, "%s(): Failed reading HW-addr from %s: %s",
 				__func__, nh->ifname, strerror(errno));
 			return -1;
 		}
@@ -944,7 +918,7 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 		if (ioctl(nh->rx_sock, SIOCGIFFLAGS, &req) == 0) {
 			req.ifr_flags |= IFF_PROMISC;
 			if (ioctl(nh->rx_sock, SIOCSIFFLAGS, &req) == -1) {
-				fprintf(stderr, "%s(): Failed placing lo in promiscuous " \
+				WARN(NULL, "%s(): Failed placing lo in promiscuous " \
 					"mode, may not receive incoming data (tests may " \
 					"fail)", __func__);
 			}
@@ -1072,7 +1046,7 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 	int res = 0;
 	/* lock memory, we don't pagefaults later */
 	if (mlockall(MCL_CURRENT|MCL_FUTURE)) {
-		fprintf(stderr, "%s(): failed locking memory (%d, %s)\n",
+		ERROR(NULL, "%s(): failed locking memory (%d, %s)",
 			__func__, errno, strerror(errno));
 		res = -1;
 	}
@@ -1080,18 +1054,17 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 	/* disable dma latency, this avoids c-state transitions */
 	nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
 	if (nh->dma_lat_fd < 0) {
-		if (nh->verbose)
-			fprintf(stderr, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)\n",
+		WARN(NULL, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)",
 				__func__, errno, strerror(errno));
 	} else {
 		int lat_val = 0;
 		int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
 		if (wres < 1) {
-			fprintf(stderr, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)\n",
+			WARN(NULL, "%s(): Failed writing %d to /dev/cpu_dma_latency (%d, %s)",
 				__func__, lat_val, errno, strerror(errno));
 			res = -2;
-		} else if (nh->verbose) {
-			printf("%s(): Disabled cstate on CPU\n", __func__);
+		} else {
+			DEBUG(NULL, "%s(): Disabled cstate on CPU", __func__);
 		}
 	}
 
@@ -1116,20 +1089,20 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 	}
 
 	if (_nh_net_setup(nh, ifname)) {
-		fprintf(stderr, "%s(): failed setting up network, aborting\n", __func__);
+		ERROR(NULL, "%s(): failed setting up network, aborting", __func__);
 		nh_destroy(&nh);
 		goto out;
 
 	}
 
 	if (_nh_start_rx(nh)) {
-		fprintf(stderr, "%s(): failed starting Rx-handler\n", __func__);
+		ERROR(NULL, "%s(): failed starting Rx-handler", __func__);
 		nh_destroy(&nh);
 		goto out;
 	}
 
 	if (_nh_enable_rt_measures(nh))
-		fprintf(stderr, "%s() Failed enabling RT measures, not fatal but performance may not be optimal\n", __func__);
+		WARN(NULL, "%s() Failed enabling RT measures, not fatal but performance may not be optimal", __func__);
 
 	/*
 	 * Open logfile if provided
@@ -1137,7 +1110,7 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 	if (logfile && strlen(logfile) > 0) {
 		nh->logger = log_create(logfile);
 		if (!nh->logger)
-			fprintf(stderr, "%s() Something went wrong when enabling logger, datalogging disabled\n", __func__);
+			ERROR(NULL, "%s() Something went wrong when enabling logger, datalogging disabled", __func__);
 	}
 
 	if (nh->ftrace_break_us > 0)
@@ -1150,7 +1123,7 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 	 */
 	nh->ptp_fd = get_ptp_fd(ifname);
 	if (nh->ptp_fd < 0 && !nh->is_lo) {
-		fprintf(stderr, "%s(): failed getting FD for PTP on %s (%s), aborting.\n",
+		ERROR(NULL, "%s(): failed getting FD for PTP on %s (%s), aborting.",
 			__func__, ifname, strerror(errno));
 		nh_destroy(&nh);
 		goto out;
@@ -1188,16 +1161,12 @@ int nh_reg_callback(struct nethandler *nh,
  */
 int nh_std_cb(void *priv, struct avtpdu_cshdr *du)
 {
-	if (!priv || !du) {
-		/* printf("%s(): callback, but priv or du was NULL\n", __func__); */
+	if (!priv || !du)
 		return -EINVAL;
-	}
 
 	struct cb_priv *cbp = (struct cb_priv *)priv;
-	if (cbp->fd <= 0) {
-		/* printf("%s(): got priv and du, but no fd (pipe) set\n", __func__); */
+	if (cbp->fd <= 0)
 		return -EINVAL;
-	}
 
 	/* copy payload in du into payload in pipe_meta */
 	void *payload = (void *)du + sizeof(*du);
@@ -1247,8 +1216,7 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *cshdr,
 	}
 
 	if (idx >= 0) {
-		if (nh->verbose)
-			printf("%s(): received msg, hmidx: %d\n", __func__, idx);
+		DEBUG(NULL, "%s(): received msg, hmidx: %d\n", __func__, idx);
 		struct cb_priv *cbp = nh->hmap[idx].priv_data;
 		cbp->meta.ts_rx_ns = rx_hw_ns;
 		cbp->meta.ts_recv_ptp_ns = recv_ptp_ns;
@@ -1485,15 +1453,16 @@ void chan_print_details(struct channel *ch)
 }
 void nh_list_active_channels(struct nethandler *nh)
 {
-	printf("%s(): listing active channels\n", __func__);
 	if (!nh)
 		return;
-	printf("Rx channels:\n");
+	nh_debug(NULL, NC_INFO, "listing active channels\n");
+	nh_debug(NULL, NC_INFO, "Rx channels:\n");
 	struct channel *curr = nh->du_rx_head;
 	while (curr) {
 		chan_print_details(curr);
 		curr = curr->next;
 	}
+	nh_debug(NULL, NC_INFO, "Tx channels:\n");
 	curr = nh->du_tx_head;
 	while (curr) {
 		chan_print_details(curr);

@@ -10,7 +10,7 @@ static bool nc_srp_client_setup(struct channel *pdu)
 	pdu->class_b = malloc(sizeof(*pdu->class_b));
 
 	if (!pdu->ctx || !pdu->class_a || !pdu->class_b) {
-		fprintf(stderr, "%s(): memory allocation for SRP structs failed\n", __func__);
+		ERROR(pdu, "%s(): memory allocation for SRP structs failed.", __func__);
 		return false;
 	}
 
@@ -27,17 +27,15 @@ static bool _nc_set_class_pcp(struct channel *pdu)
 		pdu->socket_prio = pdu->class_b->priority;
 		break;
 	default:
-		fprintf(stderr, "%s(): unhandled TSN stream priority\n", __func__);
+		ERROR(pdu, "%s(): unhandled TSN stream priority.", __func__);
 		return false;
 	}
 
-	if (pdu->nh->verbose) {
-		printf("%s(): domain A: %d, B: %d, stream_class: %s\n",
-			__func__,
-			pdu->class_a->priority,
-			pdu->class_b->priority,
-			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
-	}
+	INFO(pdu, "%s(): domain A: %d, B: %d, stream_class: %s",
+		__func__,
+		pdu->class_a->priority,
+		pdu->class_b->priority,
+		pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 
 	return true;
 }
@@ -45,12 +43,12 @@ static bool _nc_set_class_pcp(struct channel *pdu)
 bool nc_srp_client_listener_setup(struct channel *pdu)
 {
 	if (!nc_srp_client_setup(pdu)) {
-		fprintf(stderr, "%s(): Failed SRP Client Common setup\n", __func__);
+		ERROR(pdu, "%s(): Failed SRP Client Common setup.", __func__);
 		return false;
 	}
 
 	if (mrp_create_socket(pdu->ctx) < 0) {
- 		fprintf(stderr, "Failed creating MRP CTX socket\n");
+ 		ERROR(pdu, "Failed creating MRP CTX socket.");
  		return false;
  	}
 
@@ -60,35 +58,33 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 	 * it handle multiple threads for when we have several Rx
 	 * channels? */
 	if (mrp_listener_monitor(pdu->ctx) != 0) {
-		fprintf(stderr, "Failed creating MRP listener monitor\n");
+		ERROR(NULL, "Failed creating MRP listener monitor");
 		return false;
 	}
 
 	int res = mrp_get_domain(pdu->ctx, pdu->class_a, pdu->class_b);
 	if (res == -1) {
-		fprintf(stderr, "%s(): mrp_get_domaion() failed (%d; %s)\n",
+		ERROR(pdu, "%s(): mrp_get_domaion() failed (%d; %s)",
 			__func__, errno, strerror(errno));
 		return false;
 	}
 
-	if (pdu->nh->verbose) {
-		printf("\n%s(): domain PCP_A=%d VID=0x%04x, PCP_B=%d VID=0x%04x, stream_class: %s\n",
-			__func__,
-			pdu->class_a->priority,
-			pdu->class_a->vid,
-			pdu->class_b->priority,
-			pdu->class_b->vid,
-			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
-	}
+	INFO(pdu, "%s(): domain PCP_A=%d VID=0x%04x, PCP_B=%d VID=0x%04x, stream_class: %s",
+		__func__,
+		pdu->class_a->priority,
+		pdu->class_a->vid,
+		pdu->class_b->priority,
+		pdu->class_b->vid,
+		pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
 
 	if (mrp_report_domain_status(pdu->class_a, pdu->ctx) == -1) {
-		fprintf(stderr, "%s(): unable to report domain status! (%d; %s)\n",
+		ERROR(pdu, "%s(): unable to report domain status! (%d; %s)",
 			__func__, errno, strerror(errno));
 		return false;
 	}
 
 	if (mrp_join_vlan(pdu->class_a, pdu->ctx) == -1) {
-		fprintf(stderr, "%s(): join VLAN failed (%d; %s)\n",
+		ERROR(pdu, "%s(): join VLAN failed (%d; %s)",
 			__func__, errno, strerror(errno));
 		return false;
 	}
@@ -99,41 +95,35 @@ bool nc_srp_client_listener_setup(struct channel *pdu)
 bool nc_srp_client_talker_setup(struct channel *pdu)
 {
 	if (!nc_srp_client_setup(pdu)) {
-		fprintf(stderr, "[%lu] Failed SRP Client Common setup\n", pdu->sidw.s64);
+		ERROR(pdu, "Failed SRP Client Common setup.");
 		return false;
 	}
 
 	/* This forks out a thread to monitor incoming messages */
 	if (mrp_connect(pdu->ctx) == -1) {
-		fprintf(stderr, "[%lu] mrp_connect() failed (%d; %s)\n",
-			pdu->sidw.s64, errno, strerror(errno));
+		ERROR(pdu, "mrp_connect() failed (%d; %s)", errno, strerror(errno));
 		return false;
 	}
 
 	if (mrp_get_domain(pdu->ctx, pdu->class_a, pdu->class_b) == -1) {
-		fprintf(stderr, "[%lu] mrp_get_domaion() failed (%d; %s)\n",
-			pdu->sidw.s64, errno, strerror(errno));
+		ERROR(pdu, "mrp_get_domaion() failed (%d; %s)\n", errno, strerror(errno));
 		return false;
 	}
-	if (pdu->nh->verbose) {
-		printf("\n[%lu] domain PCP_A=%d VID=0x%04x, PCP_B=%d VID=0x%04x, stream_class: %s\n",
-			pdu->sidw.s64,
+	INFO(pdu, "domain PCP_A=%d VID=0x%04x, PCP_B=%d VID=0x%04x, stream_class: %s",
 			pdu->class_a->priority,
 			pdu->class_a->vid,
 			pdu->class_b->priority,
 			pdu->class_b->vid,
 			pdu->sc == CLASS_A ? "CLASS_A" : "CLASS_B");
-	}
 
 	if (mrp_register_domain(pdu->class_a, pdu->ctx) == -1) {
-		fprintf(stderr, "[%lu] register-domain failed (%d; %s)\n",
+		ERROR(pdu, "[%lu] register-domain failed (%d; %s)",
 			pdu->sidw.s64, errno, strerror(errno));
 		return false;
 	}
 
 	if (mrp_join_vlan(pdu->class_a, pdu->ctx) == -1) {
-		fprintf(stderr, "[%lu]: join VLAN failed (%d; %s)\n",
-			pdu->sidw.s64, errno, strerror(errno));
+		ERROR(pdu, "join VLAN failed (%d; %s)", errno, strerror(errno));
 		return false;
 	}
 
@@ -164,11 +154,10 @@ retry:
 					pktsz,
 					interval,
 					3900, pdu->ctx) == -1) {
-		fprintf(stderr, "[%lu] advertising stream FAILED (%d : %s)\n",
-			pdu->sidw.s64, errno, strerror(errno));
+		ERROR(pdu, "advertising stream FAILED (%d : %s)", errno, strerror(errno));
 		return false;
 	}
-	printf("[%lu] Stream advertised\n", pdu->sidw.s64);
+	INFO(pdu, "Stream advertised.");
 
 	/*
 	 * WARNING: mrp-await_listener BLOCKS (with an iter counter).
@@ -184,15 +173,13 @@ retry:
 	 */
 	int res = mrp_await_listener(pdu->sidw.s8, pdu->ctx, 500);
 	if (res == -2) {
-		printf("[%lu] [TIMEOUT] No listener found, re-advertising! \n", pdu->sidw.s64);
+		WARN(pdu, "[TIMEOUT] No listener found, re-advertising!");
 		goto retry;
 	} else if (res == -1) {
-		fprintf(stderr, "[%lu] mrp_await_listener failed (%d : %s)\n",
-			pdu->sidw.s64, errno, strerror(errno));
+		ERROR(pdu, "mrp_await_listener failed (%d : %s)", errno, strerror(errno));
 		return false;
 	}
-	printf("[%lu] Got listener\n", pdu->sidw.s64);
-
+	INFO(pdu, "Got listener");
 
 	return true;
 }
@@ -209,7 +196,7 @@ void nc_srp_client_destroy(struct channel *pdu)
 						pktsz,
 						interval,
 						3900, pdu->ctx) == -1) {
-			fprintf(stderr, "%s(): failed to unadvertise stream\n", __func__);
+			ERROR(pdu, "%s(): failed to unadvertise stream.", __func__);
 
 		}
 	} else {
@@ -217,7 +204,7 @@ void nc_srp_client_destroy(struct channel *pdu)
 	}
 
 	if (mrp_disconnect(pdu->ctx) < 0) {
-		fprintf(stderr, "%s(): failed to send mrp disconnect() := %s\n",
+		ERROR(pdu, "%s(): failed to send mrp disconnect() := %s",
 			__func__, strerror(errno));
 	}
 	if (pdu->ctx)

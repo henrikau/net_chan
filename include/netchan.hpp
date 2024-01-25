@@ -27,7 +27,7 @@ public:
         nh_set_srp(nh, srp);
 
         if (!nh) {
-            fprintf(stderr, "%s() FAILED creating handler\n", __func__);
+            ERROR(NULL, "%s() FAILED creating handler.", __func__);
             valid = false;
         }
     };

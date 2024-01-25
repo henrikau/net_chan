@@ -13,8 +13,7 @@ static int tx_sock_prio = 3;
 int nc_set_nic(char *nic)
 {
 	strncpy(nc_nic, nic, IFNAMSIZ-1);
-	if (verbose)
-		printf("%s(): set nic to %s\n", __func__, nc_nic);
+	INFO(NULL, "%s(): set nic to %s", __func__, nc_nic);
 	return 0;
 }
 
@@ -44,8 +43,7 @@ void nc_verbose(void)
 void nc_set_logfile(const char *logfile)
 {
 	strncpy(nc_logfile, logfile, 128);
-	if (verbose)
-		printf("%s(): set logfile to %s\n", __func__, nc_logfile);
+	INFO(NULL, "%s(): set logfile to %s", __func__, nc_logfile);
 }
 
 void nc_tx_sock_prio(int prio)
