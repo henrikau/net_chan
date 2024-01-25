@@ -34,6 +34,7 @@ extern "C" {
 
 #include <linux/if_packet.h>	/* sk_addr */
 #include <linux/net_tstamp.h>	/* sock_txtime */
+#include <stdarg.h>
 
 
 /* Empty mac multicast (ip multicast should be appended (low order 23
@@ -50,6 +51,19 @@ enum stream_class {
 	CLASS_A = 2 * NS_IN_MS,
 	CLASS_B = 50 * NS_IN_MS
 };
+
+enum nc_loglevel {
+	NC_DEBUG=0,
+	NC_INFO,
+	NC_WARN,
+	NC_ERROR
+};
+
+#define DEBUG(ch, ...) nh_debug((ch), NC_DEBUG, __VA_ARGS__)
+#define INFO(ch, ...)  nh_debug((ch), NC_INFO, __VA_ARGS__)
+#define WARN(ch, ...)  nh_debug((ch), NC_WARN, __VA_ARGS__)
+#define ERROR(ch, ...) nh_debug((ch), NC_ERROR, __VA_ARGS__)
+
 
 /* StreamID u64 to bytearray wrapper */
 union stream_id_wrapper {
@@ -740,6 +754,23 @@ void nh_list_active_channels(struct nethandler *nh);
  * @returns: guaranteed delay bound
  */
 uint64_t get_class_delay_bound_ns(struct channel *du);
+
+/**
+ * nh_debug() Debug print routine
+ *
+ * This routine shold be the preferred way of printing information to
+ * the console. It will automatically add a timestamp and streamID (if
+ * available) to the result, making it easier to connect log-entries
+ * accross a distributed system.
+ *
+ * @param ch channel container
+ * @param loglevel debug loglevel
+ * @param fmt string format
+ *
+ * @returns number of bytes written, -1 on error
+ */
+int nh_debug(struct channel *ch, enum nc_loglevel loglevel, const char *fmt, ...);
+
 
 #ifdef __cplusplus
 }

@@ -1500,3 +1500,41 @@ void nh_list_active_channels(struct nethandler *nh)
 		curr = curr->next;
 	}
 }
+
+static const char *(loglevel_map[]) = {
+	"DEBUG",
+	"INFO",
+	"WARNING",
+	"ERROR"
+};
+
+int nh_debug(struct channel *ch, enum nc_loglevel loglevel, const char *fmt, ...)
+{
+	/* Don't print anything below WARNING if we're not in verbose
+	 * mode
+	 */
+	if (ch && (!ch->nh->verbose && loglevel < NC_WARN))
+		return 0;
+
+	time_t timer = time(NULL);
+	struct tm *tminfo = localtime(&timer);
+
+	char buffer[256] = {0};
+	int idx = 0;
+
+	idx += strftime(&buffer[idx], sizeof(buffer)-idx, "%Y-%m-%d %H:%M:%S", tminfo);
+	if (ch)
+		idx += snprintf(&buffer[idx], sizeof(buffer)-idx, " [0x%08lx]", ch->sidw.s64);
+	idx += snprintf(&buffer[idx], sizeof(buffer)-idx, " %s", loglevel_map[loglevel]);
+	idx += snprintf(&buffer[idx], sizeof(buffer)-idx, " ");
+
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(&buffer[idx], sizeof(buffer)-idx, fmt, args);
+	va_end(args);
+
+	if (loglevel >= NC_WARN)
+		return fprintf(stderr, "%s\n", buffer);
+
+	return printf("%s\n", buffer);
+}
