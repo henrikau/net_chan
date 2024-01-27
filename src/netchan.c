@@ -6,11 +6,16 @@
  * with this file, You can obtain one at https://mozilla.org/MPL/2.0/
  */
 #include <netchan.h>
+#include <netchan_srp_client.h>
+#include <logger.h>
+#include <tracebuffer.h>
+
 #include <stdbool.h>
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <linux/net_tstamp.h>
 #include <linux/if_vlan.h>
+#include <linux/net.h>
 #include <netinet/ether.h>
 
 #include <linux/ethtool.h>
@@ -25,10 +30,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-#include <netchan_srp_client.h>
-#include <logger.h>
-#include <tracebuffer.h>
 
 struct pipe_meta {
 	uint64_t ts_rx_ns;
@@ -161,18 +162,19 @@ static void _chan_set_streamclass(struct channel *ch,
 				uint64_t interval_ns)
 {
 	ch->sc = sc;
+	struct srp *srp = ch->nh->srp;
 
 	/* Set default values, if we run with SRP, it will be updated
 	 * once we've connected to mrpd
 	 */
 	switch (ch->sc) {
 	case CLASS_A:
-		ch->socket_prio = DEFAULT_CLASS_A_PRIO;
+		ch->pcp_prio = srp->prio_a;
 		if (interval_ns < 125*NS_IN_US)
 			WARN(ch, "Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
 		break;
 	case CLASS_B:
-		ch->socket_prio = DEFAULT_CLASS_B_PRIO;
+		ch->pcp_prio = srp->prio_b;
 		if (interval_ns < 250*NS_IN_US)
 			WARN(ch, "Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
 		break;
@@ -242,7 +244,8 @@ static struct channel * _chan_create(struct nethandler *nh,
 
 	memcpy(ch->dst, attrs->dst, ETH_ALEN);
 
-	_chan_set_streamclass(ch, attrs->sc, attrs->interval_ns);
+	if (nh->use_srp)
+		_chan_set_streamclass(ch, attrs->sc, attrs->interval_ns);
 
 	ch->tx_sock = -1;
 
@@ -256,18 +259,23 @@ static struct channel * _chan_create(struct nethandler *nh,
 	ch->fd_r = pfd[0];
 	ch->fd_w = pfd[1];
 
+
 	pthread_mutex_init(&ch->ready_mtx, NULL);
 	pthread_cond_init(&ch->ready_cond, NULL);
 
 	return ch;
 }
 
-static void * _chan_tx_last_setup(void *data)
+struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
 {
-	struct channel *ch = (struct channel *)data;
-	GUARD;
+	if (!nh || !attrs)
+		return NULL;
 
-	ch->tx_sock_prio = ch->nh->tx_sock_prio;
+	struct channel *ch = _chan_create(nh, attrs);
+	if (!ch)
+		return NULL;
+
+	ch->tx_sock_prio = nh->tx_sock_prio;
 	ch->tx_sock = nc_create_tx_sock(ch);
 
 	if (ch->tx_sock < 0) {
@@ -280,50 +288,40 @@ static void * _chan_tx_last_setup(void *data)
 	/* We are ready to send, the first attempt should fly straight through */
 	ch->next_tx_ns = tai_get_ns();
 
-	INFO(ch, "Tx channel, Sending to %s", ether_ntoa((struct ether_addr *)&ch->dst));
+	/* Add ref to internal list for memory mgmt */
+	nh_add_tx(nh, ch);
 
-	if (ch->nh->use_srp) {
-		if (!nc_srp_client_talker_setup(ch)) {
-			ERROR(ch, "Talker setup FAILED!");
-			UNGUARD;
+	/* Announce the talker to the network */
+	if (nh->use_srp) {
+		if (!nc_srp_new_talker(ch)) {
+			ERROR(ch, "%s() Failed setting up SRP for talker.");
 			chan_destroy(&ch);
 			return NULL;
 		}
-	}
-
-	/* Add ref to internal list for memory mgmt */
-	nh_add_tx(ch->nh, ch);
-
-	/* channel is ready to be used */
-	ch->ready = true;
-	pthread_cond_signal(&ch->ready_cond);
-
-	UNGUARD;
-	INFO(ch, "TxSetup: Found listener! Channel ready.");
-	return NULL;
-}
-
-struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
-{
-	if (!nh || !attrs)
-		return NULL;
-
-	struct channel *ch = _chan_create(nh, attrs);
-	if (!ch)
-		return NULL;
-
-	if (async) {
-		pthread_create(&ch->tid, NULL, _chan_tx_last_setup, (void *)ch);
 	} else {
-		_chan_tx_last_setup(ch);
+		/* If we are in SRP-mode, this will be done by the SRP monitor
+		 * thread when the first listener notifies us that it is
+		 * ready.
+		 *
+		 * Likewise, if all listeneres leaves, ready will be cleared by
+		 * the same monitor.
+		 */
+		ch->ready = true;
 	}
+
+	INFO(ch, "Tx channel created (sending to %s).", ether_ntoa((struct ether_addr *)&ch->dst));
+
 	return ch;
 }
 
-static void * _chan_rx_last_setup(void *data)
+
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
 {
-	struct channel *ch = (struct channel *)data;
-	GUARD;
+	if (!nh || !attrs)
+		return NULL;
+	struct channel *ch = _chan_create(nh, attrs);
+	if (!ch)
+		return NULL;
 
 	if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
 		DEBUG(ch, "receive data on a multicast group, adding membership");
@@ -360,50 +358,10 @@ static void * _chan_rx_last_setup(void *data)
 	nh_add_rx(ch->nh, ch);
 	nh_reg_callback(ch->nh, ch->sidw.s64, ch->cbp, nh_std_cb);
 
-	/* Rx thread ready, wait for talker to start sending
-	 *
-	 * !!! WARNING: await_talker() BLOCKS !!!
-	 */
-	/* Rx SRP subscribe */
-	if (ch->nh->use_srp) {
-		if (!nc_srp_client_listener_setup(ch)) {
-			UNGUARD;
-			chan_destroy(&ch);
-			return NULL;
-		}
-		DEBUG(ch, "use_srp, awaiting talker");
+	/* Listener will be marked ready by SRP monitor thread, but  */
+	if (!ch->nh->use_srp)
+		ch->ready = true;
 
-		mrp_await_talker(ch->ctx);
-		INFO(ch, "Rx stream found corersponding talker, sending ready");
-		if (mrp_send_ready(ch->ctx) < 0) {
-			WARN(ch, "mrp_send_ready() FAILED (%d: %s)", errno, strerror(errno));
-			UNGUARD;
-			chan_destroy(&ch);
-			return NULL;
-		}
-	}
-
-	ch->ready = true;
-	pthread_cond_signal(&ch->ready_cond);
-
-	UNGUARD;
-	INFO(ch, "Rx setup done, channel ready");
-	return NULL;
-}
-
-struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async)
-{
-	if (!nh || !attrs)
-		return NULL;
-	struct channel *ch = _chan_create(nh, attrs);
-	if (!ch)
-		return NULL;
-
-	if (async) {
-		pthread_create(&ch->tid, NULL, _chan_rx_last_setup, (void *)ch);
-	} else {
-		_chan_rx_last_setup(ch);
-	}
 	return ch;
 }
 
@@ -411,12 +369,7 @@ bool chan_ready(struct channel *ch)
 {
 	if (!ch)
 		return false;
-
-	bool ready = false;
-	GUARD;
-	ready = ch->ready;
-	UNGUARD;
-	return ready;
+	return ch->ready;
 }
 
 int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns)
@@ -443,11 +396,15 @@ int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns)
 
 bool chan_stop(struct channel *ch)
 {
-	if (!ch)
-		return false;
 	if (!chan_valid(ch))
 		return false;
 
+	if (ch->nh->use_srp) {
+		if (ch->tx_sock >= 0)
+			nc_srp_remove_talker(ch);
+		else
+			nc_srp_remove_listener(ch);
+	}
 	ch->ready = false;
 
 	/* FIXME: abort current blocking reads to ch->fd_r but without
@@ -462,8 +419,7 @@ bool chan_stop(struct channel *ch)
 static void _chan_destroy(struct channel **ch, bool unlink)
 {
 	chan_stop(*ch);
-	if ((*ch)->nh->use_srp)
-		nc_srp_client_destroy((*ch));
+
 	if ((*ch)->fd_r >= 0)
 		close((*ch)->fd_r);
 	if ((*ch)->fd_w >= 0)
@@ -489,9 +445,9 @@ static void _chan_destroy(struct channel **ch, bool unlink)
 
 void chan_destroy(struct channel **ch)
 {
+
 	if (!*ch)
 		return;
-	INFO((*ch), "Destroying channel");
 	_chan_destroy(ch, true);
 }
 
@@ -962,7 +918,7 @@ static void * nh_runner(void *data)
 	struct msghdr msg = {
 		.msg_iov = &entry,
 		.msg_iovlen = 1,
-		.msg_name = (caddr_t) &addr,
+		.msg_name = (void *) &addr,
 		.msg_namelen = sizeof(addr),
 		.msg_control = &control,
 		.msg_controllen = sizeof(control),
@@ -1216,7 +1172,6 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *cshdr,
 	}
 
 	if (idx >= 0) {
-		DEBUG(NULL, "%s(): received msg, hmidx: %d\n", __func__, idx);
 		struct cb_priv *cbp = nh->hmap[idx].priv_data;
 		cbp->meta.ts_rx_ns = rx_hw_ns;
 		cbp->meta.ts_recv_ptp_ns = recv_ptp_ns;
@@ -1343,6 +1298,86 @@ int nh_add_rx(struct nethandler *nh, struct channel *du)
 	return 0;
 }
 
+struct channel *get_tx_chan_from_sid(struct nethandler *nh, union stream_id_wrapper stream)
+{
+	struct channel *ch = nh->du_tx_head;
+	while (ch) {
+		if (ch->sidw.s64 == stream.s64)
+			return ch;
+		ch = ch->next;
+	}
+	return NULL;
+}
+
+struct channel *get_rx_chan_from_sid(struct nethandler *nh, union stream_id_wrapper stream)
+{
+	/* All Rx-channels have an entry in the callbach hashmap.
+	 *
+	 * This won't give us the chanel (just the opaque callback area
+	 * for the pipe), but it's the fastes way to determine if its a
+	 * known stream.
+	 */
+	if (get_hm_idx(nh, stream.s64) < 0 || !nh)
+		return NULL;
+
+	struct channel *ch = nh->du_rx_head;
+	while (ch) {
+		if (ch->sidw.s64 == stream.s64)
+			return ch;
+		ch = ch->next;
+	}
+	return NULL;
+}
+
+bool nh_notify_talker_Lnew(struct nethandler *nh, union stream_id_wrapper stream, int state)
+{
+	struct channel *talker = get_tx_chan_from_sid(nh, stream);
+	if (!talker)
+		return false;
+	INFO(talker, "%s() Found remote listener\n", __func__);
+	talker->ready = true;
+	return true;
+}
+bool nh_notify_talker_Lleaving(struct nethandler *nh, union stream_id_wrapper stream, int state)
+{
+	int idx = get_hm_idx(nh, stream.s64);
+	ERROR(NULL, "%s() sid=%lu, idx=%d", __func__, stream.s64, idx);
+	exit(0);
+	return false;
+}
+
+bool nh_notify_listener_Tnew(struct nethandler *nh, union stream_id_wrapper stream, uint8_t *mac_addr)
+{
+	struct channel *listener = get_rx_chan_from_sid(nh, stream);
+	if (!listener) {
+		DEBUG(NULL, "%s() %lu  no match", __func__, stream.s64);
+		return false;
+	}
+
+	if (nc_mrp_send_ready(nh->srp, stream)) {
+		INFO(listener, "%s(): Listener ready", __func__);
+		listener->ready = true;
+	}
+
+	return listener->ready;
+}
+
+bool nh_notify_listener_Tleave(struct nethandler *nh, union stream_id_wrapper stream, uint8_t *mac_addr)
+{
+	struct channel *listener = get_rx_chan_from_sid(nh, stream);
+	if (!listener) {
+		DEBUG(NULL, "%s() %lu no match", __func__, stream.s64);
+		return false;
+	}
+
+	if (nc_mrp_send_leave(nh->srp, stream)) {
+		INFO(listener, "%s(): Listener waiting for talker (it left)", __func__);
+		listener->ready = false;
+		exit(0);
+	}
+	return true;
+}
+
 void nh_set_verbose(struct nethandler *nh, bool verbose)
 {
 	if (!nh)
@@ -1354,7 +1389,15 @@ void nh_set_srp(struct nethandler *nh, bool use_srp)
 {
 	if (!nh)
 		return;
+	if (!nc_srp_setup(nh)) {
+		ERROR(NULL, "%s() Cannot enable SRP!", __func__);
+		return;
+	}
 	nh->use_srp = use_srp;
+
+	/* Create monitor thread that grabs incoming messages, extract
+	 * SID and dst and matches to Rx/Tx channels */
+
 }
 
 void nh_set_trace_breakval(struct nethandler *nh, int break_us)
@@ -1420,6 +1463,10 @@ void nh_destroy(struct nethandler **nh)
 			_chan_destroy(&ch, false);
 		}
 
+		if ((*nh)->use_srp)
+			nc_srp_teardown((*nh));
+
+
 		/* Free memory */
 		free(*nh);
 	}
@@ -1480,7 +1527,7 @@ static const char *(loglevel_map[]) = {
 int nh_debug(struct channel *ch, enum nc_loglevel loglevel, const char *fmt, ...)
 {
 	/* Don't print anything below WARNING if we're not in verbose
-	 * mode
+	 * mode (only works if channel is set)
 	 */
 	if (ch && (!ch->nh->verbose && loglevel < NC_WARN))
 		return 0;

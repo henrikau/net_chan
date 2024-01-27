@@ -67,6 +67,7 @@ struct channel *chan_create_standalone(char *name,
 		return NULL;
 
 	nh_create_init_standalone();
+
 	return tx_update ? chan_create_tx(_nh, &attrs[idx], false) : chan_create_rx(_nh, &attrs[idx], false);
 }
 

@@ -118,8 +118,8 @@ bool valid_settings(void)
 			ensemble_idx, ensemble_size);
 		return false;
 	}
-	if (ensemble_size > ENSEMBLE_SIZE_LIMIT) {
-		fprintf(stderr, "Ensemble size (%d) too large, we currently cannot support %d connections. Upper limit is %d (%d connections)\n",
+	if (ensemble_size < 2 || ensemble_size > ENSEMBLE_SIZE_LIMIT) {
+		fprintf(stderr, "Ensemble-size (%d) invalid, we currently cannot support %d connections.\nIt must be in the interval [2,%d] ([4, %d] connections)\n",
 			ensemble_size, ensemble_size*ensemble_size,
 			ENSEMBLE_SIZE_LIMIT, ENSEMBLE_SIZE_LIMIT*ENSEMBLE_SIZE_LIMIT);
 		return false;
@@ -216,12 +216,16 @@ int main(int argc, char *argv[])
 	base.interval_ns = period_ns;
 
 	struct nethandler *nh = nh_create_init(nic, 2*ensemble_size + 1, strlen(logfile)>0 ? logfile : NULL);
+	if (!nh) {
+		fprintf(stderr, "Failed creating nethandler, aborting\n");
+		return -1;
+	}
+
 	nh_set_verbose(nh, verbose);
 	nh_set_srp(nh, do_srp);
 
 	struct channel *tx[ENSEMBLE_SIZE_LIMIT];
 	pthread_t listeners[ENSEMBLE_SIZE_LIMIT];
-
 	/* Create Channels, finding StreamID and address
 	 *
 	 *

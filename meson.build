@@ -3,27 +3,13 @@ project(
  'c',
  version: '0.1.2',
  license: 'MPL-2-Clause',
+ # default_options: [
+ #   'c_std=c11',
+ #   'warning_level=2',
+ # ],
 )
 
 deps = dependency('threads')
-
-mrplib = static_library('mrp',
-			'srp/mrp_client.c',
-			'srp/talker_mrp_client.c',
-			'srp/listener_mrp_client.c',
-			include_directories: include_directories('include'),
-			dependencies: deps,
-			install: true
-		       )
-
-mrplibso = library('mrp',
-			'srp/mrp_client.c',
-			'srp/talker_mrp_client.c',
-			'srp/listener_mrp_client.c',
-			include_directories: include_directories('include'),
-			dependencies: deps,
-			install: true
-		       )
 
 netchan = static_library('netchan',
 			 'src/netchan.c',
@@ -32,11 +18,11 @@ netchan = static_library('netchan',
 			 'src/netchan_utils.c',
 			 'src/ptp_getclock.c',
 			 'src/netchan_srp_client.c',
+			 'src/netchan_srp_helper.c',
 			 'src/tracebuffer.c',
 			 'src/logger.c',
 			include_directories: include_directories('include'),
 			dependencies: deps,
-			link_with: mrplib,
 			install: true
 		       )
 
@@ -48,9 +34,9 @@ netchan_so = library('netchan',
 		     'src/tracebuffer.c',
 		     'src/logger.c',
 		     'src/netchan_srp_client.c',
+		     'src/netchan_srp_helper.c',
 		     include_directories: include_directories('include'),
 		     dependencies: deps,
-		     link_with: mrplibso,
 		     install: true
 		    )
 
@@ -62,7 +48,6 @@ install_headers(['include/netchan.h',
 		 'include/netchan_utils.h',
 		 'include/tracebuffer.h'
 		])
-install_subdir('include/srp', install_dir: 'include/')
 
 executable(
    'talker',
@@ -71,7 +56,7 @@ executable(
    include_directories: include_directories('include'),
    build_by_default: true,
 	dependencies: deps,
-   link_with : [netchan, mrplib])
+   link_with : [netchan])
 
 executable(
    'listener',
@@ -94,6 +79,7 @@ executable(
 t_pdu = executable('testpdu',
 		   'test/test_pdu.c',
 		   'src/netchan_srp_client.c',
+		   'src/netchan_srp_helper.c',
 	       'src/ptp_getclock.c',
 	       'src/tracebuffer.c',
 	       'src/terminal.c',
@@ -101,7 +87,6 @@ t_pdu = executable('testpdu',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
@@ -109,6 +94,7 @@ t_pdu = executable('testpdu',
 t_nh = executable('testnh',
 	       'test/test_nh.c',
 	       'src/netchan_srp_client.c',
+	       'src/netchan_srp_helper.c',
 	       'src/ptp_getclock.c',
 	       'src/tracebuffer.c',
 	       'src/terminal.c',
@@ -116,7 +102,6 @@ t_nh = executable('testnh',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplib,
 	       dependencies: deps
 	      )
 
@@ -124,6 +109,7 @@ t_nh = executable('testnh',
 t_net_fifo = executable('testnetfifo',
 	       'test/test_net_fifo.c',
 	       'src/netchan_srp_client.c',
+	       'src/netchan_srp_helper.c',
 	       'src/ptp_getclock.c',
 	       'src/tracebuffer.c',
 	       'src/terminal.c',
@@ -131,17 +117,8 @@ t_net_fifo = executable('testnetfifo',
 	       'test/unity.c',
 	       include_directories: include_directories('include'),
 	       build_by_default: true,
-	       link_with : mrplib,
 	       dependencies: deps
 	      )
-
-t_mrp =  executable('testmrp',
-	       'test/test_mrp.c',
-	       'test/unity.c',
-	       include_directories: include_directories('include'),
-	       build_by_default: true,
-	       dependencies: deps,
-	       link_with : mrplib)
 
 t_chan = executable('testchan',
 		    'test/test_chan.c',
@@ -166,9 +143,6 @@ test('nh test', t_nh)
 test('nh net fifo', t_net_fifo)
 test('channel test', t_chan)
 test('test utils', t_utils)
-
-# MRP test is unstable, so it only adds noise
-# test('mrp', t_mrp)
 
 # Generate documentation if doxygen is available.
 doxygen = find_program('doxygen', required: false)

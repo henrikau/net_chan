@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
@@ -36,16 +37,6 @@ extern "C" {
 #include <linux/net_tstamp.h>	/* sock_txtime */
 #include <stdarg.h>
 
-
-/* Empty mac multicast (ip multicast should be appended (low order 23
- * bit to low order 23)
- */
-#define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
-
-enum {
-	DEFAULT_CLASS_A_PRIO = 3,
-	DEFAULT_CLASS_B_PRIO = 2
-};
 
 enum stream_class {
 	CLASS_A = 2 * NS_IN_MS,
@@ -191,31 +182,26 @@ struct channel
 	union stream_id_wrapper sidw;
 
 	/*
-	 * Each channel is mapped to either an Rx or or it has its own Tx socket
+	 * Only relevant in SRP mode!
 	 *
-	 * Similarly, each incoming stream has to keep track of which
-	 * talker to subscribe to, so keep context for this here..
-	 *
-	 * MRP client has its own section for talker and listener, with
-	 * dedicated fields for strem_id, mac etc.
+	 * A Tx channel will keep track of remote listeners. Once this
+	 * reaches 0, the channel will stop transmitting and ready will
+	 * be cleared. This is done by the SRP monitor thread managed by
+	 * nethandler.
 	 */
-	struct mrp_ctx *ctx;
-	struct mrp_domain_attr *class_a; /* PCP prio A attributes */
-	struct mrp_domain_attr *class_b; /* PCP prio B attributes */
+	int remote_listener;
 	enum stream_class sc;
-	int socket_prio;	/* Active priority (PCP) for this channel */
+	int pcp_prio;	/* Active priority (PCP) for this channel */
 
-
-	/* If a channel is ready for use or not. Relevant when using SRP
-	 * since we have to wait for the other end to become ready.
+	/* Only relevant in SRP mode!
+	 *
+	 * Both Rx and Tx channels must wait until at least one remote
+	 * is attached to the stream. This is monitored and managed by
+	 * the SRP monitor thread managed by nethandler.
 	 */
 	bool ready;
 	pthread_mutex_t ready_mtx;
 	pthread_cond_t ready_cond;
-
-	/* FIXME: need to update code to use cvlock and not mutex for CV */
-	pthread_mutex_t cvlock;
-	pthread_t tid;
 
 	/*
 	 * Each outgoing stream has its own socket, with corresponding
@@ -269,6 +255,11 @@ struct channel
 	unsigned char payload[0];
 };
 
+/* netchan_srp_client needs ref to stream_id_wrapper and channel, so
+ * incluide after these structs.
+ */
+#include <netchan_srp_client.h>
+
 struct nethandler {
 	struct channel *du_tx_head;
 	struct channel *du_tx_tail;
@@ -293,6 +284,22 @@ struct nethandler {
 	char mac[6];
 	bool running;
 	pthread_t tid;
+
+	/*
+	 * A nethandler handles the SRP connection
+	 *
+	 * All new Tx channels will send a talker announce message and wait for at least one
+	 *
+	 * Similarly, each incoming stream has to keep track of which
+	 * talker to subscribe to, so keep context for this here..
+	 *
+	 * MRP client has its own section for talker and listener, with
+	 * dedicated fields for strem_id, mac etc.
+	 */
+	struct srp *srp;
+	int socket_prio;	/* Active priority (PCP) for this channel */
+
+
 
 	/*
 	 * fd for PTP device to retrieve timestamp.
@@ -733,6 +740,50 @@ bool nh_set_tx_prio(struct nethandler *nh, int tx_prio);
  */
 int nh_remove_tx(struct channel *ch);
 int nh_remove_rx(struct channel *ch);
+
+/**
+ * nh_notify_talker_Lnew() Notify a talker that a new Listener has arrived
+ *
+ * @params: nethandler container
+ * @params: stream announced stream_id
+ * @params: state reported state
+ *
+ * @return: true if stream was found and notified successfully
+ */
+bool nh_notify_talker_Lnew(struct nethandler *nh, union stream_id_wrapper stream, int state);
+
+/**
+ * nh_notify_talker_Lleaving() Notify a talker that a Listener is leaving
+ *
+ * @params: nethandler container
+ * @params: stream announced stream_id
+ * @params: state reported state
+ *
+ * @return: true if stream was found and notified successfully
+ */
+bool nh_notify_talker_Lleaving(struct nethandler *nh, union stream_id_wrapper stream, int state);
+
+/**
+ * nh_notify_listener_Tnew() notify listener that a new talker is available
+ *
+ * @params: nethandler container
+ * @params: stream announce stream_id
+ * @params: mac_addr multicast address for stream
+ *
+ * @returns: true if stream was successfully notified
+ */
+bool nh_notify_listener_Tnew(struct nethandler *nh, union stream_id_wrapper stream, uint8_t *mac_addr);
+
+/**
+ * nh_notify_listener_Tleave() notify listener that the talker has left
+ *
+ * @params: nethandler container
+ * @params: stream announce stream_id
+ * @params: mac_addr multicast address for stream
+ *
+ * @returns: true if stream was successfully notified
+ */
+bool nh_notify_listener_Tleave(struct nethandler *nh, union stream_id_wrapper stream, uint8_t *mac_addr);
 
 /**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.

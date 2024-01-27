@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
         }
     }
     end = tai_get_ns();
+    usleep(500000);
     running = false;
 
     // wait for async_ctr

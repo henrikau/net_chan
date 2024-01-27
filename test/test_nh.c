@@ -197,7 +197,10 @@ static void test_nh_add_cb_overflow(void)
 
 static void test_create_tx_fifo(void)
 {
+	printf("Setting up a Tx-channel\n");
 	NETCHAN_TX(test1);
+	printf("Test\n");
+	usleep(4000);
 	TEST_ASSERT_NOT_NULL_MESSAGE(test1_du, "Missing DU, should have been created from valid name");
 	TEST_ASSERT(test1_du->nh == _nh);
 	TEST_ASSERT(test1_du->dst[0] == 0x01);

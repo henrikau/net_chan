@@ -1,12 +1,16 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <linux/net_tstamp.h>
+#include <linux/if.h>
 #include <netchan.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
 #include <linux/errqueue.h>
 #include <poll.h>
 #include <sys/ioctl.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
 
 int nc_create_rx_sock(const char *ifname)
 {
