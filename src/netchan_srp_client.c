@@ -65,6 +65,41 @@ void * nc_srp_monitor(void *data)
 	return NULL;
 }
 
+/* Periodic task that (re)-announces:
+ * - talkers without any listeners: every 10 sec
+ */
+void * nc_srp_talker_announce(void *data)
+{
+	struct nethandler *nh = (struct nethandler *)data;
+	if (!nh) {
+		ERROR(NULL, "%s(): invalid nethandler.", __func__);
+		pthread_exit(NULL);
+	}
+	struct srp *srp = nh->srp;
+	if (!srp) {
+		ERROR(NULL, "%s(): invalid srp container\n", __func__);
+		pthread_exit(NULL);
+	}
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	while (nh->running) {
+		ts.tv_sec += 10;
+		if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) == -1) {
+			WARN(NULL, "%s(): clock_nanosleep failed (%d, %s)", __func__, errno, strerror(errno));
+			usleep(500000);
+			continue;
+		}
+
+		struct channel *talker = nh->du_tx_head;
+		while (talker) {
+			if (!talker->ready)
+				nc_srp_new_talker(talker);
+			talker = talker->next;
+		}
+	}
+	return NULL;
+}
+
 bool nc_srp_setup(struct nethandler *nh)
 {
 	struct srp *srp = calloc(1, sizeof(*srp));
@@ -124,12 +159,26 @@ bool nc_srp_setup(struct nethandler *nh)
 		ERROR(NULL, "join VLAN failed (%d; %s)", errno, strerror(errno));
 		goto err_out;
 	}
+
+	if (pthread_create(&srp->announcer, NULL, nc_srp_talker_announce, (void *)nh)) {
+		ERROR(NULL, "Failed starting SRP Talker announcer");
+		goto err_out;
+	}
+
 	return true;
 
 err_out:
 	nh->running = false;
 	if (srp->sock> 0)
 		close(srp->sock);
+	if (srp->tid > 0) {
+		pthread_join(srp->tid, NULL);
+		srp->tid = 0;
+	}
+	if (srp->announcer) {
+		pthread_join(srp->announcer, NULL);
+		srp->announcer = 0;
+	}
 
 	if (srp)
 		free(srp);
@@ -150,7 +199,14 @@ void nc_srp_teardown(struct nethandler *nh)
 	 * We are called from nh_destroy(), which will set nh->running =
 	 * false, which *should* stop the thread
 	 */
-	pthread_join(nh->srp->tid, NULL);
+	if (nh->srp->tid > 0) {
+		pthread_join(nh->srp->tid, NULL);
+		nh->srp->tid = 0;
+	}
+	if (nh->srp->announcer > 0) {
+		pthread_join(nh->srp->announcer, NULL);
+		nh->srp->announcer = 0;
+	}
 
 	/* leave VLAN */
 	nc_mrp_leave_vlan(nh->srp);

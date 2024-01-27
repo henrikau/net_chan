@@ -19,7 +19,25 @@ enum {
 
 struct srp {
 	struct nethandler *nh;
+
+	/* SRP message monitor thread
+	 *
+	 * Tracks incoming messages from mrpd and calls back into
+	 * nethandler to mange talkers and listeners coming and going.
+	 */
 	pthread_t tid;
+
+	/*
+	 * task (re-)announcing all talkers currently without a listener.
+	 *
+	 * A TxChannel will announce once when it is started, but if a
+	 * listener joins later, the talker-announce is not re-sent
+	 * causing the listener to potentially wait forever.
+	 *
+	 * This task periodically iterate through the list of TxChannels
+	 * and announce all those without a registred listener.
+	 */
+	pthread_t announcer;
 
 	int prio_a;
 	int id_a;
