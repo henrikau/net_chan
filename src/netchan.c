@@ -1338,19 +1338,22 @@ bool nh_notify_talker_Lnew(struct nethandler *nh, union stream_id_wrapper stream
 }
 bool nh_notify_talker_Lleaving(struct nethandler *nh, union stream_id_wrapper stream, int state)
 {
-	int idx = get_hm_idx(nh, stream.s64);
-	ERROR(NULL, "%s() sid=%lu, idx=%d", __func__, stream.s64, idx);
+	struct channel *talker = get_tx_chan_from_sid(nh, stream);
+	if (!talker)
+		return false;
 
-	return false;
+	/* FIXME: make sure we only have a single listener before
+	 * closing down. */
+	talker->ready = false;
+
+	return true;
 }
 
 bool nh_notify_listener_Tnew(struct nethandler *nh, union stream_id_wrapper stream, uint8_t *mac_addr)
 {
 	struct channel *listener = get_rx_chan_from_sid(nh, stream);
-	if (!listener) {
-		DEBUG(NULL, "%s() %lu  no match", __func__, stream.s64);
+	if (!listener)
 		return false;
-	}
 
 	/* FIXME: Verify mac_addr to dst */
 
