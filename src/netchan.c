@@ -1389,9 +1389,12 @@ void nh_set_srp(struct nethandler *nh, bool use_srp)
 {
 	if (!nh)
 		return;
-	if (!nc_srp_setup(nh)) {
-		ERROR(NULL, "%s() Cannot enable SRP!", __func__);
-		return;
+	if (use_srp && !nh->use_srp) {
+		INFO(NULL, "%s() enabling SRP", __func__);
+		if (!nc_srp_setup(nh)) {
+			ERROR(NULL, "%s() Cannot enable SRP!", __func__);
+			return;
+		}
 	}
 	nh->use_srp = use_srp;
 
