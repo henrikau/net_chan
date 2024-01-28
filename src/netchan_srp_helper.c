@@ -207,7 +207,7 @@ static void _update_srp_fields(struct nethandler *nh, int prio, int id, int vid)
 			nh->srp->id_a    = id;
 			nh->srp->vid_a   = vid;
 			nh->srp->valid_a = true;
-			DEBUG(NULL, "%s(): prio_a=%d, id_a=%d, vid_a=%d", __func__, nh->srp->prio_a, nh->srp->id_a, nh->srp->vid_a);
+			// DEBUG(NULL, "%s(): prio_a=%d, id_a=%d, vid_a=%d", __func__, nh->srp->prio_a, nh->srp->id_a, nh->srp->vid_a);
 		}
 	} else {
 		if (nh->srp->prio_b != prio ||
@@ -218,7 +218,7 @@ static void _update_srp_fields(struct nethandler *nh, int prio, int id, int vid)
 			nh->srp->id_b    = id;
 			nh->srp->vid_b   = vid;
 			nh->srp->valid_b = true;
-			DEBUG(NULL, "%s(): prio_b=%d, id_b=%d, vid_b=%d", __func__, nh->srp->prio_b, nh->srp->id_b, nh->srp->vid_b);
+			// DEBUG(NULL, "%s(): prio_b=%d, id_b=%d, vid_b=%d", __func__, nh->srp->prio_b, nh->srp->id_b, nh->srp->vid_b);
 		}
 	}
 
@@ -301,13 +301,13 @@ int nc_mrp_listener_process_msg(char *buf, int buflen, struct nethandler *nh)
 		idx += find_stream_id(&buf[idx], buflen-idx, &sidw);
 		idx += find_dst(&buf[idx], buflen-idx, dst);
 		nh_notify_listener_Tnew(nh, sidw, dst);
-		printf("%s(): %s", __func__, buf);
+		// printf("%s(): %s", __func__, buf);
 	} else if (strncmp(buf, "SLE T:S", 7) == 0) {
 		/* SLE: MRP_NOTIFY_LEAVE */
 		idx += find_stream_id(&buf[idx], buflen-idx, &sidw);
 		idx += find_dst(&buf[idx], buflen-idx, dst);
 		nh_notify_listener_Tleave(nh, sidw, dst);
-		printf("%s(): %s", __func__, buf);
+		// printf("%s(): %s", __func__, buf);
 	}
 
 	/* Update id and prio for both stream classes
@@ -348,8 +348,8 @@ int nc_mrp_talker_process_msg(char *buf, int buflen, struct nethandler *nh)
  next_line:if (k >= buflen)
 		return 0;
 
-	if (nh->verbose)
-		printf("<- %s\n", buf);
+	/* if (nh->verbose) */
+	/* 	printf("<- %s\n", buf); */
 
 	switch (buf[k]) {
 	case 'E':
@@ -460,16 +460,11 @@ int nc_mrp_talker_process_msg(char *buf, int buflen, struct nethandler *nh)
 			}
 			switch (buf[k + 1]) {
 			case 'L':
-				/* FIXME: remove listener from list Talker is tracking */
-				if (nh->verbose)
-					printf("got a leave indication\n");
 				nh_notify_talker_Lleaving(nh, recovered_sidw, substate);
 				break;
 			case 'J':
 			case 'N':
-				/* FIXME: add listener to list Talker is tracking */
 				if (substate > MSRP_LISTENER_ASKFAILED) {
-					WARN(NULL, "got a new/join indication, substate=%d\n", substate);
 					nh_notify_talker_Lnew(nh, recovered_sidw, substate);
 				}
 
