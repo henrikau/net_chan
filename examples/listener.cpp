@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     // Rx rate estimator
     std::thread th_rate { [&] { async_rx_ctr(); }};
 
-    uint64_t start, end;
+    uint64_t start = 0, end = 0;
     while (running) {
         if (rx->read(&recv_ts)) {
             if (rx_ctr == 0)
@@ -137,16 +137,16 @@ int main(int argc, char *argv[])
         }
     }
     end = tai_get_ns();
-    usleep(500000);
     running = false;
+    printf("%s(): done, running is false\n", __func__);
 
     // wait for async_ctr
     th_rate.join();
 
     rx->stop();
 
-    printf("Run complete, received %d frames in %f secs\n",
-           rx_ctr, (double)(end-start)/1e9);
+    printf("\n%s() Run complete, received %d frames in %f secs\n",
+           __func__, rx_ctr, (double)(end-start)/1e9);
 
     delete rx;
     return 0;
