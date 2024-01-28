@@ -1342,7 +1342,7 @@ bool nh_notify_talker_Lleaving(struct nethandler *nh, union stream_id_wrapper st
 {
 	int idx = get_hm_idx(nh, stream.s64);
 	ERROR(NULL, "%s() sid=%lu, idx=%d", __func__, stream.s64, idx);
-	exit(0);
+
 	return false;
 }
 
@@ -1369,11 +1369,11 @@ bool nh_notify_listener_Tleave(struct nethandler *nh, union stream_id_wrapper st
 		DEBUG(NULL, "%s() %lu no match", __func__, stream.s64);
 		return false;
 	}
+	/* FIXME: verify mac_addr to dst */
 
 	if (nc_mrp_send_leave(nh->srp, stream)) {
 		INFO(listener, "%s(): Listener waiting for talker (it left)", __func__);
 		listener->ready = false;
-		exit(0);
 	}
 	return true;
 }
