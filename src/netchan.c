@@ -1433,8 +1433,6 @@ void nh_destroy(struct nethandler **nh)
 		 * that running is false.
 		 */
 		_nh_stop_rx(*nh);
-		if ((*nh)->use_srp)
-			nc_srp_teardown((*nh));
 
 		if ((*nh)->tb)
 			tb_close((*nh)->tb);
@@ -1467,7 +1465,6 @@ void nh_destroy(struct nethandler **nh)
 
 		if ((*nh)->use_srp)
 			nc_srp_teardown((*nh));
-
 
 		/* Free memory */
 		free(*nh);
