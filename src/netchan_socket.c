@@ -125,7 +125,6 @@ int nc_handle_sock_err(int sock)
 	int err = poll(&p_fd, 1, 0);
 
 	if (err == 1 && p_fd.revents == POLLERR) {
-		INFO(NULL, "%s(): Need to process errors.", __func__);
 		uint8_t msg_control[CMSG_SPACE(sizeof(struct sock_extended_err))];
 		unsigned char err_buffer[2048];
 
