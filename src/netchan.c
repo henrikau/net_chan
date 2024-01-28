@@ -1334,7 +1334,8 @@ bool nh_notify_talker_Lnew(struct nethandler *nh, union stream_id_wrapper stream
 	struct channel *talker = get_tx_chan_from_sid(nh, stream);
 	if (!talker)
 		return false;
-	INFO(talker, "%s() Found remote listener\n", __func__);
+	INFO(talker, "%s() Found remote listener, state=%d\n", __func__, state);
+
 	talker->ready = true;
 	return true;
 }
@@ -1353,6 +1354,8 @@ bool nh_notify_listener_Tnew(struct nethandler *nh, union stream_id_wrapper stre
 		DEBUG(NULL, "%s() %lu  no match", __func__, stream.s64);
 		return false;
 	}
+
+	/* FIXME: Verify mac_addr to dst */
 
 	if (nc_mrp_send_ready(nh->srp, stream)) {
 		INFO(listener, "%s(): Listener ready", __func__);

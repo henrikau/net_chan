@@ -301,11 +301,13 @@ int nc_mrp_listener_process_msg(char *buf, int buflen, struct nethandler *nh)
 		idx += find_stream_id(&buf[idx], buflen-idx, &sidw);
 		idx += find_dst(&buf[idx], buflen-idx, dst);
 		nh_notify_listener_Tnew(nh, sidw, dst);
+		printf("%s(): %s", __func__, buf);
 	} else if (strncmp(buf, "SLE T:S", 7) == 0) {
 		/* SLE: MRP_NOTIFY_LEAVE */
 		idx += find_stream_id(&buf[idx], buflen-idx, &sidw);
 		idx += find_dst(&buf[idx], buflen-idx, dst);
 		nh_notify_listener_Tleave(nh, sidw, dst);
+		printf("%s(): %s", __func__, buf);
 	}
 
 	/* Update id and prio for both stream classes
@@ -321,8 +323,6 @@ int nc_mrp_listener_process_msg(char *buf, int buflen, struct nethandler *nh)
 		sscanf(&(buf[idx]), "%x", &vid);
 
 		_update_srp_fields(nh, priority, id, vid);
-		idx+=4;
-
 	}
 	return 0;
 }
