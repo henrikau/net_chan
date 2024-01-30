@@ -32,7 +32,12 @@ if __name__ == "__main__":
     # Read all files and store
     ncs = []
     for f in files:
-        ncs.append(NetChan_Stream.NetChan_Stream(f))
+        try:
+            # If the file is too short, NetChan_Stream throws a ValueError
+            # Just ignore the file and continue processing.
+            ncs.append(NetChan_Stream.NetChan_Stream(f))
+        except ValueError:
+            pass
 
     if not args.out_file and len(ncs) > 1:
         print(f"Not saving to file, we have {len(ncs)} streams to analyze, not sure this is what you want.")
@@ -65,7 +70,7 @@ if __name__ == "__main__":
             fname =""
             if args.directory:
                 fname = f"{Path(args.directory)}/"
-            fname += f"{nc.get_figname()}"
+            fname += f"{Path(args.out_file).stem}_{nc.get_figname()}"
 
             print(f"Saving plot to {fname}")
             fig.savefig(fname, bbox_inches='tight')
