@@ -9,6 +9,7 @@
 #include <netchan.h>
 #include <string>
 #include <stdexcept>
+#include <logger.h>
 
 namespace netchan {
 
@@ -66,6 +67,13 @@ public:
 
     void verbose(void) { nh_set_verbose(nh, true); }
 
+    void stop_log(void) {
+         if (nh->logger) {
+	   log_close(nh->logger);
+	   log_destroy(nh->logger);
+	   nh->logger = NULL;
+	 }
+    }
 private:
     struct nethandler *nh;
     int hmap_size = 127;
@@ -116,7 +124,7 @@ public:
     }
 
     bool send(void *data) {
-        if (!ch)
+      if (!ch || !chan_ready(ch))
             return false;
         wait_for_tx_slot(ch);
         return chan_send_now(ch, data) == ch->payload_size;

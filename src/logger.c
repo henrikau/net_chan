@@ -43,6 +43,7 @@ struct logc
 {
 	pthread_mutex_t m;
 	char *logfile;
+
 	/* buffer */
 	struct log_buffer *lb;
 	struct wakeup_delay_buffer *wdb;
@@ -122,6 +123,25 @@ err_out:
 	pthread_mutex_unlock(&logc->m);
 	log_close(logc);
 	return NULL;
+}
+
+void log_destroy(struct logc *logc)
+{
+  if (!logc)
+    return;
+
+  if (logc->logfile)
+    free(logc->logfile);
+  if (logc->lb) {
+    free(logc->lb);
+    logc->lb = NULL;
+  }
+  if (logc->wdb) {
+    free(logc->wdb);
+    logc->wdb = NULL;
+  }
+
+  free(logc);
 }
 
 void log_reset(struct logc *logc)
@@ -236,6 +256,8 @@ static void _log(struct logc *logc,
 		logc->lb->rx_ns[logc->lb->idx] = rx_ns;
 		logc->lb->recv_ptp_ns[logc->lb->idx] = recv_ptp_ns;
 		logc->lb->idx++;
+	} else {
+	  log_close(logc);
 	}
 	pthread_mutex_unlock(&logc->m);
 }
@@ -273,6 +295,8 @@ void log_wakeup_delay(struct logc *logc,
 		logc->wdb->cpu_target_ns[logc->wdb->idx] = cpu_target_ns;
 		logc->wdb->cpu_actual_ns[logc->wdb->idx] = cpu_actual_ns;
 		logc->wdb->idx++;
+	} else {
+	  log_close(logc);
 	}
 	pthread_mutex_unlock(&logc->m);
 }

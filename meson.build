@@ -46,7 +46,8 @@ install_headers(['include/netchan.h',
 		 'include/netchan_srp_client.h',
 		 'include/netchan_standalone.h',
 		 'include/netchan_utils.h',
-		 'include/tracebuffer.h'
+		 'include/tracebuffer.h',
+		 'include/logger.h'
 		])
 
 executable(

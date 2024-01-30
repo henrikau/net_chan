@@ -46,6 +46,8 @@ extern "C" {
 struct logc;
 
 struct logc * log_create(const char *logfile);
+void log_destroy(struct logc *logc);
+
 void log_close(struct logc *logc);
 
 /**
