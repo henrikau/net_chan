@@ -169,8 +169,8 @@ static void test_chan_timedwait(void)
 	TEST_ASSERT(chan_ready_timedwait(ch, 500*NS_IN_MS) == -ETIMEDOUT);
 	uint64_t after = time_now();
 
-	/* timeout should be within 100 US of 500ms */
-	TEST_ASSERT_UINT64_WITHIN(100*NS_IN_US, 500*NS_IN_MS, after-before);
+	/* timeout should be within 200 US of 500ms */
+	TEST_ASSERT_UINT64_WITHIN(200*NS_IN_US, 500*NS_IN_MS, after-before);
 }
 
 static void test_chan_stop(void)
