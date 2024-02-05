@@ -56,7 +56,7 @@ if __name__ == "__main__":
         fig = plt.figure(num=None, figsize=figsize, dpi=dpi, facecolor='w', edgecolor='k')
 
         nc.set_title(fig, args.title)
-        nc.plot_e2e(fig.add_subplot(411), args.e2e_title)
+        nc.plot_e2e(fig.add_subplot(411), args.e2e_title, show_dropped=True)
         nc.plot_e2e_hist(fig.add_subplot(423))
         nc.plot_e2e_hist(fig.add_subplot(424), filter_std=3)
         nc.plot_periods(fig.add_subplot(425), rx=True)
