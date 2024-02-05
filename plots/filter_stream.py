@@ -26,7 +26,6 @@ if __name__ == "__main__":
     folder = Path(args.folder)
     files =  [f for f in folder.glob(f"*{args.file_base}*") if os.path.isfile(f)]
 
-
     df = {}
     for f in files:
         print(f"Reading {f}")
@@ -45,5 +44,11 @@ if __name__ == "__main__":
     for sid in streams:
         print(f"filtering {sid}")
         target = Path(folder, f"filtered_{sid}.csv")
-        df_sid = NetChan_Stream.merge_stream(df, sid)
+        target_dropped   = Path(folder, f"filtered_{sid}_dropped.csv")
+        target_corrupted = Path(folder, f"filtered_{sid}_corrupted.csv")
+
+        df_sid,df_dropped,df_corrupted = NetChan_Stream.merge_stream(df, sid)
+
         df_sid.to_csv(target)
+        df_dropped.to_csv(target_dropped)
+        df_corrupted.to_csv(target_corrupted)
