@@ -42,13 +42,17 @@ if __name__ == "__main__":
 
     base = Path(args.file_base).stem
     for sid in streams:
-        print(f"filtering {sid}")
+        print(f"{'-'*80}\nfiltering StreamID {sid}")
         target = Path(folder, f"filtered_{sid}.csv")
         target_dropped   = Path(folder, f"filtered_{sid}_dropped.csv")
         target_corrupted = Path(folder, f"filtered_{sid}_corrupted.csv")
 
         df_sid,df_dropped,df_corrupted = NetChan_Stream.merge_stream(df, sid)
-
+        print("Summary:")
+        print(f"Found    : {len(df_sid):10d} packets")
+        print(f"Dropped  : {len(df_dropped):10d} ({100.0 * len(df_dropped)/(len(df_sid)+len(df_dropped)+len(df_corrupted)):.3f} %)")
+        print(f"Corrupted: {len(df_corrupted):10d} ({100.0 * len(df_corrupted)/(len(df_sid)+len(df_dropped)+len(df_corrupted)):.3f} %)")
+        print("\n")
         df_sid.to_csv(target)
         df_dropped.to_csv(target_dropped)
         df_corrupted.to_csv(target_corrupted)
