@@ -117,14 +117,14 @@ err_out:
 	return -1;
 }
 
-int nc_handle_sock_err(int sock)
+int nc_handle_sock_err(int sock, int ptp_fd)
 {
 	struct pollfd p_fd = {
 		.fd = sock,
 	};
 	int err = poll(&p_fd, 1, 0);
 
-	if (err == 1 && p_fd.revents == POLLERR) {
+	if (err == 1 && (p_fd.revents & POLLERR)) {
 		uint8_t msg_control[CMSG_SPACE(sizeof(struct sock_extended_err))];
 		unsigned char err_buffer[2048];
 
@@ -138,23 +138,33 @@ int nc_handle_sock_err(int sock)
 			.msg_control = msg_control,
 			.msg_controllen = sizeof(msg_control)
 		};
-
+		int64_t tai_ns = tai_get_ns();
 		if (recvmsg(sock, &msg, MSG_ERRQUEUE) != -1) {
 			struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
 			while (cmsg != NULL) {
 				struct sock_extended_err *serr = (void *) CMSG_DATA(cmsg);
 				if (serr->ee_origin == SO_EE_ORIGIN_TXTIME) {
-					uint64_t tstamp = ((__u64) serr->ee_data << 32) + serr->ee_info;
+					/* The scheduled TxTime */
+					uint64_t txtime_ns = ((uint64_t) serr->ee_data << 32) + serr->ee_info;
+					double ptp_ts_ns = (double)get_ptp_ts_ns(ptp_fd);
+					const char *reason;
+
 					switch(serr->ee_code) {
 					case SO_EE_CODE_TXTIME_INVALID_PARAM:
-						ERROR(NULL, "packet with tstamp %"PRIu64" dropped due to invalid params", tstamp);
-						return -1;
+						reason = "invalid params";
+						break;
 					case SO_EE_CODE_TXTIME_MISSED:
-						ERROR(NULL, "packet with tstamp %"PRIu64" dropped due to missed deadline", tstamp);
-						return -1;
+						reason = "missed deadline";
+						break;
 					default:
 						return -1;
 					}
+					ERROR(NULL, "[%"PRId64"] dropped, %s. TX to TAI: %.6f, PTP to TAI: %.6f",
+						txtime_ns,
+						reason,
+						((double)txtime_ns - tai_ns)/1e9,
+						(ptp_ts_ns - tai_ns)/1e9);
+
 				}
 				cmsg = CMSG_NXTHDR(&msg, cmsg);
 			}

@@ -341,7 +341,7 @@ struct nethandler {
  */
 int nc_create_rx_sock(const char *ifname);
 int nc_create_tx_sock(struct channel *ch);
-int nc_handle_sock_err(int sock);
+int nc_handle_sock_err(int sock, int ptp_fd);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
 

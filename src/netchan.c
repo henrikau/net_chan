@@ -599,12 +599,10 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 		*tx_ns = txtime;
 
 	int txsz = sendmsg(ch->tx_sock, &msg, 0);
-	if (txsz < 1)
-		WARN(ch, "%s() failed, %d (%d: %s)", __func__, txsz, errno, strerror(errno));
-
-	if (nc_handle_sock_err(ch->tx_sock) < 0)
-		return -1;
-
+	if (txsz < 1) {
+		if (nc_handle_sock_err(ch->tx_sock, ch->nh->ptp_fd) < 0)
+			return -1;
+	}
 	/* Report the size of the payload to the usesr, the AVTPDU
 	 * header is 'invisible'
 	 */
