@@ -701,6 +701,8 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 
 	uint64_t tx_ns = 0;
 	int res = chan_send(ch, &tx_ns);
+	if (res < 0)
+		return res;
 
 	/* Use same timestamp for capture ts and send ts
 	 *
@@ -708,8 +710,6 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 	 */
 	log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns, tx_ns);
 
-	if (res < 0)
-		return res;
 	int err_ns = 150000;
 
 	ts_ns += get_class_delay_bound_ns(ch);
