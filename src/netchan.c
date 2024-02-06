@@ -1004,10 +1004,7 @@ static int _nh_enable_rt_measures(struct nethandler *nh)
 
 	/* disable dma latency, this avoids c-state transitions */
 	nh->dma_lat_fd = open("/dev/cpu_dma_latency", O_RDWR);
-	if (nh->dma_lat_fd < 0) {
-		WARN(NULL, "%s(): failed opening /dev/cpu_dma_latency, (%d, %s)",
-				__func__, errno, strerror(errno));
-	} else {
+	if (nh->dma_lat_fd >= 0) {
 		int lat_val = 0;
 		int wres = write(nh->dma_lat_fd, &lat_val, sizeof(lat_val));
 		if (wres < 1) {
