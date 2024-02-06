@@ -561,7 +561,7 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 	 * txtime must be a bit into the future, otherwise it will be
 	 * rejected by the qdisc ETF scheduler
 	 */
-	uint64_t tai_now = tai_get_ns() + 20000; /* + 20us */
+	uint64_t tai_now = tai_get_ns() + 50 * NS_IN_US;
 	uint64_t txtime = tai_now > ch->next_tx_ns ? tai_now : ch->next_tx_ns;
 	if (tx_ns && *tx_ns > tai_now && *tx_ns < (tai_now + ch->next_tx_ns))
 		txtime = *tx_ns;
