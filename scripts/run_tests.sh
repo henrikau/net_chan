@@ -5,6 +5,7 @@ pushd "$(dirname $(dirname $(realpath -s $0)))/build" > /dev/null
 
 if ! meson test ; then
     cat meson-logs/testlog.txt
+    exit 1
 else
     if [[ ! -z $(which pmccabe) ]]; then
 	pmccabe -v /dev/null \
