@@ -26,7 +26,7 @@ bool nc_mrp_join_vlan(struct srp *srp)
 	snprintf(msgbuf, sizeof(msgbuf)-1, "V++:I=%04x", srp->vid_a);
 	int res = _send_msg(srp, msgbuf, strlen(msgbuf)+1);
 
-	DEBUG(NULL, "%s() %s, %d", __func__, msgbuf, res);
+	/* DEBUG(NULL, "%s() %s, %d", __func__, msgbuf, res); */
 	return res > 0;
 }
 bool nc_mrp_leave_vlan(struct srp *srp)
@@ -66,7 +66,7 @@ static bool _advertise_stream(struct srp *srp,
 		pktsz, interval,
 		(class_a ? srp->prio_a : srp->prio_b) << 5,
 		latency);
-	DEBUG(NULL, "%s: %s", __func__, msg);
+	/* DEBUG(NULL, "%s: %s", __func__, msg); */
 	return _send_msg(srp, msg, strlen(msg)+1) > 0;
 }
 
