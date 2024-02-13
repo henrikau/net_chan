@@ -43,6 +43,7 @@ struct logc
 {
 	pthread_mutex_t m;
 	char *logfile;
+	int flush_ctr;
 
 	/* buffer */
 	struct log_buffer *lb;
@@ -168,8 +169,8 @@ static void _flush_ts(const char *logfile, struct log_buffer *lb)
 		return;
 
 	FILE *fp = fopen(logfile, "w+");
-	fprintf(fp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,tx_ns,rx_ns,recv_ptp_ns\n");
 	if (fp) {
+		fprintf(fp, "stream_id,sz,seqnr,avtp_ns,cap_ptp_ns,send_ptp_ns,tx_ns,rx_ns,recv_ptp_ns\n");
 		for (int i = 0; i < lb->idx; i++) {
 			fprintf(fp, "%lu,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu\n",
 				lb->sid[i],
@@ -185,6 +186,7 @@ static void _flush_ts(const char *logfile, struct log_buffer *lb)
 		fflush(fp);
 		fclose(fp);
 		printf("%s(): wrote %d entries to log (%s)\n", __func__, lb->idx, logfile);
+		lb->idx = 0;
 	}
 }
 
@@ -209,6 +211,7 @@ static void _flush_wakeup_delay(const char *logfile, struct wakeup_delay_buffer 
 		fflush(fp);
 		fclose(fp);
 		printf("%s(): wrote %d entries to wakeup-delay-log (%s)\n", __func__, wdb->idx, logfile);
+		wdb->idx = 0;
 	}
 }
 
@@ -220,20 +223,18 @@ void log_close(struct logc *logc)
 
 	/* Writing content to logbuffer */
 	if (logc->lb) {
-		_flush_ts(logc->logfile, logc->lb);
-		free(logc->lb);
+		char tsf[256] = {0};
+		snprintf(tsf, 255, "%s-%d", logc->logfile, logc->flush_ctr);
+		_flush_ts(tsf, logc->lb);
 	}
 
 	if (logc->wdb) {
 		char ldf[256] = {0};
-		snprintf(ldf, 255, "%s_d", logc->logfile);
+		snprintf(ldf, 255, "%s_d-%d", logc->logfile, logc->flush_ctr);
 		_flush_wakeup_delay(ldf, logc->wdb);
-		free(logc->wdb);
 	}
-
+	logc->flush_ctr++;
 	pthread_mutex_unlock(&logc->m);
-	pthread_mutex_destroy(&logc->m);
-	memset(logc, 0, sizeof(*logc));
 }
 
 static void _log(struct logc *logc,
