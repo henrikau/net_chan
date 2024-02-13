@@ -226,9 +226,10 @@ bool nc_srp_new_talker(struct channel *ch)
 {
 	if (!ch || !ch->nh || !ch->nh->srp)
 		return false;
+	if (ch->stopping)
+		return false;
 
 	struct srp *srp = ch->nh->srp;
-
 	/*
 	 * Size calculation
 	 * Ether, vlan, crc: : 14 + 4 + 4: 22
