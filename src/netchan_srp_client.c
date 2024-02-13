@@ -83,18 +83,16 @@ void * nc_srp_talker_announce(void *data)
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	while (nh->running) {
+		struct channel *talker = nh->du_tx_head;
+		while (talker) {
+			if (!talker->ready && !talker->stopping)
+				nc_srp_new_talker(talker);
+			talker = talker->next;
+		}
 		ts.tv_sec += 10;
 		if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) == -1) {
 			WARN(NULL, "%s(): clock_nanosleep failed (%d, %s)", __func__, errno, strerror(errno));
-			usleep(500000);
 			continue;
-		}
-
-		struct channel *talker = nh->du_tx_head;
-		while (talker) {
-			if (!talker->ready)
-				nc_srp_new_talker(talker);
-			talker = talker->next;
 		}
 	}
 	return NULL;
