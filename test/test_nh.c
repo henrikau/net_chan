@@ -333,6 +333,29 @@ static void test_invalid_txprio(void)
 	TEST_ASSERT_MESSAGE(nh_set_tx_prio(nh, 3), "It should be possible to change Tx prio once all tx-sockets are gone.");
 }
 
+static void test_nh_stop(void)
+{
+	struct channel *chs[5];
+	chs[0] = chan_create_tx(nh, &nc_channels[MCAST42], false);
+	chs[1] = chan_create_tx(nh, &nc_channels[MCAST43], false);
+	chs[2] = chan_create_tx(nh, &nc_channels[MCAST11], false);
+	chs[3] = chan_create_rx(nh, &nc_channels[MCAST17], false);
+	chs[4] = chan_create_rx(nh, &nc_channels[PDU43_R], false);
+	TEST_ASSERT(nh_get_num_tx(nh) == 3);
+	TEST_ASSERT(nh_get_num_rx(nh) == 2);
+
+	for (int i = 0; i < 5; i++) {
+		TEST_ASSERT(!chs[i]->stopping);
+		TEST_ASSERT(chs[i]->ready);
+	}
+
+	nh_stop(nh);
+	for (int i = 0; i < 5; i++) {
+		TEST_ASSERT(chs[i]->stopping);
+		TEST_ASSERT(!chs[i]->ready);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	UNITY_BEGIN();
@@ -349,6 +372,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_nh_add_remove_rx_chan);
 	RUN_TEST(test_sc_values);
 	RUN_TEST(test_invalid_txprio);
+	RUN_TEST(test_nh_stop);
 
 	return UNITY_END();
 }

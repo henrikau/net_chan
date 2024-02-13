@@ -67,6 +67,13 @@ public:
 
     void verbose(void) { nh_set_verbose(nh, true); }
 
+    // Stop all channels, but don't tear it down fully (useful when Tx
+    // and Rx are blocking on other end in SRP mode)
+    void stop(void)
+    {
+        nh_stop(nh);
+    }
+
     void stop_log(void) {
          if (nh->logger) {
 	   log_close(nh->logger);
@@ -91,7 +98,10 @@ public:
     // registred with the handler, and nh_destroy() will call
     // chan_destroy() for us.
 
-    void stop(void) {};
+    bool stop(void) {
+        return chan_stop(ch);
+    }
+
     bool ready(void) {
         return chan_ready(ch);
     }
@@ -106,7 +116,7 @@ public:
         do {
             if (ch->nh->verbose)
                 std::cout << "[" << ch->sidw.s64 << "] " << ctr++ << " ...waiting..." << std::endl;
-        } while (!ready_wait_once());
+        } while (!ready_wait_once() && !ch->stopping);
     }
 
 protected:
@@ -160,9 +170,6 @@ public:
         return chan_read_wait(ch, data) > 0;
     }
 
-    void stop(void) {
-        chan_stop(ch);
-    }
 };
 } //  namespace netchan
 

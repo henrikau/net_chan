@@ -219,6 +219,7 @@ static struct channel * _chan_create(struct nethandler *nh,
 	ch->nh = nh;
 	ch->payload_size = attrs->size;
 	ch->full_size = L1_SZ + sizeof(struct ethhdr) + 4 + sizeof(struct avtpdu_cshdr) + ch->payload_size;
+	ch->stopping = false;
 
 	DEBUG(ch, "payload_size=%d, full_size=%d", ch->payload_size, ch->full_size);
 
@@ -379,6 +380,9 @@ int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns)
 	if (!ch)
 		return -EINVAL;
 
+	if (!ch->nh || !ch->nh->running || ch->stopping)
+		return -EINVAL;
+
 	clock_gettime(CLOCK_REALTIME, &ts);
 	ts.tv_nsec += timeout_ns;
 	ts_normalize(&ts);
@@ -396,8 +400,19 @@ int chan_ready_timedwait(struct channel *ch, uint64_t timeout_ns)
 
 bool chan_stop(struct channel *ch)
 {
-	if (!chan_valid(ch))
+	/* We cannot use chan_valid() here, as we *may* stop the channel
+	 * before SRP is up and running (thus ready := false)
+	 */
+	if (!ch || !ch->nh) {
+		printf("%s(): invalid channel\n", __func__);
 		return false;
+	}
+	ch->ready = false;
+
+	/* No need to stop twice. */
+	if (ch->stopping)
+		return false;
+	ch->stopping = true;
 
 	if (ch->nh->use_srp) {
 		if (ch->tx_sock >= 0)
@@ -405,10 +420,13 @@ bool chan_stop(struct channel *ch)
 		else
 			nc_srp_remove_listener(ch);
 	}
-	ch->ready = false;
+
 
 	/* FIXME: abort current blocking reads to ch->fd_r but without
 	 * destroying the pipe.
+	 *
+	 * We have marked channel as !ready, so read() will detect this
+	 * and close down.
 	 */
 	char *dummy = (char *)calloc(1, ch->payload_size);
 	write(ch->fd_w, dummy, ch->payload_size);
@@ -730,7 +748,7 @@ int chan_send_now_wait(struct channel *ch, void *data)
 
 int _chan_read(struct channel *ch, void *data, bool read_delay)
 {
-	if (!chan_valid(ch))
+	if (!chan_valid(ch) || ch->stopping)
 		return -EINVAL;
 
 	size_t rpsz = sizeof(struct pipe_meta) + ch->payload_size;
@@ -1422,6 +1440,21 @@ bool nh_set_tx_prio(struct nethandler *nh, int tx_prio)
 		return false;
 	nh->tx_sock_prio = tx_prio;
 	return true;
+}
+
+void nh_stop(struct nethandler *nh)
+{
+	struct channel *ch = nh->du_tx_head;
+	while (ch) {
+		chan_stop(ch);
+		ch = ch->next;
+	}
+
+	ch = nh->du_rx_head;
+	while (ch) {
+		chan_stop(ch);
+		ch = ch->next;
+	}
 }
 
 void nh_destroy(struct nethandler **nh)

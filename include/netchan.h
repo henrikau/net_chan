@@ -193,13 +193,24 @@ struct channel
 	enum stream_class sc;
 	int pcp_prio;	/* Active priority (PCP) for this channel */
 
+	/* Flags indicating if channel is ready and/or in the process of
+	 * being stopped.
+	 *
+	 * Especially when using SRP, a channel can be !ready and also
+	 * be in the process of being stopped
+	 *
+	 * A stopped (tx) channel is still a tx-channel, but it should
+	 * not be announced to the network while it is !ready
+	 */
+	bool ready;
+	bool stopping;
+
 	/* Only relevant in SRP mode!
 	 *
 	 * Both Rx and Tx channels must wait until at least one remote
 	 * is attached to the stream. This is monitored and managed by
 	 * the SRP monitor thread managed by nethandler.
 	 */
-	bool ready;
 	pthread_mutex_t ready_mtx;
 	pthread_cond_t ready_cond;
 
@@ -784,6 +795,19 @@ bool nh_notify_listener_Tnew(struct nethandler *nh, union stream_id_wrapper stre
  * @returns: true if stream was successfully notified
  */
 bool nh_notify_listener_Tleave(struct nethandler *nh, union stream_id_wrapper stream, uint8_t *mac_addr);
+
+/**
+ * nh_stop() Stop all channels managed by nethandlerj
+ *
+ * This function does not tear down the system, but marks all channels
+ * as stopping and not ready. If SRP is enabled, this will also
+ * unannouce all streams.
+ *
+ * After this has been called, calls to a channels send() and read() will fail.
+ *
+ * @nh: nethandler container
+ */
+void nh_stop(struct nethandler *nh);
 
 /**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.
