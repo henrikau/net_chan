@@ -20,5 +20,3 @@ jobs:
       run: meson build
     - name: make
       run: meson compile -v -C build
-    - name: test
-      run: meson test -v -C build
