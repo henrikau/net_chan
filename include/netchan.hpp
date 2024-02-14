@@ -76,7 +76,7 @@ public:
 
     void stop_log(void) {
          if (nh->logger) {
-	   log_close(nh->logger);
+	   log_flush_and_rotate(nh->logger);
 	   log_destroy(nh->logger);
 	   nh->logger = NULL;
 	 }

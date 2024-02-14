@@ -821,6 +821,26 @@ bool nh_notify_listener_Tleave(struct nethandler *nh, union stream_id_wrapper st
 void nh_stop(struct nethandler *nh);
 
 /**
+ * nh_rotate_logs() rotate logs to save current logset and start capturing new
+ *
+ * The logger has an upper limit to how much data it can
+ * capture. Currently this is set to 1.080.000 entries (6 hours of a
+ * single 50Hz channel). With more channels and/or higher rate, the
+ * timespan is affected accordingly.
+ *
+ * To accomodate longer trace-periods, we can rotate the logs and
+ * instead create multiple logfiles. These are named incrementally
+ * (-0.csv, -1.csv etc)
+ *
+ * WARNING: when calling nh_rotate_logs(), the generated I/O activity
+ * can affect the real-time performance of the running system.
+ *
+ * @params nh nethandler container
+ */
+void nh_rotate_logs(struct nethandler *nh);
+
+
+/**
  * nh_destroy: safely destroy nethandler. If _rx is running, it will be stopped.
  *
  * @param nh: indirect ref to nh pointer (caller's ref will be NULL'd)

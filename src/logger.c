@@ -122,7 +122,7 @@ struct logc * log_create(const char *logfile)
 	return logc;
 err_out:
 	pthread_mutex_unlock(&logc->m);
-	log_close(logc);
+	log_destroy(logc);
 	return NULL;
 }
 
@@ -145,17 +145,20 @@ void log_destroy(struct logc *logc)
   free(logc);
 }
 
+static void _log_reset(struct logc *logc)
+{
+	if (logc->lb)
+		logc->lb->idx = 0;
+	if (logc->wdb)
+		logc->wdb->idx = 0;
+}
+
 void log_reset(struct logc *logc)
 {
 	if (!logc)
 		return;
 	pthread_mutex_lock(&logc->m);
-	if (logc->lb)
-		logc->lb->idx = 0;
-
-	if (logc->wdb)
-		logc->wdb->idx = 0;
-
+	_log_reset(logc);
 	pthread_mutex_unlock(&logc->m);
 }
 
@@ -186,7 +189,6 @@ static void _flush_ts(const char *logfile, struct log_buffer *lb)
 		fflush(fp);
 		fclose(fp);
 		printf("%s(): wrote %d entries to log (%s)\n", __func__, lb->idx, logfile);
-		lb->idx = 0;
 	}
 }
 
@@ -211,11 +213,10 @@ static void _flush_wakeup_delay(const char *logfile, struct wakeup_delay_buffer 
 		fflush(fp);
 		fclose(fp);
 		printf("%s(): wrote %d entries to wakeup-delay-log (%s)\n", __func__, wdb->idx, logfile);
-		wdb->idx = 0;
 	}
 }
 
-void log_close(struct logc *logc)
+void log_flush_and_rotate(struct logc *logc)
 {
 	if (!logc)
 		return;
@@ -234,6 +235,7 @@ void log_close(struct logc *logc)
 		_flush_wakeup_delay(ldf, logc->wdb);
 	}
 	logc->flush_ctr++;
+	_log_reset(logc);
 	pthread_mutex_unlock(&logc->m);
 }
 
@@ -258,7 +260,7 @@ static void _log(struct logc *logc,
 		logc->lb->recv_ptp_ns[logc->lb->idx] = recv_ptp_ns;
 		logc->lb->idx++;
 	} else {
-	  log_close(logc);
+	  log_flush_and_rotate(logc);
 	}
 	pthread_mutex_unlock(&logc->m);
 }
@@ -297,7 +299,7 @@ void log_wakeup_delay(struct logc *logc,
 		logc->wdb->cpu_actual_ns[logc->wdb->idx] = cpu_actual_ns;
 		logc->wdb->idx++;
 	} else {
-	  log_close(logc);
+	  log_flush_and_rotate(logc);
 	}
 	pthread_mutex_unlock(&logc->m);
 }

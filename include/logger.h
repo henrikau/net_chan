@@ -48,7 +48,17 @@ struct logc;
 struct logc * log_create(const char *logfile);
 void log_destroy(struct logc *logc);
 
-void log_close(struct logc *logc);
+/**
+ * log_flush_and_rotate() write all entries in the log to file and reset counters
+ *
+ * This makes the log capable of accepting a new set of entries thus
+ * extending the logspan.
+ *
+ * WARNING: this will generate I/O activity!
+ *
+ * @params: logc logger container
+ */
+void log_flush_and_rotate(struct logc *logc);
 
 /**
  * log_reset() clear log and re-start from this point in time (now)

@@ -1438,6 +1438,11 @@ bool nh_set_tx_prio(struct nethandler *nh, int tx_prio)
 	return true;
 }
 
+void nh_rotate_logs(struct nethandler *nh)
+{
+	log_flush_and_rotate(nh->logger);
+}
+
 void nh_stop(struct nethandler *nh)
 {
 	struct channel *ch = nh->du_tx_head;
@@ -1470,8 +1475,8 @@ void nh_destroy(struct nethandler **nh)
 			close((*nh)->dma_lat_fd);
 
 		if ((*nh)->logger) {
-			log_close((*nh)->logger);
-			free((*nh)->logger);
+			log_flush_and_rotate((*nh)->logger);
+			log_destroy((*nh)->logger);
 			(*nh)->logger = NULL;
 		}
 
