@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
 		int id = idx + ensemble_idx * ensemble_size + ID_BASE_OFFSET; /* avoid streamID 0 */
 		base.dst[5] = id;
 		base.stream_id = id;
-		tx[idx] = chan_create_tx(nh, &base, true);
+		tx[idx] = chan_create_tx(nh, &base);
 	}
 
 	/* Prepare for starting Rx threads */
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
 		int id = ensemble_idx + idx * ensemble_size + ID_BASE_OFFSET;
 		base.dst[5] = id;
 		base.stream_id = id;
-		pthread_create(&listeners[idx], NULL, rx_drain, chan_create_rx(nh, &base, true));
+		pthread_create(&listeners[idx], NULL, rx_drain, chan_create_rx(nh, &base));
 	}
 
 	nh_list_active_channels(nh);

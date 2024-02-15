@@ -385,16 +385,16 @@ int nc_rx_create(char *name, struct channel_attrs *attrs, int arr_size);
  *    UPDATE -> SEND
  * DESTROY
  *
- * WARNING: when SRP is enabled, this function will BLOCK until at least
- * one valid listener (corresponding Rx channel) is found!
+ * WARNING: when SRP is enabled, then channel will not be ready (and
+ * usable) until the other end has connected. This function will return
+ * immediately, but the caller must ensure that the channel is ready using either:
  *
  * @param nh nethandler container
  * @param attrs channel attributes
- * @param async run setup asynchronously and signal when fully configured
  *
  * @returns new channel or NULL on error
  */
-struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs, bool async);
+struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attrs);
 
 /**
  * chan_create_rx create a Tx channel
@@ -409,16 +409,18 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
  *    READ -> CONSUME
  * DESTROY
  *
- * WARNING: when SRP is enabled, this function will BLOCK until a valid
- * talker (corresponding Tx channel) is found!
+ * WARNING: when SRP is enabled, then channel will not be ready (and
+ * usable) until the other end has connected. This function will return
+ * immediately, but the caller must ensure that the channel is ready using either:
+ * - chan_ready()
+ * - chan_ready_timedwait()
  *
  * @param nh nethandler container
  * @param attrs netfiro channel attributes
- * @param async run setup asynchronously and signal when fully configured
  *
  * @returns new channel or NULL on error
  */
-struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs, bool async);
+struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attrs);
 
 /**
  * chan_ready(): test to see if the channel is ready for use

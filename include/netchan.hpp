@@ -52,14 +52,14 @@ public:
     {
         if (!valid)
             return NULL;
-        return chan_create_tx(nh, attrs, true);
+        return chan_create_tx(nh, attrs);
     }
 
     struct channel * new_rx_channel(struct channel_attrs *attrs)
     {
         if (!valid)
             return NULL;
-        return chan_create_rx(nh, attrs, true);
+        return chan_create_rx(nh, attrs);
     }
 
     int active_tx(void) { return nh_get_num_tx(nh); }
