@@ -506,7 +506,7 @@ bool chan_valid(struct channel *ch)
 	return true;
 }
 
-int chan_update(struct channel *ch, uint32_t ts, void *data)
+int chan_update(struct channel *ch, uint64_t ts, void *data)
 {
 	if (!chan_valid(ch))
 		return -ENOMEM;
@@ -514,8 +514,9 @@ int chan_update(struct channel *ch, uint32_t ts, void *data)
 	if (!data)
 		return -ENOMEM;
 
+	ch->sample_ns = ts;
 	ch->pdu.seqnr++;
-	ch->pdu.avtp_timestamp = htonl(ts);
+	ch->pdu.avtp_timestamp = htonl(tai_to_avtp_ns(ts));
 	ch->pdu.tv = 1;
 	ch->pdu.sdl = htons(ch->payload_size);
 	memcpy(ch->payload, data, ch->payload_size);
@@ -703,7 +704,7 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 {
 	uint64_t ts_ns = get_ptp_ts_ns(ch->nh->ptp_fd);
-	if (chan_update(ch, tai_to_avtp_ns(ts_ns), data)) {
+	if (chan_update(ch, ts_ns, data)) {
 		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
 	}
@@ -719,7 +720,7 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 	 *
 	 * Capture TS should come from caller and is on the TODO
 	 */
-	log_tx(ch->nh->logger, &ch->pdu, ts_ns, ts_ns, tx_ns);
+	log_tx(ch->nh->logger, &ch->pdu, ch->sample_ns, ts_ns, tx_ns);
 
 	int err_ns = 150000;
 

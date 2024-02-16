@@ -259,6 +259,15 @@ struct channel
 	uint64_t next_tx_ns;
 	struct sock_txtime txtime;
 
+	/* time of current sample
+	 *
+	 * This is used to derinve avtp_timestamp and will signal eitehr
+	 * the capture time or the intended presentation time of the
+	 * data.
+	 */
+	uint64_t sample_ns;
+
+
 	/* The currently active packet entering/leaving is tacked onto
 	 * the end, payload is of size '->payload_size'
 	 */
@@ -483,12 +492,12 @@ bool chan_valid(struct channel *ch);
  * The function expects the size of data to be the same size as when it was created
  *
  * @param ch: channel to update
- * @param ts: avtp timestamp (lower 32 bit of PTP timestamp)
+ * @param ts: capture/presentation timestamp
  * @param data: data to copy into payload (size is fixed from chan_create())
  *
  * @returns 0 on success, errno on failure.
  */
-int chan_update(struct channel *ch, uint32_t ts, void *data);
+int chan_update(struct channel *ch, uint64_t ts, void *data);
 
 /**
  * chan_dump_state: Dump internal state about channel and nethandler
