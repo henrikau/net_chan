@@ -674,11 +674,6 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 	ts_normalize(&ts_cpu);
 	uint64_t cpu_target_delay_ns = ts_cpu.tv_sec * NS_IN_SEC + ts_cpu.tv_nsec;
 
-	/* FIXME:
-	 * track down why this is almost always ~200us late,
-	 * cyclictest 4-8us latency on clock_nanosleep() wakeup error
-	 * sudo cyclictest --duration=60 -p 30 -m -n -t 3 -a --policy=rr
-	 */
 	if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts_cpu, NULL) == -1)
 		WARN(du, "%s(): clock_nanosleep failed (%d, %s)", __func__, errno, strerror(errno));
 
