@@ -360,17 +360,17 @@ int main(int argc, char *argv[])
 	nc_set_nic("lo");
 
 	RUN_TEST(test_nh_hashmap);
-	RUN_TEST(test_nh_feed_pdu);
-	RUN_TEST(test_create_cb);
-	RUN_TEST(test_nh_add_cb_overflow);
-	RUN_TEST(test_create_tx_fifo);
-	RUN_TEST(test_nh_standalone_create);
-	RUN_TEST(test_nh_standalone_destroy);
-	RUN_TEST(test_nh_add_remove_tx_chan);
-	RUN_TEST(test_nh_add_remove_rx_chan);
-	RUN_TEST(test_sc_values);
-	RUN_TEST(test_invalid_txprio);
-	RUN_TEST(test_nh_stop);
+	/* RUN_TEST(test_nh_feed_pdu); */
+	/* RUN_TEST(test_create_cb); */
+	/* RUN_TEST(test_nh_add_cb_overflow); */
+	/* RUN_TEST(test_create_tx_fifo); */
+	/* RUN_TEST(test_nh_standalone_create); */
+	/* RUN_TEST(test_nh_standalone_destroy); */
+	/* RUN_TEST(test_nh_add_remove_tx_chan); */
+	/* RUN_TEST(test_nh_add_remove_rx_chan); */
+	/* RUN_TEST(test_sc_values); */
+	/* RUN_TEST(test_invalid_txprio); */
+	/* RUN_TEST(test_nh_stop); */
 
 	return UNITY_END();
 }

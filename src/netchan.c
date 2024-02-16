@@ -248,8 +248,6 @@ static struct channel * _chan_create(struct nethandler *nh,
 	if (nh->use_srp)
 		_chan_set_streamclass(ch, attrs->sc, attrs->interval_ns);
 
-	ch->tx_sock = -1;
-
 	/* Set up pipes for Rx/Tx */
 	int pfd[2];
 	if (pipe(pfd) == -1) {
@@ -275,16 +273,14 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 	struct channel *ch = _chan_create(nh, attrs);
 	if (!ch)
 		return NULL;
+	ch->talker = true;
 
-	ch->tx_sock_prio = nh->tx_sock_prio;
-	ch->tx_sock = nc_create_tx_sock(ch);
-
-	if (ch->tx_sock < 0) {
-		ERROR(ch, "Failed creating Tx-sock for channel");
-		UNGUARD;
-		chan_destroy(&ch);
-		return NULL;
-	}
+	/* Set destination address for outgoing traffict this DU */
+	ch->sk_addr.sll_family   = AF_PACKET;
+	ch->sk_addr.sll_protocol = htons(ETH_P_TSN);
+	ch->sk_addr.sll_halen    = ETH_ALEN;
+	ch->sk_addr.sll_ifindex  = ch->nh->ifidx;
+	memcpy(&ch->sk_addr.sll_addr, ch->dst, ETH_ALEN);
 
 	/* We are ready to send, the first attempt should fly straight through */
 	ch->next_tx_ns = tai_get_ns();
@@ -306,6 +302,8 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 		 *
 		 * Likewise, if all listeneres leaves, ready will be cleared by
 		 * the same monitor.
+		 *
+		 * Since we're not in SRP mode, we have to do it ourselves.
 		 */
 		ch->ready = true;
 	}
@@ -323,6 +321,7 @@ struct channel *chan_create_rx(struct nethandler *nh, struct channel_attrs *attr
 	struct channel *ch = _chan_create(nh, attrs);
 	if (!ch)
 		return NULL;
+	ch->talker = false;
 
 	if (ch->dst[0] == 0x01 && ch->dst[1] == 0x00 && ch->dst[2] == 0x5E) {
 		DEBUG(ch, "receive data on a multicast group, adding membership");
@@ -415,7 +414,7 @@ bool chan_stop(struct channel *ch)
 	ch->stopping = true;
 
 	if (ch->nh->use_srp) {
-		if (ch->tx_sock >= 0)
+		if (ch->talker)
 			nc_srp_remove_talker(ch);
 		else
 			nc_srp_remove_listener(ch);
@@ -444,11 +443,9 @@ static void _chan_destroy(struct channel **ch, bool unlink)
 		close((*ch)->fd_w);
 
 	/* Must remove channel from Tx or Rx list */
-	if ((*ch)->tx_sock >= 0) {
+	if ((*ch)->talker) {
 		if (unlink)
 			nh_remove_tx(*ch);
-		close((*ch)->tx_sock);
-		(*ch)->tx_sock = -1;
 	} else {
 		if (unlink)
 			nh_remove_rx(*ch);
@@ -482,8 +479,8 @@ bool chan_valid(struct channel *ch)
 		return false;
 
 	/* if tx; no cbp and valid interval */
-	if (ch->tx_sock > 0) {
-		if (ch->cbp || ch->interval_ns <= 0)
+	if (ch->talker) {
+		if (ch->cbp || ch->interval_ns <= 0 || ch->nh->tx_sock == -1)
 			return false;
 	} else {
 		/* Rx *must* have callback-buffer */
@@ -533,14 +530,14 @@ void chan_dump_state(struct channel *ch)
 	printf("%18s : %.0f Mbps\n", "link speed", ch->nh->link_speed / 1e6);
 	printf("%18s : %"PRIu64"\n", "period_nsec", ch->interval_ns);
 	printf("%18s : %d\n", "use_so_txtime", 1);
-	printf("%18s : %d\n", "so_priority", ch->tx_sock_prio);
-	printf("%18s : 0x%04x\n", "use_deadline_mode", ch->txtime.flags & SOF_TXTIME_DEADLINE_MODE);
-	printf("%18s : 0x%04x\n", "receive_errors", ch->txtime.flags & SOF_TXTIME_REPORT_ERRORS);
+	printf("%18s : %d\n", "so_priority", ch->nh->tx_sock_prio);
+	printf("%18s : 0x%04x\n", "use_deadline_mode", ch->nh->txtime.flags & SOF_TXTIME_DEADLINE_MODE);
+	printf("%18s : 0x%04x\n", "receive_errors", ch->nh->txtime.flags & SOF_TXTIME_REPORT_ERRORS);
 	printf("%18s : %02x:%02x:%02x:%02x:%02x:%02x\n", "MAC",
 		ch->dst[0], ch->dst[1], ch->dst[2],
 		ch->dst[3], ch->dst[4], ch->dst[5]);
-	printf("%18s : %d\n", "clkid", ch->txtime.clockid);
-	printf("%18s : 0x%04x\n", "flags", ch->txtime.flags);
+	printf("%18s : %d\n", "clkid", ch->nh->txtime.clockid);
+	printf("%18s : 0x%04x\n", "flags", ch->nh->txtime.flags);
 }
 
 int wait_for_tx_slot(struct channel *ch)
@@ -567,7 +564,7 @@ int wait_for_tx_slot(struct channel *ch)
 
 int chan_send(struct channel *ch, uint64_t *tx_ns)
 {
-	if (!chan_valid(ch) || ch->tx_sock == -1)
+	if (!chan_valid(ch) || !ch->talker)
 		return -EINVAL;
 
 	/*
@@ -617,9 +614,9 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 	if (tx_ns)
 		*tx_ns = txtime;
 
-	int txsz = sendmsg(ch->tx_sock, &msg, 0);
+	int txsz = sendmsg(ch->nh->tx_sock, &msg, 0);
 	if (txsz < 1) {
-		if (nc_handle_sock_err(ch->tx_sock, ch->nh->ptp_fd) < 0)
+		if (nc_handle_sock_err(ch->nh->tx_sock, ch->nh->ptp_fd) < 0)
 			return -1;
 	}
 	/* Report the size of the payload to the usesr, the AVTPDU
@@ -703,7 +700,7 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 
 int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 {
-	uint64_t ts_ns = get_ptp_ts_ns(ch->nh->ptp_fd);
+	uint64_t ts_ns = tai_get_ns();
 	if (chan_update(ch, ts_ns, data)) {
 		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
@@ -898,6 +895,8 @@ static int _nh_net_setup(struct nethandler *nh, const char *ifname)
 	 * the most common speed.
 	 */
 	nh->link_speed = _get_link_speed_Mbps(nh) * 1e6;
+
+	nh->tx_sock = nc_create_tx_sock(nh);
 
 	return 0;
 }
@@ -1463,7 +1462,6 @@ void nh_destroy(struct nethandler **nh)
 		 * that running is false.
 		 */
 		_nh_stop_rx(*nh);
-
 		if ((*nh)->tb)
 			tb_close((*nh)->tb);
 		if ((*nh)->dma_lat_fd > 0)
@@ -1474,6 +1472,7 @@ void nh_destroy(struct nethandler **nh)
 			free((*nh)->logger);
 			(*nh)->logger = NULL;
 		}
+
 
 		/* close down and exit safely */
 		if ((*nh)->hmap != NULL)
@@ -1492,10 +1491,11 @@ void nh_destroy(struct nethandler **nh)
 			(*nh)->du_rx_head = (*nh)->du_rx_head->next;
 			_chan_destroy(&ch, false);
 		}
-
 		if ((*nh)->use_srp)
 			nc_srp_teardown((*nh));
 
+		if ((*nh)->tx_sock)
+			close((*nh)->tx_sock);
 		/* Free memory */
 		free(*nh);
 	}
@@ -1522,11 +1522,12 @@ void chan_print_details(struct channel *ch)
 		return;
 	printf("%s %s sid=0x%08lx, sz=%d, interval=%.3f ms\n",
 		ch->nh->use_srp ? "[SRP]" : "     ",
-		ch->tx_sock == -1 ? "Rx" : "Tx",
+		ch->talker ? "Rx" : "Tx",
 		ch->sidw.s64,
 		ch->payload_size,
 		(double)ch->interval_ns / 1e6);
 }
+
 void nh_list_active_channels(struct nethandler *nh)
 {
 	if (!nh)

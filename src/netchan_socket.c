@@ -76,9 +76,9 @@ int nc_create_rx_sock(const char *ifname)
 	return sock;
 }
 
-int nc_create_tx_sock(struct channel *ch)
+int nc_create_tx_sock(struct nethandler *nh)
 {
-	if (!ch)
+	if (!nh)
 		return -EINVAL;
 
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
@@ -92,24 +92,17 @@ int nc_create_tx_sock(struct channel *ch)
 	 * FIXME: allow for outside config of socket prio (see
 	 * scripts/setup_nic.sh)
 	 */
-	if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &ch->tx_sock_prio, sizeof(ch->tx_sock_prio)) < 0) {
+	if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &nh->tx_sock_prio, sizeof(nh->tx_sock_prio)) < 0) {
 		ERROR(NULL, "%s(): failed setting socket priority (%d, %s)",
 			__func__, errno, strerror(errno));
 		goto err_out;
 	}
 
 	/* Set ETF-Qdisc clock field for socket */
-	ch->txtime.clockid = CLOCK_TAI;
-	ch->txtime.flags = SOF_TXTIME_REPORT_ERRORS | SOF_TXTIME_DEADLINE_MODE;
-	if (setsockopt(sock, SOL_SOCKET, SO_TXTIME, &ch->txtime, sizeof(ch->txtime)))
+	nh->txtime.clockid = CLOCK_TAI;
+	nh->txtime.flags = SOF_TXTIME_REPORT_ERRORS | SOF_TXTIME_DEADLINE_MODE;
+	if (setsockopt(sock, SOL_SOCKET, SO_TXTIME, &nh->txtime, sizeof(nh->txtime)))
 		goto err_out;
-
-	/* Set destination address for outgoing traffict this DU */
-	ch->sk_addr.sll_family   = AF_PACKET;
-	ch->sk_addr.sll_protocol = htons(ETH_P_TSN);
-	ch->sk_addr.sll_halen    = ETH_ALEN;
-	ch->sk_addr.sll_ifindex  = ch->nh->ifidx;
-	memcpy(&ch->sk_addr.sll_addr, ch->dst, ETH_ALEN);
 
 	return sock;
 err_out:

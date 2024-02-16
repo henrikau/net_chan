@@ -214,15 +214,8 @@ struct channel
 	pthread_mutex_t ready_mtx;
 	pthread_cond_t ready_cond;
 
-	/*
-	 * Each outgoing stream has its own socket, with corresponding
-	 * SRP attributes etc.
-	 *
-	 * Prio is the priority used to steer the traffic to the correct
-	 * mqprio queue.
-	 */
-	int tx_sock;
-	int tx_sock_prio;
+	/* Talker channel */
+	bool talker;
 
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
@@ -257,7 +250,6 @@ struct channel
 	 */
 	uint64_t interval_ns;
 	uint64_t next_tx_ns;
-	struct sock_txtime txtime;
 
 	/* time of current sample
 	 *
@@ -289,7 +281,6 @@ struct nethandler {
 
 	bool verbose;
 	bool use_srp;
-	int tx_sock_prio;
 
 	/*
 	 * We have one Rx socket, but each datastream will have its own
@@ -297,6 +288,17 @@ struct nethandler {
 	 */
 	int rx_sock;
 	unsigned int link_speed;
+
+	/*
+	 * We have a signle Tx socket, but each channel must ensure that
+	 * it does not overutilize the bandwidth.
+	 *
+	 * Prio is the priority used to steer the traffic to the correct
+	 * mqprio queue.
+	 */
+	int tx_sock;
+	int tx_sock_prio;
+	struct sock_txtime txtime;
 
 	const char ifname[IFNAMSIZ];
 	bool is_lo;
@@ -360,7 +362,8 @@ struct nethandler {
 /* socket helpers
  */
 int nc_create_rx_sock(const char *ifname);
-int nc_create_tx_sock(struct channel *ch);
+int nc_create_tx_sock(struct nethandler *nh);
+
 int nc_handle_sock_err(int sock, int ptp_fd);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)

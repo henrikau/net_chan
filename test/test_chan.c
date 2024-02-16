@@ -43,8 +43,8 @@ static void test_create_tx_channel(void)
 	TEST_ASSERT(ch->fd_r > 0);
 	TEST_ASSERT(ch->fd_w > 0);
 
-	TEST_ASSERT_MESSAGE(ch->tx_sock_prio == 3, "Invalid socket-prio.");
-	TEST_ASSERT_MESSAGE(ch->tx_sock > 0, "Invalid socket for Tx-channel.");
+	TEST_ASSERT_MESSAGE(ch->nh->tx_sock_prio == 3, "Invalid socket-prio.");
+	TEST_ASSERT_MESSAGE(ch->nh->tx_sock > 0, "Invalid socket for Tx-channel.");
 }
 
 static void test_create_rx_channel(void)
@@ -68,7 +68,7 @@ static void test_chan_valid(void)
 	TEST_ASSERT(!chan_valid(&ch));
 	ch.nh = nh;
 	TEST_ASSERT(!chan_valid(&ch));
-	ch.tx_sock = 7;
+	nh->tx_sock = 7;
 	TEST_ASSERT(!chan_valid(&ch));
 
 	/* StreamID but also PDU's streamID */
@@ -84,10 +84,11 @@ static void test_chan_valid(void)
 
 	ch.ready = true;
 	ch.interval_ns = 12345;
+	ch.talker = true;
 	TEST_ASSERT(chan_valid(&ch));
 
 	/* If not Tx, then it must be Rx, and then cbp must point to something */
-	ch.tx_sock = 0;
+	ch.talker = false;
 	TEST_ASSERT(!chan_valid(&ch));
 
 	char buffer[128] = {0};
@@ -95,13 +96,14 @@ static void test_chan_valid(void)
 
 	TEST_ASSERT(chan_valid(&ch));
 	/* Tx-sock should not have callback memory set */
-	ch.tx_sock = 1;
+	nh->tx_sock = 1;
 	TEST_ASSERT(!chan_valid(&ch));
 	ch.cbp = NULL;
 	TEST_ASSERT(chan_valid(&ch));
 
 	struct channel *ch2 = chan_create_tx(nh, &chanattr);
 	TEST_ASSERT(chan_valid(ch2));
+	printf("done\n");
 }
 
 static void test_chan_time_to_tx(void)

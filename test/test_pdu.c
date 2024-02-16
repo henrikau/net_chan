@@ -49,10 +49,6 @@ void setUp(void)
 	pdu42 = _chan_create(nh, &nfc);
 	pdu42->ready = true;
 
-	/* Must set all channel attributes before channel can be used */
-	pdu17->tx_sock = 3;
-	pdu42->tx_sock = 42;
-
 	memset(data42, 0x42, DATA42SZ);
 	memset(data17, 0x17, DATA17SZ);
 }
@@ -187,8 +183,10 @@ static void test_chan_send(void)
 
 	uint64_t val = 0xdeadbeef;
 	chan_update(pdu42, 5, &val);
-	pdu42->tx_sock = -1;
+	int s = pdu42->nh->tx_sock;
+	pdu42->nh->tx_sock = -1;
 	TEST_ASSERT_MESSAGE(chan_send(pdu42, NULL) == -EINVAL, "Should not be able to send without valid Tx fd");
+	pdu42->nh->tx_sock = s;
 }
 
 static void test_create_standalone(void)
