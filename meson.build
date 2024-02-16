@@ -61,6 +61,14 @@ executable(
    link_with : [netchan])
 
 executable(
+   'invalid_talker',
+   'examples/invalid_talker.c',
+   include_directories: include_directories('include'),
+   build_by_default: true,
+	dependencies: deps,
+   link_with : [netchan])
+
+executable(
    'listener',
    'examples/listener.c',
    'src/netchan_args.c',

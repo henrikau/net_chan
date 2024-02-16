@@ -13,6 +13,7 @@ extern "C" {
 struct sensor {
 	uint64_t val;
 	uint64_t seqnr;
+	uint64_t ts;
 };
 
 enum attr_idx {
