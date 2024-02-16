@@ -42,8 +42,8 @@ uint64_t get_ptp_ts_ns(int ptp_fd)
 
 	struct timespec ts;
 	if (clock_gettime(get_clockid(ptp_fd), &ts) == -1) {
-		fprintf(stderr, "%s(): Failed reading PTP clock (%d, %s)\n",
-			__func__, errno, strerror(errno));
+		/* fprintf(stderr, "%s(): Failed reading PTP clock (%d, %s)\n", */
+		/* 	__func__, errno, strerror(errno)); */
 		return 0;
 	}
 
