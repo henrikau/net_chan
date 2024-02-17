@@ -621,7 +621,10 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 	if (txsz < 1) {
 		if (nc_handle_sock_err(ch->tx_sock, ch->nh->ptp_fd) < 0)
 			return -1;
+	} else {
+		log_tx(ch->nh->logger, &ch->pdu, ch->sample_ns, txtime, txtime);
 	}
+
 	/* Report the size of the payload to the usesr, the AVTPDU
 	 * header is 'invisible'
 	 */
@@ -715,12 +718,6 @@ int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
 	int res = chan_send(ch, &tx_ns);
 	if (res < 0)
 		return res;
-
-	/* Use same timestamp for capture ts and send ts
-	 *
-	 * Capture TS should come from caller and is on the TODO
-	 */
-	log_tx(ch->nh->logger, &ch->pdu, ch->sample_ns, ts_ns, tx_ns);
 
 	int err_ns = 150000;
 
