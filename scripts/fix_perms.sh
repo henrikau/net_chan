@@ -9,6 +9,8 @@ filelist=("testnetfifo"
 	  "cpp_listener"
 	  "cpp_talker"
 	  "manychan"
+	  "sendat_tx"
+	  "sendat_rx"
 	 )
 echo "Fixing permissions for compiled binaries (id: $(id -u))"
 pushd "$(dirname $(dirname $(realpath -s $0)))/build" > /dev/null

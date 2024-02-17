@@ -85,6 +85,23 @@ executable(
 	dependencies: deps,
    link_with : netchan)
 
+executable(
+   'sendat_tx',
+   'examples/send_at_talker.c',
+   'src/netchan_args.c',
+   include_directories: include_directories('include'),
+   build_by_default: true,
+	dependencies: deps,
+   link_with : [netchan])
+executable(
+   'sendat_rx',
+   'examples/send_at_recv.c',
+   'src/netchan_args.c',
+   include_directories: include_directories('include'),
+   build_by_default: true,
+	dependencies: deps,
+   link_with : [netchan])
+
 # includes netchan.c directly to test internals
 t_pdu = executable('testpdu',
 		   'test/test_pdu.c',
