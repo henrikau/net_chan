@@ -46,6 +46,7 @@ uint32_t tai_to_avtp_ns(uint64_t tai_ns);
  * @returns: TAI clock in ns
  */
 uint64_t tai_get_ns(void);
+uint64_t real_get_ns(void);
 
 #ifdef __cplusplus
 }

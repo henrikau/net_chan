@@ -113,3 +113,10 @@ uint64_t tai_get_ns(void)
 	return ts_tai.tv_sec * NS_IN_SEC + ts_tai.tv_nsec;
 }
 
+uint64_t real_get_ns(void)
+{
+	struct timespec ts_tai;
+	clock_gettime(CLOCK_REALTIME, &ts_tai);
+	return ts_tai.tv_sec * NS_IN_SEC + ts_tai.tv_nsec;
+}
+
