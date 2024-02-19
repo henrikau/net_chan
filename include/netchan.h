@@ -734,6 +734,13 @@ void nh_set_srp(struct nethandler *nh, bool use_srp);
 void nh_set_trace_breakval(struct nethandler *nh, int break_us);
 
 /**
+ * nh_enable_ftrace() - expose ftrace control
+ *
+ * @params: nh nethandler container
+ */
+void nh_enable_ftrace(struct nethandler *nh);
+
+/**
  * nh_set_tx_prio() - set Tx socket prio
  *
  * Default prio: 3

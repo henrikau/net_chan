@@ -1072,9 +1072,6 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 			ERROR(NULL, "%s() Something went wrong when enabling logger, datalogging disabled", __func__);
 	}
 
-	if (nh->ftrace_break_us > 0)
-		nh->tb = tb_open();
-
 	/* get PTP fd for timekeeping
 	 *
 	 * FIXME: properly handle error when opening (assume caller
@@ -1412,6 +1409,12 @@ void nh_set_srp(struct nethandler *nh, bool use_srp)
 
 }
 
+void nh_enable_ftrace(struct nethandler *nh)
+{
+	if (!nh || nh->tb)
+		return;
+	nh->tb = tb_open();
+}
 void nh_set_trace_breakval(struct nethandler *nh, int break_us)
 {
 	if (!nh)
@@ -1419,6 +1422,7 @@ void nh_set_trace_breakval(struct nethandler *nh, int break_us)
 	if (break_us <= 0 || break_us > 1000000)
 		nh->ftrace_break_us = -1;
 	nh->ftrace_break_us = break_us;
+	nh_enable_ftrace(nh);
 }
 
 bool nh_set_tx_prio(struct nethandler *nh, int tx_prio)

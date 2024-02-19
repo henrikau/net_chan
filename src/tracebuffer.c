@@ -9,51 +9,55 @@
 #include <errno.h>
 #include <string.h>
 
-FILE * tb_open(void)
+void _tb_tracefs_write_single(const char *attr, const char *val)
 {
-	FILE *tracing_on = fopen("/sys/kernel/debug/tracing/tracing_on", "w");
-	if (!tracing_on) {
-		fprintf(stderr, "%s(): could not locate tracing_on, cannot enable tracing\n", __func__);
-		return NULL;
+	char fname[256] = {0};
+	snprintf(fname, sizeof(fname)-1, "/sys/kernel/tracing/%s", attr);
+	FILE *f = fopen(fname, "w");
+	if (f) {
+		fprintf(f, "%s\n", val);
+		fflush(f);
+		fclose(f);
 	}
 
-	fprintf(tracing_on, "1\n");
-	fflush(tracing_on);
-	fclose(tracing_on);
+}
 
-	FILE *tracefd = fopen("/sys/kernel/debug/tracing/trace_marker", "w");
+FILE * tb_open(void)
+{
+	_tb_tracefs_write_single("tracing_on", "0");
+	_tb_tracefs_write_single("buffer_size_kb", "8192");
+
+	_tb_tracefs_write_single("events/sched/enable", "1");
+	_tb_tracefs_write_single("events/net/enable", "1");
+	_tb_tracefs_write_single("events/irq/enable", "1");
+
+	/* Only enable this when debugging, this is *very* invasive */
+	// _tb_tracefs_write_single("current_tracer", "function");
+
+	FILE *tracefd = fopen("/sys/kernel/tracing/trace_marker", "w");
 	if (!tracefd)
 		return NULL;
+	_tb_tracefs_write_single("tracing_on", "1");
+
 	printf("%s() tracefile opened\n", __func__);
 	return tracefd;
 }
 
 void tb_close(FILE *tracefd)
 {
-	if (!tracefd)
-		return;
-
-	FILE *tracing_on = fopen("/sys/kernel/debug/tracing/tracing_on", "w");
-	if (!tracing_on) {
-		fprintf(stderr, "%s(): could not open tracing_on to stop trace\n", __func__);
-		goto out;
+	_tb_tracefs_write_single("tracing_on", "0");
+	if (tracefd) {
+		fflush(tracefd);
+		fclose(tracefd);
+		printf("%s(): tracebuffer closed\n", __func__);
 	}
-	fprintf(tracing_on, "0\n");
-	fflush(tracing_on);
-	fclose(tracing_on);
-
-out:
-	fflush(tracefd);
-	fclose(tracefd);
-	printf("%s(): tracebuffer closed\n", __func__);
 }
 
 void tb_tag(FILE *tracefd, const char *line)
 {
-	if (!tracefd) {
-		printf("%s() no tracefd available\n", __func__);
+	if (!tracefd)
 		return;
-	}
+
 	int r = fprintf(tracefd, "%s\n", line);
 	if (r < 0) {
 		fprintf(stderr, "%s(): failed writing line to trace! (%d, %s)\n",
