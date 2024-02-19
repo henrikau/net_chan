@@ -213,6 +213,55 @@ cd linuxptp/
 make
 sudo make install
 ```
+### Linux Socket Priority and SO_TXTIME
+
+netchan relies on Linux and the SO_TXTIME socket option to schedule the
+transmission of a frame exactly at a specified time. Since 2018, Linux
+has had support for the Earliest Transmission First Qdisc, and given a
+NIC with proper support (such as Intel I210 and I225), this can be
+offloaded to hardware.
+
+#### Enabling mqprio to attach Qdisc to a specific txqueue
+
+```bash
+sudo tc qdisc replace dev eth0 parent root handle 4242 mqprio \
+   num_tc 4 map 3 3 1 0 2 2 2 2 2 2 2 2 2 2 2 2 \
+   queues 1@0 1@1 1@2 1@3 hw 0
+```
+
+#### Enabling ETF for hw-queue 0
+
+Both I210 and I225 support LaunchTime, a hardware feature allowing the
+NIC to send a frame at a specified timestamp with ns accuracy. netchan
+uses this to implement CBS in software (and thus also TAS at a later
+stage).
+
+```bash
+sudo tc qdisc add dev eth0 parent 4242:1 etf clockid CLOCK_TAI \
+    delta 100000 offload
+```
+**note1** Do NOT enable deadline mode! This will cause ETF to discard
+the scheduled txtime and instead send the frame immediately. It will not
+however, update the reference of last sent frame, causing all preceding
+frames with timestamp between *now* and the *original txtime* to be
+discarded. This can be somewhat frustrating
+
+**note2** Select delta based on your systems behavior. If you have good
+RT behavior, reducing delta will reduce E2E latency. Use cyclictest to
+determine the max error and use a value in that range.
+
+
+#### Exposing VLAN 2
+TSN (and AVB) defaults to VLAN 2. This is something a network admin can
+choose to modify, so consult your local network before committing to this.
+
+
+```bash
+sudo ip link add link eth0 name eth0.2 type vlan id 2 egress-qos-map 2:2 3:3
+```
+
+This will create a new link, eth0.2 that maps to VLAN2 and connects
+local PCP to network PCP 2 and 3 (default for AVB/TSN).
 
 ### Stream Reservation
 A key feature of NetChan is the ability to reserve bandwidth and buffer

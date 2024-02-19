@@ -98,9 +98,14 @@ int nc_create_tx_sock(struct channel *ch)
 		goto err_out;
 	}
 
-	/* Set ETF-Qdisc clock field for socket */
+	/* Set ETF-Qdisc clock field for socket
+	 *
+	 * Do NOT set SOF_TXTIME_DEADLINE_MODE, this will cause sch_etf
+	 * to disregard SO_TXTIME and instead send frame with now +
+	 * delta.
+	 */
 	ch->txtime.clockid = CLOCK_TAI;
-	ch->txtime.flags = SOF_TXTIME_REPORT_ERRORS | SOF_TXTIME_DEADLINE_MODE;
+	ch->txtime.flags = SOF_TXTIME_REPORT_ERRORS;
 	if (setsockopt(sock, SOL_SOCKET, SO_TXTIME, &ch->txtime, sizeof(ch->txtime)))
 		goto err_out;
 
