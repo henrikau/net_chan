@@ -53,12 +53,18 @@ void tb_close(FILE *tracefd)
 	}
 }
 
-void tb_tag(FILE *tracefd, const char *line)
+void tb_tag(FILE *tracefd, const char *fmt, ...)
 {
 	if (!tracefd)
 		return;
 
-	int r = fprintf(tracefd, "%s\n", line);
+	char buffer[256] = {0};
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	int r = fprintf(tracefd, "%s", buffer);
 	if (r < 0) {
 		fprintf(stderr, "%s(): failed writing line to trace! (%d, %s)\n",
 			__func__, errno, strerror(errno));

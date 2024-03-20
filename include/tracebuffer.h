@@ -10,10 +10,11 @@
 extern "C" {
 #endif
 #include <stdio.h>
+#include <stdarg.h>
 
 FILE * tb_open(void);
 void tb_close(FILE *tracefd);
-void tb_tag(FILE *tracefd, const char *line);
+void tb_tag(FILE *tracefd, const char *fmt, ...);
 #ifdef __cplusplus
 }
 #endif
