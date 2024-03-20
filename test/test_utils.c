@@ -15,16 +15,9 @@
 static struct periodic_timer *pt_tai;
 static uint64_t ts_ns = 0;
 
-uint64_t time_now(void)
-{
-	struct timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	return  ts.tv_sec * NS_IN_SEC + ts.tv_nsec;
-}
-
 uint64_t checkpoint(void)
 {
-	uint64_t ts_now = time_now();
+	uint64_t ts_now = real_get_ns();
 	uint64_t ts_diff = ts_now - ts_ns;
 	ts_ns = ts_now;
 	return ts_diff;
@@ -147,7 +140,7 @@ static void test_pt_real_full(void)
 
 static void test_pt_tai_offset(void)
 {
-	uint64_t now_ns = time_now() + 50 * NS_IN_MS;
+	uint64_t now_ns = real_get_ns() + 50 * NS_IN_MS;
 
 	/* First timer should start 50ms into the future and every iteration should be 10ms */
 	struct periodic_timer *pt = pt_init(now_ns, 10*NS_IN_MS, CLOCK_REALTIME);

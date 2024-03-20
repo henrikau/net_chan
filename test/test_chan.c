@@ -25,13 +25,6 @@ void tearDown(void)
 		nh_destroy(&nh);
 }
 
-uint64_t time_now(void)
-{
-	struct timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	return  ts.tv_sec * NS_IN_SEC + ts.tv_nsec;
-}
-
 static void test_create_tx_channel(void)
 {
 	TEST_ASSERT_NULL(chan_create_tx(NULL, &chanattr));
@@ -163,11 +156,11 @@ static void test_chan_timedwait(void)
 {
 	struct channel *ch = chan_create_rx(nh, &chanattr);
 	ch->ready = false;
-	uint64_t before = time_now();
+	uint64_t before = real_get_ns();
 
 	/* Set timeout for 500ms */
 	TEST_ASSERT(chan_ready_timedwait(ch, 500*NS_IN_MS) == -ETIMEDOUT);
-	uint64_t after = time_now();
+	uint64_t after = real_get_ns();
 
 	/* timeout should be within 200 US of 500ms */
 	TEST_ASSERT_UINT64_WITHIN(200*NS_IN_US, 500*NS_IN_MS, after-before);
