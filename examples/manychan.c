@@ -298,12 +298,14 @@ int main(int argc, char *argv[])
 	log_reset(nh->logger);
 
 	/* Sending periodic signals */
+	int errors = 0;
 	while (iterations != 0 && running) {
 		iterations--;
 		data = iterations;
 		pt_next_cycle(pt);
 		for (int idx = 0; idx < ensemble_size; idx++)
-			chan_send_now(tx[idx], &data);
+			if (chan_send_now(tx[idx], &data) < 0)
+				errors++;
 		printf("."); fflush(stdout);
 
 	}
@@ -319,6 +321,6 @@ int main(int argc, char *argv[])
 	 * destroyed
 	 */
 	nh_destroy(&nh);
-
+	printf("Done, %d errors\n", errors);
 	return 0;
 }
