@@ -619,6 +619,7 @@ int chan_send(struct channel *ch, uint64_t *tx_ns)
 
 	int txsz = sendmsg(ch->tx_sock, &msg, 0);
 	if (txsz < 1) {
+		tb_tag(ch->nh->tb, "[0x%08lx] Failed sending msg (%d)", ch->sidw.s64, errno);
 		if (nc_handle_sock_err(ch->tx_sock, ch->nh->ptp_fd) < 0)
 			return -1;
 	} else {
@@ -687,13 +688,11 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 
 	log_wakeup_delay(du->nh->logger, ptp_target_delay_ns, cpu_target_delay_ns, cpu_wakeup_ns);
 	if (du->nh->tb) {
-		char tbmsg[128] = {0};
-		snprintf(tbmsg, 127, "_delay(), target=%lu, current=%lu, error=%ld (%s)",
+		tb_tag(du->nh->tb, "_delay(), target=%lu, current=%lu, error=%ld (%s)",
 			ptp_target_delay_ns,
 			cpu_wakeup_ns,
 			error_cpu_ns,
 			error_cpu_ns < 0 ? "late" : "early");
-		tb_tag(du->nh->tb, tbmsg);
 	}
 
 	INFO(du, "%s(): PTP Target: %lu, actual: %lu, error: %.3f (us) (%s)",
@@ -775,10 +774,12 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 
 	/* track E2E delay if --break is passed */
 	if (ch->nh->ftrace_break_us > 0 && (avtp_diff/1000)  > ch->nh->ftrace_break_us) {
-		char tbmsg[128] = {0};
-		snprintf(tbmsg, 127, "E2E delay (%.3f us) exceeded break_value (%d)", (float)avtp_diff/1000, ch->nh->ftrace_break_us);
-		fprintf(stderr, "%s\n", tbmsg);
-		tb_tag(ch->nh->tb, tbmsg);
+		tb_tag(ch->nh->tb, "E2E delay (%.3f us) exceeded break_value (%d)", (float)avtp_diff/1000, ch->nh->ftrace_break_us);
+
+		/* This is done by nh_destroy(), but we want to remove
+		 * as much noise from the rest of the trace as possible,
+		 * so bail early
+		 */
 		tb_close(ch->nh->tb);
 		ch->nh->tb = NULL;
 		nh_destroy(&ch->nh);
@@ -1165,11 +1166,7 @@ int nh_feed_pdu_ts(struct nethandler *nh, struct avtpdu_cshdr *cshdr,
 		return -EINVAL;
 	int idx = get_hm_idx(nh, be64toh(cshdr->stream_id));
 
-	if (nh->tb > 0) {
-		char tbmsg[128] = {0};
-		snprintf(tbmsg, 127, "feed_pdu_ts, feed to hmapidx=%d", idx);
-		tb_tag(nh->tb, tbmsg);
-	}
+	tb_tag(nh->tb, "feed_pdu_ts, feed to hmapidx=%d", idx);
 
 	if (idx >= 0) {
 		struct cb_priv *cbp = nh->hmap[idx].priv_data;
