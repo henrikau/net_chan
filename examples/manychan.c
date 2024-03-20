@@ -39,6 +39,7 @@ static int iterations = -1;
 static bool verbose = false;
 static bool do_srp = false;
 static bool running = false;
+static bool tracing = false;
 static int period_ns = HZ_100;
 
 /* This example has slightly different needs than the plain example, so
@@ -51,6 +52,7 @@ static struct argp_option options[] = {
        {"size"      , 's', "N"      , 0, "Size of ensemble, will create N:N connections"},
        {"idx"       , 'I', "IDX"    , 0, "Unique index of agent in ensemble."},
        {"srp"       , 'S', NULL     , 0, "Enable stream reservation (SRP), including MMRP and MVRP"},
+       {"tracing"   , 'T', NULL     , 0, "Enable kernel tracing"},
        {"period_us" , 'P', "PERIOD" , 0, "Period (in us) between each frame, default 10ms (100 Hz)"},
        {"verbose"    ,'v', NULL     , 0, "Verbose mode (noisy)"},
        { 0 }
@@ -89,6 +91,9 @@ error_t parser(int key, char *arg, struct argp_state *state)
 	      break;
       case 'S':
 	      do_srp = true;
+	      break;
+      case 'T':
+	      tracing = true;
 	      break;
       case 'I':
 	      ensemble_idx = atoi(arg);
@@ -223,6 +228,8 @@ int main(int argc, char *argv[])
 
 	nh_set_verbose(nh, verbose);
 	nh_set_srp(nh, do_srp);
+	if (tracing)
+		nh_enable_ftrace(nh);
 
 	struct channel *tx[ENSEMBLE_SIZE_LIMIT];
 	pthread_t listeners[ENSEMBLE_SIZE_LIMIT];
