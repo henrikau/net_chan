@@ -35,7 +35,7 @@ struct channel_attrs nc_channels[] = {
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x42},
 		.stream_id = 42,
-		.sc	   = CLASS_A,
+		.sc	   = SC_CLASS_A,
 		.size      =  sizeof(struct sensor),
 		.interval_ns = 5000000L, /* 200 Hz */
 #ifndef __cplusplus
@@ -45,7 +45,7 @@ struct channel_attrs nc_channels[] = {
 	{
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x9A},
 		.stream_id = 154,
-		.sc	   = CLASS_A,
+		.sc	   = SC_CLASS_A,
 		.size      =  sizeof(struct sensor),
 		.interval_ns = (200 * NS_IN_MS), /* 5 Hz */
 #ifndef __cplusplus
@@ -56,7 +56,7 @@ struct channel_attrs nc_channels[] = {
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x17},
 		.stream_id = 17,
-		.sc	   = CLASS_A,
+		.sc	   = SC_CLASS_A,
 		.size      =  sizeof(uint64_t),
 		.interval_ns  = HZ_100,
 #ifndef __cplusplus
@@ -67,7 +67,7 @@ struct channel_attrs nc_channels[] = {
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x18},
 		.stream_id = 18,
-		.sc	   = CLASS_A,
+		.sc	   = SC_CLASS_A,
 		.size      =  sizeof(uint64_t),
 		.interval_ns  = HZ_100,
 #ifndef __cplusplus

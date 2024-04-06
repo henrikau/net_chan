@@ -136,7 +136,7 @@ bool valid_settings(void)
 struct channel_attrs base = {
 	.dst       = {0x01, 0x00, 0x5E, 0x01, 0x01, 0x00},
 	.stream_id = 0,
-	.sc	   = CLASS_A,
+	.sc	   = SC_CLASS_A,
 	.size      =  sizeof(uint64_t),
 	.interval_ns = HZ_100,
 };

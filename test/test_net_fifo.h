@@ -18,7 +18,7 @@ struct channel_attrs nc_channels[] = {
 	{			/* 0 */
 		.dst       = DEFAULT_MCAST,
 		.stream_id = 42,
-		.sc        = CLASS_A,
+		.sc        = SC_CLASS_A,
 		.size      = 8,
 		.interval_ns      = INT_50HZ,
 		.name      = "test1"
@@ -26,7 +26,7 @@ struct channel_attrs nc_channels[] = {
 	{			/* 1 */
 		.dst       = {0x01, 0x00, 0x5E, 0xde, 0xad, 0x42},
 		.stream_id = 43,
-		.sc        = CLASS_A,
+		.sc        = SC_CLASS_A,
 		.size      = 8,
 		.interval_ns = INT_10HZ,
 		.name      = "test2"
@@ -34,7 +34,7 @@ struct channel_attrs nc_channels[] = {
 	{			/* 2 */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x02, 0x03},
 		.stream_id = 11,
-		.sc        = CLASS_B,
+		.sc        = SC_CLASS_B,
 		.size      = 8,
 		.interval_ns = INT_10HZ,
 		.name      = "macro11"
@@ -42,7 +42,7 @@ struct channel_attrs nc_channels[] = {
 	{			/* 3 */
 		.dst       = {0x01, 0x00, 0xe5, 0x01, 0x02, 0x42},
 		.stream_id = 17,
-		.sc        = CLASS_A,
+		.sc        = SC_CLASS_A,
 		.size      = DATA17SZ,
 		.interval_ns = INT17,
 		.name      = "test2",
@@ -50,7 +50,7 @@ struct channel_attrs nc_channels[] = {
 	{			/* 4 */
 		.dst       = DEFAULT_MCAST,
 		.stream_id = 43,
-		.sc        = CLASS_A,
+		.sc        = SC_CLASS_A,
 		.size      = 8,
 		.interval_ns      = INT_50HZ,
 		.name      = "pdu43_r"

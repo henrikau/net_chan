@@ -9,7 +9,7 @@ struct nethandler *nh;
 struct channel_attrs chanattr = {
 	.dst       = DEFAULT_MCAST,
 	.stream_id = 42,
-	.sc        = CLASS_A,
+	.sc        = SC_CLASS_A,
 	.size      = 8,
 	.interval_ns      = INT_50HZ,
 	.name      = "test1"};

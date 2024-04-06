@@ -29,8 +29,8 @@ def print_channels(channels):
     if not channels:
         return
     # Split by channels
-    cha = [channels[x] for x in channels.keys() if channels[x]['sc'] == 'CLASS_A']
-    chb = [channels[x] for x in channels.keys() if channels[x]['sc'] == 'CLASS_B']
+    cha = [channels[x] for x in channels.keys() if channels[x]['sc'] == 'SC_CLASS_A']
+    chb = [channels[x] for x in channels.keys() if channels[x]['sc'] == 'SC_CLASS_B']
     print(" Class | StreamID |     Name     |  Hz  | sz")
     print("-------+----------+--------------+------+---------")
     for ch in cha:
@@ -148,7 +148,7 @@ def main(channels, txstreams, linkspeed, verbose):
         if t not in channels:
             print("Did not find {} in channels!".format(t))
         else:
-            if channels[t]['sc'] == 'CLASS_A':
+            if channels[t]['sc'] == 'SC_CLASS_A':
                 kbps_a += calc_bw_req(channels[t])
             else:
                 kbps_b += calc_bw_req(channels[t])

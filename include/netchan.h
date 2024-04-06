@@ -39,8 +39,9 @@ extern "C" {
 
 
 enum stream_class {
-	CLASS_A = 2 * NS_IN_MS,
-	CLASS_B = 50 * NS_IN_MS
+	SC_TAS = 100 * NS_IN_US,
+	SC_CLASS_A = 2 * NS_IN_MS,
+	SC_CLASS_B = 50 * NS_IN_MS
 };
 
 enum nc_loglevel {
@@ -62,7 +63,8 @@ union stream_id_wrapper {
 	uint8_t s8[8];
 };
 
-	#define DEFAULT_TX_SOCKET_PRIO 3
+#define DEFAULT_TX_TAS_SOCKET_PRIO 3
+#define DEFAULT_TX_CBS_SOCKET_PRIO 2
 
 /**
  * @struct channel_attrs
@@ -237,6 +239,8 @@ struct channel
 	/*
 	 * To enforce the channel frequency, keep track of next time
 	 * this channel is eligble to transmit.
+	 *
+	 * This behavior is identical for both TAS and CBS
 	 *
 	 * The channel will schedule the packet to transmit at
 	 *

@@ -265,7 +265,7 @@ static void test_nh_add_remove_rx_chan(void)
 	struct channel_attrs chanattr = {
 		.dst       = DEFAULT_MCAST,
 		.stream_id = 42,
-		.sc        = CLASS_A,
+		.sc        = SC_CLASS_A,
 		.size      = 8,
 		.interval_ns      = INT_50HZ,
 		.name      = "test1"};
@@ -304,8 +304,8 @@ static void test_nh_add_remove_rx_chan(void)
 
 static void test_sc_values(void)
 {
-	TEST_ASSERT_EQUAL_MESSAGE(2*NS_IN_MS, CLASS_A, "Class A should have default value 2 ms");
-	TEST_ASSERT_EQUAL_MESSAGE(50*NS_IN_MS, CLASS_B, "Class B should have default value 50 ms");
+	TEST_ASSERT_EQUAL_MESSAGE(2*NS_IN_MS, SC_CLASS_A, "Class A should have default value 2 ms");
+	TEST_ASSERT_EQUAL_MESSAGE(50*NS_IN_MS, SC_CLASS_B, "Class B should have default value 50 ms");
 }
 
 

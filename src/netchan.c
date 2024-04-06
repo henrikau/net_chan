@@ -168,12 +168,15 @@ static void _chan_set_streamclass(struct channel *ch,
 	 * once we've connected to mrpd
 	 */
 	switch (ch->sc) {
-	case CLASS_A:
+	case SC_TAS:
+		ch->pcp_prio = srp->prio_tas;
+		break;
+	case SC_CLASS_A:
 		ch->pcp_prio = srp->prio_a;
 		if (interval_ns < 125*NS_IN_US)
 			WARN(ch, "Class A stream frequency larger than 8kHz, reserved bandwidth will be too low!\n");
 		break;
-	case CLASS_B:
+	case SC_CLASS_B:
 		ch->pcp_prio = srp->prio_b;
 		if (interval_ns < 250*NS_IN_US)
 			WARN(ch, "Class B stream frequency larger than 4kHz, reserved bandwidth will be too low!\n");
@@ -1422,17 +1425,26 @@ void nh_set_trace_breakval(struct nethandler *nh, int break_us)
 	nh_enable_ftrace(nh);
 }
 
-bool nh_set_tx_prio(struct nethandler *nh, int tx_prio)
+bool nh_set_tx_prio(struct nethandler *nh, enum stream_class sc, int tx_prio)
 {
 	if (!nh || tx_prio < 0 || tx_prio > 8)
 		return false;
 
-	/* Do not allow updating Tx socket prio once we have sockets
-	 * using the old prio
+	/* We do not want to change the Tx priorities once channels are
+	 * created.
 	 */
-	if (nh_get_num_tx(nh) > 0)
+	if (nh->du_tx_head != NULL)
 		return false;
-	nh->tx_sock_prio = tx_prio;
+
+	switch (sc) {
+	case SC_TAS:
+		nh->tx_tas_sock_prio = tx_prio;
+		break;
+	case SC_CLASS_A:
+	case SC_CLASS_B:
+		nh->tx_cbs_sock_prio = tx_prio;
+		break;
+	}
 	return true;
 }
 
@@ -1510,13 +1522,14 @@ uint64_t get_class_delay_bound_ns(struct channel *du)
 	if (!du)
 		return 0;
 	switch (du->sc) {
-	case CLASS_A:
+	case SC_TAS:
+		return 100 * NS_IN_US;
+	case SC_CLASS_A:
 		return 2*NS_IN_MS;
-	case CLASS_B:
+	case SC_CLASS_B:
 		return 50*NS_IN_MS;
-	default:
-		return 0;
 	}
+	return 0;
 }
 
 void chan_print_details(struct channel *ch)

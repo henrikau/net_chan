@@ -27,7 +27,7 @@ struct nethandler *nh;
 struct channel_attrs nfc = {
 	.dst       = { 0x01, 0x00, 0xe5, 0x01, 0x02, 0x42},
 	.stream_id = 18,
-	.sc        = CLASS_A,
+	.sc        = SC_CLASS_A,
 	.size      = 8,
 	.interval_ns = 2 * NS_IN_MS,
 	.name      = "invalid_period",
@@ -71,7 +71,7 @@ void tearDown(void)
 static void test_chan_create(void)
 {
 	nfc.stream_id = 43;
-	nfc.sc = CLASS_B;
+	nfc.sc = SC_CLASS_B;
 	nfc.size = 128;
 	nfc.interval_ns = INT_50HZ;
 	TEST_ASSERT_NULL_MESSAGE(_chan_create(NULL, &nfc),
@@ -139,7 +139,7 @@ static void test_payload_size_interval_combo(void)
 	nfc.interval_ns = 1500;
 	TEST_ASSERT_NULL_MESSAGE(_chan_create(nh, &nfc), "Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization");
 
-	/* TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, CLASS_A, 1476, 1500), */
+	/* TEST_ASSERT_NULL_MESSAGE(_chan_create(nh,(unsigned char *)"01:00:e5:01:02:42", 43, SC_CLASS_A, 1476, 1500), */
 	/* 			"Invalid size (1476 bytes) and interval (1500ns) combination, > 100% utilization"); */
 }
 

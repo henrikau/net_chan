@@ -13,6 +13,15 @@ extern "C" {
 #define DEFAULT_MCAST {0x01, 0x00, 0x5E, 0x00, 0x00, 0x00}
 
 enum {
+	/* TSN ST is the highest priority traffic, perhaps only
+	 * surpassed by emergency traffic. PCP is a 3 bit value, valid
+	 * range is 0..7.
+	 *
+	 * This value should always be dictated by the network.
+	 */
+	DEFAULT_CLASS_TAS_PRIO = 6,
+
+	/* Default specified in Table 6-5 in 802.1Q-2018 reg*/
 	DEFAULT_CLASS_A_PRIO = 3,
 	DEFAULT_CLASS_B_PRIO = 2
 };
@@ -47,6 +56,9 @@ struct srp {
 	int prio_b;
 	int id_b;
 	bool valid_b;
+
+	/* PCP code for TAS.  */
+	int prio_tas;
 
 	/* should be identical to vid_a, but conform to
 	 * (talker|listener)_process_msg() for now. */
