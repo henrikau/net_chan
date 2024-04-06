@@ -21,7 +21,8 @@ static struct argp_option options[] = {
        {"log_delay" , 'L', NULL  , 0, "Log wakeup (delay) to file (csv format), *requires* --log_ts"},
        {"ftrace"    , 't', NULL  , 0, "Enable tagging of ftrace tracebuffer from various points in the system"},
        {"break"     , 'b', "USEC", 0, "Stop program and ftrace if calculated E2E delay is larger than [USEC]"},
-       {"txprio"    , 'p', "PRIO", 0, "Local Qdisc mqprio priority for socket. If not set, default SO_PRIORITY will be used."},
+       {"txprio_cbs"    , 'p', "PRIO", 0, "Local Qdisc mqprio priority for CBS socket. If not set, default SO_PRIORITY (2)  will be used."},
+       {"txprio_tas"    , 'P', "PRIO", 0, "Local Qdisc mqprio priority for TAS socket. If not set, default SO_PRIORITY (3)  will be used."},
        { 0 }
 };
 

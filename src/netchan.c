@@ -248,8 +248,11 @@ static struct channel * _chan_create(struct nethandler *nh,
 
 	memcpy(ch->dst, attrs->dst, ETH_ALEN);
 
-	if (nh->use_srp)
-		_chan_set_streamclass(ch, attrs->sc, attrs->interval_ns);
+	/* the streamclass is used for more than just SRP, it also tries
+	 * to steer traffic to different local classes as we use more
+	 * than one shaper.
+	 */
+	_chan_set_streamclass(ch, attrs->sc, attrs->interval_ns);
 
 	ch->tx_sock = -1;
 
@@ -279,7 +282,16 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 	if (!ch)
 		return NULL;
 
-	ch->tx_sock_prio = nh->tx_sock_prio;
+	switch(attrs->sc) {
+	case SC_TAS:
+		ch->tx_sock_prio = nh->tx_tas_sock_prio;
+		break;
+	case SC_CLASS_A:
+	case SC_CLASS_B:
+		ch->tx_sock_prio = nh->tx_cbs_sock_prio;
+		break;
+	}
+
 	ch->tx_sock = nc_create_tx_sock(ch);
 
 	if (ch->tx_sock < 0) {
@@ -1042,7 +1054,8 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 	struct nethandler *nh = calloc(sizeof(*nh), 1);
 	if (!nh)
 		return NULL;
-	nh->tx_sock_prio = DEFAULT_TX_SOCKET_PRIO;
+	nh->tx_tas_sock_prio = DEFAULT_TX_TAS_SOCKET_PRIO;
+	nh->tx_cbs_sock_prio = DEFAULT_TX_CBS_SOCKET_PRIO;
 	nh->hmap_sz = hmap_size;
 	nh->hmap = calloc(sizeof(struct cb_entity), nh->hmap_sz);
 	if (!nh->hmap) {
@@ -1066,6 +1079,13 @@ struct nethandler * nh_create_init(const char *ifname, size_t hmap_size, const c
 
 	if (_nh_enable_rt_measures(nh))
 		WARN(NULL, "%s() Failed enabling RT measures, not fatal but performance may not be optimal", __func__);
+
+	/* First setup of SRP, only the container,  */
+	if (!nc_srp_init(nh)) {
+		WARN(NULL, "%s() Failed creating basic SRP container", __func__);
+		nh_destroy(&nh);
+		goto out;
+	}
 
 	/*
 	 * Open logfile if provided

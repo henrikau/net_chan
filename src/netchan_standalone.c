@@ -7,7 +7,8 @@ static int break_us = -1;
 static char nc_nic[IFNAMSIZ] = {0};
 static char nc_logfile[129] = {0};
 static int nc_hmap_size = 42;
-static int tx_sock_prio = 3;
+static int tx_tas_sock_prio = DEFAULT_TX_TAS_SOCKET_PRIO; // 3
+static int tx_cbs_sock_prio = DEFAULT_TX_CBS_SOCKET_PRIO; // 2
 
 
 int nc_set_nic(char *nic)
@@ -46,11 +47,19 @@ void nc_set_logfile(const char *logfile)
 	INFO(NULL, "%s(): set logfile to %s", __func__, nc_logfile);
 }
 
-void nc_tx_sock_prio(int prio)
+void nc_tx_sock_prio(int prio, enum stream_class sc)
 {
 	if (prio < 0 || prio > 15)
 		return;
-	tx_sock_prio = prio;
+	switch (sc) {
+	case SC_TAS:
+		tx_tas_sock_prio = prio;
+		break;
+	case SC_CLASS_A:
+	case SC_CLASS_B:
+		tx_cbs_sock_prio = prio;
+		break;
+	}
 }
 
 
@@ -93,8 +102,12 @@ int nh_create_init_standalone(void)
 		nh_set_verbose(_nh, verbose);
 		nh_set_srp(_nh, do_srp);
 		nh_set_trace_breakval(_nh, break_us);
-		if (!nh_set_tx_prio(_nh, tx_sock_prio))
+
+		if (!nh_set_tx_prio(_nh, SC_TAS, tx_tas_sock_prio))
 			return -1;
+		if (!nh_set_tx_prio(_nh, SC_CLASS_A, tx_cbs_sock_prio))
+			return -1;
+
 	}
 	return 0;
 }

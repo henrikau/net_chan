@@ -28,7 +28,7 @@ void nc_use_ftrace(void);
 void nc_breakval(int break_us);
 void nc_verbose(void);
 void nc_set_logfile(const char *logfile);
-void nc_tx_sock_prio(int prio);
+void nc_tx_sock_prio(int prio, enum stream_class sc);
 
 
 /**

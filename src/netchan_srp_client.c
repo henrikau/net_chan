@@ -98,18 +98,29 @@ void * nc_srp_talker_announce(void *data)
 	return NULL;
 }
 
-bool nc_srp_setup(struct nethandler *nh)
+bool nc_srp_init(struct nethandler *nh)
 {
 	struct srp *srp = calloc(1, sizeof(*srp));
 	if (!srp) {
 		ERROR(NULL, "%s(): SRP memory allocation failed.", __func__);
-		goto err_out;
+		return false;
 	}
 
 	srp->nh = nh;
 	srp->prio_a = DEFAULT_CLASS_A_PRIO;
 	srp->prio_b = DEFAULT_CLASS_B_PRIO;
 	nh->srp = srp;
+
+	/* We are not ready to use SRP yet */
+	nh->use_srp = false;
+	return true;
+}
+
+bool nc_srp_setup(struct nethandler *nh)
+{
+	if (!nh || !nh->srp)
+		return false;
+	struct srp *srp = nh->srp;
 
 	/* Create control sockets */
 	srp->sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -188,33 +199,36 @@ err_out:
 
 void nc_srp_teardown(struct nethandler *nh)
 {
-	if (!nh || !nh->use_srp || !nh->srp) {
+	if (!nh || !nh->srp) {
 		ERROR(NULL, "%s(): Cannot teardown SRP for nethandler", __func__);
 		return;
 	}
-	/* stop monitor thread
-	 *
-	 * We are called from nh_destroy(), which will set nh->running =
-	 * false, which *should* stop the thread
-	 */
-	if (nh->srp->tid > 0) {
-		pthread_join(nh->srp->tid, NULL);
-		nh->srp->tid = 0;
+
+	if (nh->use_srp) {
+		/* stop monitor thread
+		 *
+		 * We are called from nh_destroy(), which will set nh->running =
+		 * false, which *should* stop the thread
+		 */
+		if (nh->srp->tid > 0) {
+			pthread_join(nh->srp->tid, NULL);
+			nh->srp->tid = 0;
+		}
+		if (nh->srp->announcer > 0) {
+			pthread_join(nh->srp->announcer, NULL);
+			nh->srp->announcer = 0;
+		}
+
+		/* leave VLAN */
+		nc_mrp_leave_vlan(nh->srp);
+
+		/* unregister domain, currently only A */
+		nc_mrp_unregister_domain_class_a(nh->srp);
+
+		/* close socket */
+		close(nh->srp->sock);
+
 	}
-	if (nh->srp->announcer > 0) {
-		pthread_join(nh->srp->announcer, NULL);
-		nh->srp->announcer = 0;
-	}
-
-	/* leave VLAN */
-	nc_mrp_leave_vlan(nh->srp);
-
-	/* unregister domain, currently only A */
-	nc_mrp_unregister_domain_class_a(nh->srp);
-
-	/* close socket */
-	close(nh->srp->sock);
-
 	/* free srp */
 	free(nh->srp);
 	nh->srp = NULL;

@@ -43,9 +43,13 @@ public:
             nh_destroy(&nh);
     };
 
-    bool set_tx_prio(int tx_prio)
+    bool set_tx_prio(int tx_prio, enum stream_class sc)
     {
-        return nh_set_tx_prio(nh, tx_prio);
+        return nh_set_tx_prio(nh, sc, tx_prio);
+    }
+
+    bool set_tx_prio(int tx_prio) {
+        return nh_set_tx_prio(nh, SC_CLASS_A, tx_prio);
     }
 
     struct channel * new_tx_channel(struct channel_attrs *attrs)

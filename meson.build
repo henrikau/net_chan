@@ -155,6 +155,14 @@ t_chan = executable('testchan',
 		    dependencies: deps,
 		    link_with : netchan)
 
+t_tas = executable('testtas',
+		    'test/test_tas.c',
+		    'test/unity.c',
+		    include_directories: include_directories('include'),
+		    build_by_default: true,
+		    dependencies: deps,
+		    link_with : netchan)
+
 # include netchan_utils.c directly into test internals
 t_utils = executable('testutils',
 		    'test/test_utils.c',
@@ -169,6 +177,7 @@ test('pdu test', t_pdu)
 test('nh test', t_nh)
 test('nh net fifo', t_net_fifo)
 test('channel test', t_chan)
+test('tas test', t_tas)
 test('test utils', t_utils)
 
 # Generate documentation if doxygen is available.

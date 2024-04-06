@@ -293,10 +293,19 @@ struct nethandler {
 
 	bool verbose;
 	bool use_srp;
-	int tx_sock_prio;
 
-	/*
-	 * We have one Rx socket, but each datastream will have its own
+	/* Priority used when creating a new socket, either CBS or TAS.
+	 * We currently only allow 2 mqprio Qdiscs to handle this,
+	 * either TAS or CBS. Class A and B are thus multiplexed onto
+	 * the same socket!
+	 *
+	 * In the future where we have NICs with *3* HW queues for TAS,
+	 * A, and B, this may change.
+	 */
+	int tx_tas_sock_prio;
+	int tx_cbs_sock_prio;
+
+	/* We have one Rx socket, but each datastream will have its own
 	 * SRP context, look to netchan_avtp for SRP related fields.
 	 */
 	int rx_sock;
@@ -758,9 +767,10 @@ void nh_enable_ftrace(struct nethandler *nh);
  * be possible to change the priority.
  *
  * @param: nh nethandler container
+ * @param: stream_class sc the target streamclass
  * @param: tx_prio int socket priority
  */
-bool nh_set_tx_prio(struct nethandler *nh, int tx_prio);
+bool nh_set_tx_prio(struct nethandler *nh, enum stream_class sc, int tx_prio);
 
 /**
  * nh_remove_(tx|rx) - remove channel

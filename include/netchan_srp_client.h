@@ -71,6 +71,7 @@ struct srp {
 /**
  *
  */
+bool nc_srp_init(struct nethandler *nh);
 bool nc_srp_setup(struct nethandler *nh);
 void nc_srp_teardown(struct nethandler *nh);
 

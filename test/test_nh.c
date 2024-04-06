@@ -311,24 +311,24 @@ static void test_sc_values(void)
 
 static void test_invalid_txprio(void)
 {
-	TEST_ASSERT(nh_set_tx_prio(nh, 0));
-	TEST_ASSERT(!nh_set_tx_prio(NULL, 1));
-	TEST_ASSERT(!nh_set_tx_prio(nh, -1));
-	TEST_ASSERT(!nh_set_tx_prio(nh, 9));
+	TEST_ASSERT(nh_set_tx_prio(nh, SC_CLASS_A, 0));
+	TEST_ASSERT(!nh_set_tx_prio(NULL, SC_CLASS_A, 1));
+	TEST_ASSERT(!nh_set_tx_prio(nh, SC_CLASS_A, -1));
+	TEST_ASSERT(!nh_set_tx_prio(nh, SC_CLASS_A, 9));
 
 	/* Set a valid Tx prio */
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
-	TEST_ASSERT(nh_set_tx_prio(nh, 3));
+	TEST_ASSERT(nh_set_tx_prio(nh, SC_CLASS_A, 3));
 	/* create a channel. It should no longer be possible to change Tx-prio */
 	struct channel *ch1 = chan_create_tx(nh, &nc_channels[MCAST43]);
 
 	TEST_ASSERT(nh_get_num_tx(nh) == 1);
-	TEST_ASSERT_MESSAGE(!nh_set_tx_prio(nh, 3), "It should not be possible to change Tx prio once a Tx socket has been created.");
+	TEST_ASSERT_MESSAGE(!nh_set_tx_prio(nh, SC_CLASS_A, 3), "It should not be possible to change Tx prio once a Tx socket has been created.");
 
 	/* Once the channel is gone, changing Tx prio should be possible */
 	TEST_ASSERT(nh_remove_tx(ch1) == 0);
 	TEST_ASSERT(nh_get_num_tx(nh) == 0);
-	TEST_ASSERT_MESSAGE(nh_set_tx_prio(nh, 3), "It should be possible to change Tx prio once all tx-sockets are gone.");
+	TEST_ASSERT_MESSAGE(nh_set_tx_prio(nh, SC_CLASS_A, 3), "It should be possible to change Tx prio once all tx-sockets are gone.");
 }
 
 static void test_nh_stop(void)

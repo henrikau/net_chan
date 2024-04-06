@@ -33,7 +33,10 @@ error_t parser(int key, char *arg, struct argp_state *state)
 	      nc_verbose();
 	      break;
       case 'p':
-	      nc_tx_sock_prio(atoi(arg));
+	      nc_tx_sock_prio(atoi(arg), SC_CLASS_A);
+	      break;
+      case 'P':
+	      nc_tx_sock_prio(atoi(arg), SC_TAS);
 	      break;
        }
 
