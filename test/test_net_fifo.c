@@ -19,7 +19,7 @@ void tearDown(void)
 
 static void test_arr_size(void)
 {
-	TEST_ASSERT(ARRAY_SIZE(nc_channels) == 5);
+	TEST_ASSERT(ARRAY_SIZE(nc_channels) == 6);
 }
 
 static void test_arr_idx(void)

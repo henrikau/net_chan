@@ -9,6 +9,7 @@ enum fifo_arr {
 	MCAST11 = 2,
 	MCAST17 = 3,
 	PDU43_R = 4,
+	MCAST44_TAS = 5,
 };
 
 #define DATA17SZ 32
@@ -54,6 +55,14 @@ struct channel_attrs nc_channels[] = {
 		.size      = 8,
 		.interval_ns      = INT_50HZ,
 		.name      = "pdu43_r"
+	},
+	{			/* 5 */
+		.dst       = DEFAULT_MCAST,
+		.stream_id = 44,
+		.sc        = SC_TAS,
+		.size      = 8,
+		.interval_ns      = INT_50HZ,
+		.name      = "pdu44_r"
 	},
 
 };
