@@ -284,21 +284,23 @@ struct channel *chan_create_tx(struct nethandler *nh, struct channel_attrs *attr
 
 	switch(attrs->sc) {
 	case SC_TAS:
-		ch->tx_sock_prio = nh->tx_tas_sock_prio;
+		if (!nc_create_tas_tx_sock(ch)) {
+			ERROR(ch, "Failed creating TAS Tx socket for channel");
+			UNGUARD;
+			chan_destroy(&ch);
+			return NULL;
+		}
+		ch->use_so_txtime = true;
 		break;
 	case SC_CLASS_A:
 	case SC_CLASS_B:
-		ch->tx_sock_prio = nh->tx_cbs_sock_prio;
+		if (!nc_create_cbs_tx_sock(ch)) {
+			ERROR(ch, "Failed creating CBS Tx socket for channel");
+			UNGUARD;
+			chan_destroy(&ch);
+			return NULL;
+		}
 		break;
-	}
-
-	ch->tx_sock = nc_create_tx_sock(ch);
-
-	if (ch->tx_sock < 0) {
-		ERROR(ch, "Failed creating Tx-sock for channel");
-		UNGUARD;
-		chan_destroy(&ch);
-		return NULL;
 	}
 
 	/* We are ready to send, the first attempt should fly straight through */
@@ -547,7 +549,7 @@ void chan_dump_state(struct channel *ch)
 	printf("%18s : %s\n", "iface", ch->nh->ifname);
 	printf("%18s : %.0f Mbps\n", "link speed", ch->nh->link_speed / 1e6);
 	printf("%18s : %"PRIu64"\n", "period_nsec", ch->interval_ns);
-	printf("%18s : %d\n", "use_so_txtime", 1);
+	printf("%18s : %s\n", "use_so_txtime", ch->use_so_txtime ? "true" : "false");
 	printf("%18s : %d\n", "so_priority", ch->tx_sock_prio);
 	printf("%18s : 0x%04x\n", "use_deadline_mode", ch->txtime.flags & SOF_TXTIME_DEADLINE_MODE);
 	printf("%18s : 0x%04x\n", "receive_errors", ch->txtime.flags & SOF_TXTIME_REPORT_ERRORS);
@@ -577,100 +579,33 @@ int wait_for_tx_slot(struct channel *ch)
 	/* account for offload to NIC and wakeup accuracy */
 	ts_subtract_ns(&ts, 100000);
 
-	return clock_nanosleep(CLOCK_TAI, TIMER_ABSTIME, &ts, NULL);
+	return clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, NULL);
 }
 
+/* FIXME: Deprecated, only left as placeholder for later */
 int chan_send(struct channel *ch, uint64_t *tx_ns)
 {
 	if (!chan_valid(ch) || ch->tx_sock == -1)
 		return -EINVAL;
-
-	/*
-	 * Look at next planned Tx.
-	 * - If the Tx slot opened up in the past, we can send immediately
-	 * - If tx is in the future, use this as base and postpone tx
-	 * - Update next_tx
-	 *	   o Increment next_tx until next_tx is larger than tai
-	 *
-	 * txtime must be a bit into the future, otherwise it will be
-	 * rejected by the qdisc ETF scheduler
-	 */
-	uint64_t tai_now = tai_get_ns() + 50 * NS_IN_US;
-	uint64_t txtime = tai_now > ch->next_tx_ns ? tai_now : ch->next_tx_ns;
-	if (tx_ns && *tx_ns > tai_now && *tx_ns < (tai_now + ch->next_tx_ns))
-		txtime = *tx_ns;
-
-	do {
-		ch->next_tx_ns = txtime + ch->interval_ns;
-	} while (ch->next_tx_ns < tai_now);
-
-	/* Add control msg with txtime  */
-	struct msghdr msg = {0};
-	struct iovec iov  = {0};
-
-	/* payload and destination */
-	iov.iov_base = &ch->pdu;
-	iov.iov_len = sizeof(struct avtpdu_cshdr) + ch->payload_size;
-
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_name = (struct sockaddr *)&ch->sk_addr;
-	msg.msg_namelen = sizeof(ch->sk_addr);
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
-
-	/* Set TxTime in socket */
-	char control[(CMSG_SPACE(sizeof(uint64_t)))] = {0};
-	msg.msg_control = &control;
-	msg.msg_controllen = sizeof(control);
-
-	struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
-	cm->cmsg_level = SOL_SOCKET;
-	cm->cmsg_type = SCM_TXTIME;
-	cm->cmsg_len = CMSG_LEN(sizeof(__u64));
-	*((__u64 *) CMSG_DATA(cm)) = txtime;
-
-	if (tx_ns)
-		*tx_ns = txtime;
-
-	int txsz = sendmsg(ch->tx_sock, &msg, 0);
-	if (txsz < 1) {
-		tb_tag(ch->nh->tb, "[0x%08lx] Failed sending msg (%d)", ch->sidw.s64, errno);
-		if (nc_handle_sock_err(ch->tx_sock, ch->nh->ptp_fd) < 0)
-			return -1;
-	} else {
-		log_tx(ch->nh->logger, &ch->pdu, ch->sample_ns, txtime, txtime);
-	}
-
-	/* Report the size of the payload to the usesr, the AVTPDU
-	 * header is 'invisible'
-	 */
-	return txsz - sizeof(struct avtpdu_cshdr);
+	if (!ch->ops)
+		return -EINVAL;
+	return ch->ops->send_at(ch, tx_ns);
 }
-
-
-uint64_t chan_time_to_tx(struct channel *ch)
+int chan_send_now(struct channel *ch, void *data)
 {
-	/* Invalid channel, -1 will yield a value as  */
-	if (!chan_valid(ch))
-		return UINT64_MAX;
-
-	uint64_t tai_now = tai_get_ns();
-
-	/* If next_tx_ns is in the past, we can send right now */
-	return tai_now > ch->next_tx_ns ? 0 : ch->next_tx_ns - tai_now;
+	if (!chan_valid(ch) || !ch->ops)
+		return -EINVAL;
+	return ch->ops->send_now(ch, data);
 }
 
-/*
- * ptp_target_delay_ns: absolute timestamp for PTP time to delay to
- * du: data-unit for netchan internals (need access to PTP fd)
- *
- * ptp_target_delay_ns is adjusted for correct class
- *
- * FIXME: we are slowly moving towards a situation where we expect
- *	  phc2sys to synchronize the system clock, so this function
- *	  should be ripe for simplification.
- */
-int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
+int chan_send_now_wait(struct channel *ch, void *data)
+{
+	if (!chan_valid(ch) || !ch->ops)
+		return -EINVAL;
+	return ch->ops->send_now_wait(ch, data);
+}
+
+int64_t chan_delay(struct channel *du, uint64_t ptp_target_delay_ns)
 {
 	/* Calculate delay
 	 * - take CLOCK_MONOTONIC ts and current PTP Time, find diff between the 2
@@ -718,39 +653,18 @@ int64_t _delay(struct channel *du, uint64_t ptp_target_delay_ns)
 	return error_cpu_ns;
 }
 
-int _chan_send_now(struct channel *ch, void *data, bool wait_class_delay)
+
+
+uint64_t chan_time_to_tx(struct channel *ch)
 {
-	uint64_t ts_ns = get_ptp_ts_ns(ch->nh->ptp_fd);
-	if (chan_update(ch, ts_ns, data)) {
-		ERROR(ch, "%s(): chan_update failed", __func__);
-		return -1;
-	}
+	/* Invalid channel, -1 will yield a value as  */
+	if (!chan_valid(ch))
+		return UINT64_MAX;
 
-	DEBUG(ch, "%s(): data sent, capture_ts: %lu", __func__, ts_ns);
+	uint64_t tai_now = tai_get_ns();
 
-	uint64_t tx_ns = 0;
-	int res = chan_send(ch, &tx_ns);
-	if (res < 0)
-		return res;
-
-	int err_ns = 150000;
-
-	ts_ns += get_class_delay_bound_ns(ch);
-	while (wait_class_delay && err_ns > 50000) {
-		err_ns = _delay(ch, ts_ns);
-	}
-
-	return res;
-}
-
-int chan_send_now(struct channel *ch, void *data)
-{
-	return _chan_send_now(ch, data, false);
-}
-
-int chan_send_now_wait(struct channel *ch, void *data)
-{
-	return _chan_send_now(ch, data, true);
+	/* If next_tx_ns is in the past, we can send right now */
+	return tai_now > ch->next_tx_ns ? 0 : ch->next_tx_ns - tai_now;
 }
 
 int _chan_read(struct channel *ch, void *data, bool read_delay)
@@ -806,7 +720,7 @@ int _chan_read(struct channel *ch, void *data, bool read_delay)
 	 * length of sleep before moving on.
 	 */
 	if (read_delay) {
-		int64_t err = _delay(ch, ptp_capture + ch->sc);
+		int64_t err = chan_delay(ch, ptp_capture + ch->sc);
 		INFO(ch, "%s() Sample spent %ld ns from capture to recvmsg() (reconstructed ts: %lu, missed by %ld ns",
 			__func__, avtp_diff, ptp_capture + ch->sc, err);
 	}

@@ -250,6 +250,20 @@ discarded. This can be somewhat frustrating
 RT behavior, reducing delta will reduce E2E latency. Use cyclictest to
 determine the max error and use a value in that range.
 
+#### Enabling CBS for hw-queue 1
+
+For periodic traffic with a high rate, the TAS implementation on Linux
+struggles to keep track. The internal rb-tree used to sort frames for
+transmission based on SO_TXTIME turns out to be a bottleneck once rate
+exceeds 500Hz.
+
+```bash
+sudo tc qdisc replace dev eth0 parent 4242:2 cbs idleslope 21760 \
+    sendslope -978240 hicredit 34 locredit -133 offload 1
+```
+**note** Once traffic enters the CBS Qdisc, there will be NO MORE
+reordering, opening this queue up for a Tx-time race condition.
+
 
 #### Exposing VLAN 2
 TSN (and AVB) defaults to VLAN 2. This is something a network admin can

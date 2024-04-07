@@ -155,6 +155,61 @@ struct avtpdu_cshdr {
 } __attribute__((packed));
 
 
+
+/**
+ * channel send operations
+ *
+ * 
+ *
+ */
+struct channel;
+struct chan_send_ops {
+	/**
+	 * send_at : send current payload of netchan data at specified timestamp (if applicable)
+	 *
+	 * This will extract the AVTP payload from the PDU managed by channel and send it to the
+	 * correct destination MAC.
+	 *
+	 * If the timestamp is sufficiently into the future, this function /may/ block.
+	 *
+	 * @params: ch
+	 * @params: *tx_ns: timestamp for when the frame was physically sent (requires HW support)
+	 * @returns: 0 on success negative value on error.
+	 */
+	int (*send_at)(struct channel *ch, uint64_t *tx_ns);
+	int (*send_at_wait)(struct channel *ch, uint64_t *tx_ns);
+
+	/**
+	 * send_now: update and send data *now*
+	 *
+	 * Provided the Tx budget is not exhausted, the data will be sent
+	 * immideately. Note that based on the expected interval (i.e. CBS
+	 * bandwidth), the function will block until the budget is available.
+	 *
+	 * Use the function chan_time_to_tx() to determine elibility to transmit.
+	 *
+	 * @param chan: channel to send from
+	 * @param data: new data to copy into field and send.
+	 *
+	 * @return 0 on success, negative on error
+	 */
+	int (*send_now)(struct channel *ch, void *data);
+
+	/**
+	 * send_now_wait - update and send PDU from channel, and wait for class delay
+	 *
+	 * When using this function, caller will be blocked for 2ms or 50ms
+	 * depending on stream class before continuing. This gives a synchronized wait
+	 * approach to the semantics.
+	 *
+	 * @param chan: active channel
+	 * @param data: new data to copy into field and send.
+	 *
+	 * @return 0 on success, negative on error
+	 */
+	int (*send_now_wait)(struct channel *ch, void *data);
+};
+
 /**
  * netchan_avtp - Container for fifo/lvchan over TSN/AVB
  *
@@ -193,7 +248,13 @@ struct channel
 	 */
 	int remote_listener;
 	enum stream_class sc;
-	int pcp_prio;	/* Active priority (PCP) for this channel */
+
+	/* Active priority (PCP) for this channel/stream class
+	 * throughout the network.
+	 *
+	 * *not* to be confused with tx_sock_prio (which is used to select the correct Qdisc)
+	 */
+	int pcp_prio;
 
 	/* Flags indicating if channel is ready and/or in the process of
 	 * being stopped.
@@ -225,6 +286,11 @@ struct channel
 	 */
 	int tx_sock;
 	int tx_sock_prio;
+	bool use_so_txtime;
+
+	/* Send-ops, depending on the selected Tx stream class (TAS or CBS)
+	 */
+	struct chan_send_ops *ops;
 
 	/* private area for callback, embed directly i not struct to
 	 * ease memory management. */
@@ -373,7 +439,8 @@ struct nethandler {
 /* socket helpers
  */
 int nc_create_rx_sock(const char *ifname);
-int nc_create_tx_sock(struct channel *ch);
+bool nc_create_tas_tx_sock(struct channel *ch);
+bool nc_create_cbs_tx_sock(struct channel *ch);
 int nc_handle_sock_err(int sock, int ptp_fd);
 
 #define ARRAY_SIZE(x) (x != NULL ? sizeof(x) / sizeof(x[0]) : -1)
@@ -551,32 +618,27 @@ void * chan_get_payload(struct channel *);
 
 
 /**
- * chan_send : send current payload of netchan data unit
+ * chan_dleay() delay a channel for the specified number of ns
  *
- * This will extract the AVTP payload from the PDU managed by channel and send it to the
- * correct destination MAC.
+ * FIXME: we are slowly moving towards a situation where we expect
+ *	  phc2sys to synchronize the system clock, so this function
+ *	  should be ripe for simplification.
  *
- * @params: ch
- * @params: *tx_ns: timestamp for when the frame was physically sent (requires HW support)
- * @returns: 0 on success negative value on error.
+ * @param ptp_target_delay_ns: absolute timestamp for PTP time to delay to
+ * @param du: data-unit for netchan internals (need access to PTP fd)
+ *
+ * @returns: the delay error (in ns)
  */
-int chan_send(struct channel *ch, uint64_t *tx_ns);
+int64_t chan_delay(struct channel *du, uint64_t ptp_target_delay_ns);
 
 /**
- * chan_send_now: update and send data *now*
+ * Simpel wrappers to channel-ops, soon to be @deprecated
  *
- * Provided the Tx budget is not exhausted, the data will be sent
- * immideately. Note that based on the expected interval (i.e. CBS
- * bandwidth), the function will block until the budget is available.
- *
- * Use the function chan_time_to_tx() to determine elibility to transmit.
- *
- * @param chan: channel to send from
- * @param data: new data to copy into field and send.
- *
- * @return 0 on success, negative on error
+ * NOTE!! chan_send_now() and chan_send_now_wait() will call chan_update() first
  */
+int chan_send(struct channel *ch, uint64_t *tx_ns);
 int chan_send_now(struct channel *ch, void *data);
+int chan_send_now_wait(struct channel *ch, void *data);
 
 /**
  * chan_time_to_tx : ns left until a new frame can be sent.
@@ -589,20 +651,6 @@ int chan_send_now(struct channel *ch, void *data);
  * @returns ns left until budget replenished or 0 if ready for Tx
  */
 uint64_t chan_time_to_tx(struct channel *ch);
-
-/**
- * chan_send_now_wait - update and send PDU from channel, and wait for class delay
- *
- * When using this function, caller will be blocked for 2ms or 50ms
- * depending on stream class before continuing. This gives a synchronized wait
- * approach to the semantics.
- *
- * @param chan: active channel
- * @param data: new data to copy into field and send.
- *
- * @return 0 on success, negative on error
- */
-int chan_send_now_wait(struct channel *ch, void *data);
 
 /**
  * chan_read : read data from incoming channel.

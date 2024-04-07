@@ -2,7 +2,6 @@
 #include <unistd.h>
 #include <linux/net_tstamp.h>
 #include <linux/if.h>
-#include <netchan.h>
 #include <netinet/ether.h>
 #include <arpa/inet.h>
 #include <linux/errqueue.h>
@@ -11,6 +10,10 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+
+#include <netchan.h>
+#include <logger.h>
+#include <tracebuffer.h>
 
 int nc_create_rx_sock(const char *ifname)
 {
@@ -76,11 +79,8 @@ int nc_create_rx_sock(const char *ifname)
 	return sock;
 }
 
-int nc_create_tx_sock(struct channel *ch)
+static int _nc_create_tx_sock(struct channel *ch)
 {
-	if (!ch)
-		return -EINVAL;
-
 	int sock = socket(AF_PACKET, SOCK_DGRAM, htons(ETH_P_TSN));
 	if (sock < 0) {
 		ERROR(NULL, "%s(): Failed creating Tx-socket: %s", __func__, strerror(errno));
@@ -95,19 +95,8 @@ int nc_create_tx_sock(struct channel *ch)
 	if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &ch->tx_sock_prio, sizeof(ch->tx_sock_prio)) < 0) {
 		ERROR(NULL, "%s(): failed setting socket priority (%d, %s)",
 			__func__, errno, strerror(errno));
-		goto err_out;
+		return -1;
 	}
-
-	/* Set ETF-Qdisc clock field for socket
-	 *
-	 * Do NOT set SOF_TXTIME_DEADLINE_MODE, this will cause sch_etf
-	 * to disregard SO_TXTIME and instead send frame with now +
-	 * delta.
-	 */
-	ch->txtime.clockid = CLOCK_TAI;
-	ch->txtime.flags = SOF_TXTIME_REPORT_ERRORS;
-	if (setsockopt(sock, SOL_SOCKET, SO_TXTIME, &ch->txtime, sizeof(ch->txtime)))
-		goto err_out;
 
 	/* Set destination address for outgoing traffict this DU */
 	ch->sk_addr.sll_family   = AF_PACKET;
@@ -117,9 +106,218 @@ int nc_create_tx_sock(struct channel *ch)
 	memcpy(&ch->sk_addr.sll_addr, ch->dst, ETH_ALEN);
 
 	return sock;
-err_out:
-	close(sock);
-	return -1;
+}
+
+static int _tas_send_at(struct channel *ch, uint64_t *tx_ns)
+{
+	/*
+	 * Look at next planned Tx.
+	 * - If the Tx slot opened up in the past, we can send immediately
+	 * - If tx is in the future, use this as base and postpone tx
+	 * - Update next_tx
+	 *	   o Increment next_tx until next_tx is larger than tai
+	 *
+	 * txtime must be a bit into the future, otherwise it will be
+	 * rejected by the qdisc ETF scheduler
+	 */
+	uint64_t tai_now = tai_get_ns() + 50 * NS_IN_US;
+	uint64_t txtime = tai_now > ch->next_tx_ns ? tai_now : ch->next_tx_ns;
+	if (tx_ns && *tx_ns > tai_now && *tx_ns < (tai_now + ch->next_tx_ns))
+		txtime = *tx_ns;
+
+	do {
+		ch->next_tx_ns = txtime + ch->interval_ns;
+	} while (ch->next_tx_ns < tai_now);
+
+	/* Add control msg with txtime  */
+	struct msghdr msg = {0};
+	struct iovec iov  = {0};
+
+	/* payload and destination */
+	iov.iov_base = &ch->pdu;
+	iov.iov_len = sizeof(struct avtpdu_cshdr) + ch->payload_size;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = (struct sockaddr *)&ch->sk_addr;
+	msg.msg_namelen = sizeof(ch->sk_addr);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+
+	/* Set TxTime in socket */
+	char control[(CMSG_SPACE(sizeof(uint64_t)))] = {0};
+	msg.msg_control = &control;
+	msg.msg_controllen = sizeof(control);
+
+	struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
+	cm->cmsg_level = SOL_SOCKET;
+	cm->cmsg_type = SCM_TXTIME;
+	cm->cmsg_len = CMSG_LEN(sizeof(__u64));
+	*((__u64 *) CMSG_DATA(cm)) = txtime;
+
+	if (tx_ns)
+		*tx_ns = txtime;
+
+	int txsz = sendmsg(ch->tx_sock, &msg, 0);
+	if (txsz < 1) {
+		tb_tag(ch->nh->tb, "[0x%08lx] Failed sending msg (%d)", ch->sidw.s64, errno);
+		if (nc_handle_sock_err(ch->tx_sock, ch->nh->ptp_fd) < 0)
+			return -1;
+	} else {
+		log_tx(ch->nh->logger, &ch->pdu, ch->sample_ns, txtime, txtime);
+	}
+
+	/* Report the size of the payload to the usesr, the AVTPDU
+	 * header is 'invisible'
+	 */
+	return txsz - sizeof(struct avtpdu_cshdr);
+
+}
+static int _tas_send_at_wait(struct channel *ch, uint64_t *tx_ns)
+{
+	int res = _tas_send_at(ch, tx_ns);
+	if (res < 0)
+		goto out;
+	*tx_ns += get_class_delay_bound_ns(ch);
+
+	while(chan_delay(ch, *tx_ns) > 50*NS_IN_US) ;
+
+out:
+	return res;
+}
+
+static int _tas_send_now(struct channel *ch, void *data)
+{
+	uint64_t ts_ns = real_get_ns();
+	if (chan_update(ch, ts_ns, data)) {
+		ERROR(ch, "%s(): chan_update failed", __func__);
+		return -1;
+	}
+
+	return _tas_send_at(ch, NULL);
+}
+
+static int _tas_send_now_wait(struct channel *ch, void *data)
+{
+	uint64_t ts_ns = real_get_ns();
+	if (chan_update(ch, ts_ns, data)) {
+		ERROR(ch, "%s(): chan_update failed", __func__);
+		return -1;
+	}
+
+	return _tas_send_at_wait(ch, NULL);
+}
+
+static int _cbs_send_at(struct channel *ch, uint64_t *tx_ns)
+{
+	uint64_t ts_now = real_get_ns();
+
+	/* If tx_ns is set and is far enough into the future, sleep. */
+	if (tx_ns && (*tx_ns-(100 * NS_IN_US)) > ts_now) {
+		struct timespec ts_cpu = {
+			.tv_sec = 0,
+			.tv_nsec = *tx_ns - 100 * NS_IN_US,
+		};
+
+		ts_normalize(&ts_cpu);
+		if (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts_cpu, NULL) == -1) {
+			WARN(ch, "%s() Failed waiting before Tx! (%d : %s)\n",
+				__func__, errno, strerror(errno));
+		}
+	}
+	return sendto(ch->tx_sock,
+		&ch->pdu,
+		sizeof(struct avtpdu_cshdr) + ch->payload_size,
+		0,
+		(struct sockaddr *) &ch->sk_addr,
+		sizeof(ch->sk_addr));
+}
+
+static int _cbs_send_at_wait(struct channel *ch, uint64_t *tx_ns)
+{
+	int res = _cbs_send_at(ch, tx_ns);
+	if (res < 0)
+		return res;
+
+	*tx_ns += get_class_delay_bound_ns(ch);
+	while(chan_delay(ch, *tx_ns) > 50*NS_IN_US) ;
+
+	return res;
+}
+
+static int _cbs_send_now(struct channel *ch, void *data)
+{
+	uint64_t ts_ns = real_get_ns();
+	if (chan_update(ch, ts_ns, data)) {
+		ERROR(ch, "%s(): chan_update failed", __func__);
+		return -1;
+	}
+
+	return _cbs_send_at(ch, NULL);
+}
+
+static int _cbs_send_now_wait(struct channel *ch, void *data)
+{
+	uint64_t ts_ns = real_get_ns();
+	if (chan_update(ch, ts_ns, data)) {
+		ERROR(ch, "%s(): chan_update failed", __func__);
+		return -1;
+	}
+
+	return _cbs_send_at_wait(ch, NULL);
+}
+
+static struct chan_send_ops tas_ops = {
+	.send_at       = _tas_send_at,
+	.send_at_wait  = _tas_send_at_wait,
+	.send_now      = _tas_send_now,
+	.send_now_wait = _tas_send_now_wait,
+};
+
+
+static struct chan_send_ops cbs_ops = {
+	.send_at       = _cbs_send_at,
+	.send_at_wait  = _cbs_send_at_wait,
+	.send_now      = _cbs_send_now,
+	.send_now_wait = _cbs_send_now_wait,
+};
+
+bool nc_create_cbs_tx_sock(struct channel *ch)
+{
+	if (!ch)
+		return false;
+	ch->tx_sock_prio = ch->nh->tx_cbs_sock_prio;
+	ch->ops = &cbs_ops;
+	ch->tx_sock = _nc_create_tx_sock(ch);
+	return ch->tx_sock > 0;
+}
+
+bool nc_create_tas_tx_sock(struct channel *ch)
+{
+	if (!ch)
+		return false;
+
+	ch->tx_sock_prio = ch->nh->tx_tas_sock_prio;
+	ch->tx_sock = _nc_create_tx_sock(ch);
+	if (ch->tx_sock < 0)
+		return false;
+
+	/* Set ETF-Qdisc clock field for socket
+	 *
+	 * Do NOT set SOF_TXTIME_DEADLINE_MODE, this will cause sch_etf
+	 * to disregard SO_TXTIME and instead send frame with now +
+	 * delta.
+	 */
+	ch->txtime.clockid = CLOCK_TAI;
+	ch->txtime.flags = SOF_TXTIME_REPORT_ERRORS;
+	if (setsockopt(ch->tx_sock, SOL_SOCKET, SO_TXTIME, &ch->txtime, sizeof(ch->txtime))) {
+		close(ch->tx_sock);
+		ch->tx_sock = -1;
+		return false;
+	}
+
+	ch->ops = &tas_ops;
+
+	return true;
 }
 
 int nc_handle_sock_err(int sock, int ptp_fd)
