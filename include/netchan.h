@@ -534,6 +534,8 @@ void chan_dump_state(struct channel *ch);
  * slot. If the client runs with periods < 100us or a tighter deadline
  * is needed, the client should handle its own blocking.
  *
+ * For CBS, a better approach is periodic timer (pt_init / pt_next_cycle)
+ *
  * @param ch: channel
  * @returns : 0 on success, negative on error
  */

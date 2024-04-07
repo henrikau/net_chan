@@ -26,9 +26,11 @@ enum attr_idx {
 
 
 #define HZ_500   (2 * NS_IN_MS)
+#define HZ_200   (5 * NS_IN_MS)
 #define HZ_100  (10 * NS_IN_MS)
 #define HZ_50   (20 * NS_IN_MS)
 #define HZ_10  (100 * NS_IN_MS)
+#define HZ_5   (200 * NS_IN_MS)
 
 struct channel_attrs nc_channels[] = {
 	{
@@ -37,7 +39,7 @@ struct channel_attrs nc_channels[] = {
 		.stream_id = 42,
 		.sc	   = SC_CLASS_A,
 		.size      =  sizeof(struct sensor),
-		.interval_ns = 5000000L, /* 200 Hz */
+		.interval_ns = HZ_200,
 #ifndef __cplusplus
 		.name      = "mcast42",
 #endif
@@ -45,9 +47,9 @@ struct channel_attrs nc_channels[] = {
 	{
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x9A},
 		.stream_id = 154,
-		.sc	   = SC_CLASS_A,
+		.sc	   = SC_TAS,
 		.size      =  sizeof(struct sensor),
-		.interval_ns = (200 * NS_IN_MS), /* 5 Hz */
+		.interval_ns = HZ_5,
 #ifndef __cplusplus
 		.name      = "mcast154",
 #endif

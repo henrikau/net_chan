@@ -39,15 +39,15 @@ int main(int argc, char *argv[])
 	struct timespec start, end;
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
+	struct periodic_timer *pt = pt_init(0, HZ_200, CLOCK_TAI);
 	for (; s.seqnr < LIMIT && running; s.seqnr++) {
-		// wait for period
-		wait_for_tx_slot(ch);
 		s.val = 0xdeadbeef;
 		int res = chan_send_now(ch, &s);
 		if (res < 0) {
 			printf("%s(): Send failed\n", __func__);
 			running = false;
 		}
+		pt_next_cycle(pt);
 	}
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
@@ -56,8 +56,7 @@ int main(int argc, char *argv[])
 	int64_t diff_ns = end_ns - start_ns;
 	printf("Loop ran for %.6f ms\n", (double)diff_ns / 1e6);
 
-	printf("Sent %ld packets out of %d\n", s.seqnr + 1, LIMIT);
-
+	printf("Sent %ld packets out of %d\n", s.seqnr, LIMIT);
 	printf("\n");
 	printf("%s() Attempting to stop remote, sending magic marker\n", __func__);
 
