@@ -47,7 +47,9 @@ int main(int argc, char *argv[])
 {
     struct channel_attrs attr = nc_channels[IDX_17];
     std::string logfile;
-    int tx_prio = -1;
+    std::string stream_class;
+    int tx_prio = DEFAULT_TX_TAS_SOCKET_PRIO;
+
     po::options_description desc("Talker options");
     desc.add_options()
         ("help,h", "Show help")
@@ -56,8 +58,11 @@ int main(int argc, char *argv[])
         ("loops,l", po::value<int>(&loops), "Number of iterations (default 1000)")
         ("log,L", po::value<std::string>(&logfile), "Log to file")
         ("stream_id", po::value<uint64_t>(&attr.stream_id), "Use different StreamID (base10)")
-        ("tx_prio", po::value<int>(&tx_prio), "Use different Tx-prio than the default.")
         ("use_srp,S", "Enable SRP")
+        ("tx_prio_cbs_a", po::value<int>(&tx_prio), "Use different Tx-prio than the default.")
+        ("tx_prio_cbs_b", po::value<int>(&tx_prio), "Use different Tx-prio than the default.")
+        ("tx_prio_tas",   po::value<int>(&tx_prio), "Use different Tx-prio than the default.")
+        ("stream_class",  po::value<std::string>(&stream_class), "Use specific stream class")
         ;
 
     po::variables_map vm;
@@ -74,9 +79,34 @@ int main(int argc, char *argv[])
     netchan::NetHandler nh(nic, logfile, use_srp);
     if (vm.count("verbose"))
         nh.verbose();
-    if (vm.count("tx_prio")) {
-        if (!nh.set_tx_prio(tx_prio)) {
-            std::cerr << "Failed setting Tx-prio for handler" << std::endl;
+
+    if (vm.count("tx_prio_cbs_a")) {
+        if (!nh.set_tx_prio(tx_prio, SC_CLASS_A)) {
+            std::cerr << "Failed setting Tx-prio (CBS A) for handler" << std::endl;
+            return -1;
+        }
+    } else if (vm.count("tx_prio_cbs_b")) {
+        if (!nh.set_tx_prio(tx_prio, SC_CLASS_B)) {
+            std::cerr << "Failed setting Tx-prio (CBS B) for handler" << std::endl;
+            return -1;
+        }
+    } else if (vm.count("tx_tx_prio_tas")) {
+        if (!nh.set_tx_prio(tx_prio, SC_TAS)) {
+            std::cerr << "Failed setting Tx-prio (TAS) for handler" << std::endl;
+            return -1;
+        }
+    }
+
+    if (vm.count("stream_class")) {
+        std::cerr << "Changing stream-class -> " << stream_class << std::endl;
+        if (stream_class == "SC_CLASS_A")
+            attr.sc = SC_CLASS_A;
+        else if (stream_class == "SC_CLASS_B")
+            attr.sc = SC_CLASS_B;
+        else if (stream_class == "SC_TAS")
+            attr.sc = SC_TAS;
+        else {
+            std::cerr << "Unknown stream-class! Aborting..." << std::endl;
             return -1;
         }
     }
@@ -88,22 +118,32 @@ int main(int argc, char *argv[])
     attr.dst[5]= ((uint8_t *)&attr.stream_id)[0];
 
     tx = new netchan::NetChanTx(nh, &attr);
+    tx->dump_state();
     tx->ready_wait();
 
-    struct periodic_timer *pt = pt_init(0, HZ_100, CLOCK_TAI);
+    // struct periodic_timer *pt = pt_init_from_attr(&attr);
 
     uint64_t ts = 0;
     running = true;
     signal(SIGINT, sighandler);
-    while (--loops > 0 && running) {
+    printf("Preparing to send %d values\n", loops);
+    uint64_t ts_start = tai_get_ns();
+    int ctr = 0;
+    while (--loops >= 0 && running) {
         ts = tai_get_ns();
-        if (!tx->send(&ts))
+        if (!tx->send(&ts)){
+            printf("send FAILED\n");
             break;
-
-        pt_next_cycle(pt);
+        }
+        ctr++;
+        // pt_next_cycle(pt);
     }
+    uint64_t ts_end = tai_get_ns();
+    uint64_t diff_ns = ts_end - ts_start;
 
-    printf("Loop stopped, signalling other end\n");
+    printf("Loop stopped, signalling other end (%d, %s)\n", loops, running ? "true" : "false");
+    printf("%d frames sent, %.3f ms, rate=%.3f frames/sec\n",
+           ctr, (double)diff_ns / 1e6, (double)ctr / ((double)diff_ns / 1e9));
     ts = -1;
     tx->send(&ts);
 

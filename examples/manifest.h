@@ -58,7 +58,7 @@ struct channel_attrs nc_channels[] = {
 		/* DEFAULT_MCAST */
 		.dst       = {0x01, 0x00, 0x5E, 0x01, 0x11, 0x17},
 		.stream_id = 17,
-		.sc	   = SC_CLASS_A,
+		.sc	   = SC_TAS,
 		.size      =  sizeof(uint64_t),
 		.interval_ns  = HZ_100,
 #ifndef __cplusplus
