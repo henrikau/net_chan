@@ -121,7 +121,9 @@ int main(int argc, char *argv[])
     tx->dump_state();
     tx->ready_wait();
 
-    // struct periodic_timer *pt = pt_init_from_attr(&attr);
+
+    // Enable pt for CBS classes
+    struct periodic_timer *pt = attr.sc == SC_TAS ? NULL : pt_init_from_attr(&attr);
 
     uint64_t ts = 0;
     running = true;
@@ -136,7 +138,8 @@ int main(int argc, char *argv[])
             break;
         }
         ctr++;
-        // pt_next_cycle(pt);
+        if (pt)
+            pt_next_cycle(pt);
     }
     uint64_t ts_end = tai_get_ns();
     uint64_t diff_ns = ts_end - ts_start;
