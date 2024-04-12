@@ -45,6 +45,7 @@ static inline void ts_add_ns(struct timespec *ts, uint64_t add)
  */
 
 struct periodic_timer;
+struct channel_attrs;
 
 /**
  * pt_init() Initialize a periodic timer.
@@ -56,6 +57,15 @@ struct periodic_timer;
  * @returns container for pt.
  */
 struct periodic_timer * pt_init(uint64_t base_ns, uint64_t phase_ns, int clockid);
+
+/**
+ * pt_init_from_attr() Initialize a periodic timer directly from channel attributes.
+ *
+ * @params attr channel attributes
+ *
+ * @returns container for pt.
+ */
+struct periodic_timer * pt_init_from_attr(struct channel_attrs *attr);
 
 /**
  * pt_next_cycle() wait for next timer cycle

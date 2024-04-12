@@ -56,6 +56,14 @@ struct periodic_timer * pt_init(uint64_t base_ns, uint64_t phase_ns, int clockid
 	return pt;
 }
 
+struct periodic_timer * pt_init_from_attr(struct channel_attrs *attr)
+{
+	if (!attr)
+		return NULL;
+	return pt_init(0,
+		attr->interval_ns, attr->sc == SC_TAS ? CLOCK_TAI : CLOCK_REALTIME);
+}
+
 int pt_next_cycle(struct periodic_timer *pt)
 {
 	if (!pt)

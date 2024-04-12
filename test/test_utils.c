@@ -75,6 +75,46 @@ static void test_pt_init(void)
 	TEST_ASSERT_NULL(pt_init(1024, 100 * NS_IN_MS, CLOCK_REALTIME));
 }
 
+static void test_pt_init_attr(void)
+{
+	TEST_ASSERT_NULL(pt_init_from_attr(NULL));
+	struct channel_attrs attr = {
+		.dst       = DEFAULT_MCAST,
+		.stream_id = 42,
+		.sc        = SC_CLASS_A,
+		.size      = 8,
+		.interval_ns= 50 * NS_IN_MS,
+	};
+	struct periodic_timer *pt_cbs = pt_init_from_attr(&attr);
+	TEST_ASSERT_NOT_NULL(pt_cbs);
+	TEST_ASSERT(pt_cbs->clock_id == CLOCK_REALTIME);
+
+	checkpoint();
+	int iters = 10;
+	for (int i = 0; i < iters; i++) {
+		printf("."); fflush(stdout);
+		TEST_ASSERT(pt_next_cycle(pt_cbs) == 0);
+	}
+	uint64_t diff = checkpoint();
+	TEST_ASSERT_UINT64_WITHIN(200 * NS_IN_US, iters * attr.interval_ns, diff);
+
+
+	attr.sc = SC_TAS;
+	attr.interval_ns = 10 * NS_IN_MS;
+
+	struct periodic_timer *pt_tas = pt_init_from_attr(&attr);
+	TEST_ASSERT_NOT_NULL(pt_tas);
+	TEST_ASSERT(pt_tas->clock_id == CLOCK_TAI);
+
+	checkpoint();
+	for (int i = 0; i < iters; i++) {
+		printf("."); fflush(stdout);
+		TEST_ASSERT(pt_next_cycle(pt_tas) == 0);
+	}
+	diff = checkpoint();
+	TEST_ASSERT_UINT64_WITHIN(200 * NS_IN_US, iters * attr.interval_ns, diff);
+}
+
 static void test_pt_tai(void)
 {
 	uint64_t tai_now = tai_get_ns();
@@ -171,6 +211,7 @@ int main(int argc, char *argv[])
 	RUN_TEST(test_ts_add_ok);
 	RUN_TEST(test_ts_normalize);
 	RUN_TEST(test_pt_init);
+	RUN_TEST(test_pt_init_attr);
 	RUN_TEST(test_pt_tai);
 	RUN_TEST(test_pt_tai_cycle);
 	RUN_TEST(test_pt_mono_full);
