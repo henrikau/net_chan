@@ -546,9 +546,10 @@ void chan_dump_state(struct channel *ch)
 		WARN(ch, "Invalid channel");
 		return;
 	}
+	double freq = 1e9 / (double)ch->interval_ns;
 	printf("%18s : %s\n", "iface", ch->nh->ifname);
 	printf("%18s : %.0f Mbps\n", "link speed", ch->nh->link_speed / 1e6);
-	printf("%18s : %"PRIu64"\n", "period_nsec", ch->interval_ns);
+	printf("%18s : %"PRIu64" ns (%.1f Hz)\n", "period", ch->interval_ns, freq);
 	printf("%18s : %s\n", "use_so_txtime", ch->use_so_txtime ? "true" : "false");
 	printf("%18s : %d\n", "so_priority", ch->tx_sock_prio);
 	printf("%18s : 0x%04x\n", "use_deadline_mode", ch->txtime.flags & SOF_TXTIME_DEADLINE_MODE);
@@ -558,6 +559,7 @@ void chan_dump_state(struct channel *ch)
 		ch->dst[3], ch->dst[4], ch->dst[5]);
 	printf("%18s : %d\n", "clkid", ch->txtime.clockid);
 	printf("%18s : 0x%04x\n", "flags", ch->txtime.flags);
+	printf("%18s : %d\n", "pl size", ch->payload_size);
 }
 
 int wait_for_tx_slot(struct channel *ch)
