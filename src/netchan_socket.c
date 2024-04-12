@@ -187,7 +187,7 @@ out:
 
 static int _tas_send_now(struct channel *ch, void *data)
 {
-	uint64_t ts_ns = real_get_ns();
+	uint64_t ts_ns = tai_get_ns();
 	if (chan_update(ch, ts_ns, data)) {
 		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
@@ -198,7 +198,7 @@ static int _tas_send_now(struct channel *ch, void *data)
 
 static int _tas_send_now_wait(struct channel *ch, void *data)
 {
-	uint64_t ts_ns = real_get_ns();
+	uint64_t ts_ns = tai_get_ns();
 	if (chan_update(ch, ts_ns, data)) {
 		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
@@ -209,7 +209,7 @@ static int _tas_send_now_wait(struct channel *ch, void *data)
 
 static int _cbs_send_at(struct channel *ch, uint64_t *tx_ns)
 {
-	uint64_t ts_now = real_get_ns();
+	uint64_t ts_now = tai_get_ns();
 
 	/* If tx_ns is set and is far enough into the future, sleep. */
 	if (tx_ns && (*tx_ns-(100 * NS_IN_US)) > ts_now) {
@@ -219,17 +219,25 @@ static int _cbs_send_at(struct channel *ch, uint64_t *tx_ns)
 		};
 
 		ts_normalize(&ts_cpu);
-		if (clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts_cpu, NULL) == -1) {
+		if (clock_nanosleep(CLOCK_TAI, TIMER_ABSTIME, &ts_cpu, NULL) == -1) {
 			WARN(ch, "%s() Failed waiting before Tx! (%d : %s)\n",
 				__func__, errno, strerror(errno));
 		}
+		*tx_ns = real_get_ns();
+		ts_now = *tx_ns;
 	}
-	return sendto(ch->tx_sock,
-		&ch->pdu,
-		sizeof(struct avtpdu_cshdr) + ch->payload_size,
-		0,
-		(struct sockaddr *) &ch->sk_addr,
-		sizeof(ch->sk_addr)) - sizeof(struct avtpdu_cshdr);
+	int txsz =  sendto(ch->tx_sock,
+			&ch->pdu,
+			sizeof(struct avtpdu_cshdr) + ch->payload_size,
+			0,
+			(struct sockaddr *) &ch->sk_addr,
+			sizeof(ch->sk_addr));
+	if (txsz < 0) {
+		tb_tag(ch->nh->tb, "[0x%08lx] Failed sending CBS msg (%d)", ch->sidw.s64, errno);
+	} else {
+		log_tx(ch->nh->logger, &ch->pdu, ch->sample_ns, ts_now, ts_now);
+	}
+	return txsz - sizeof(struct avtpdu_cshdr);
 }
 
 static int _cbs_send_at_wait(struct channel *ch, uint64_t *tx_ns)
@@ -246,7 +254,7 @@ static int _cbs_send_at_wait(struct channel *ch, uint64_t *tx_ns)
 
 static int _cbs_send_now(struct channel *ch, void *data)
 {
-	uint64_t ts_ns = real_get_ns();
+	uint64_t ts_ns = tai_get_ns();
 	if (chan_update(ch, ts_ns, data)) {
 		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
@@ -257,7 +265,7 @@ static int _cbs_send_now(struct channel *ch, void *data)
 
 static int _cbs_send_now_wait(struct channel *ch, void *data)
 {
-	uint64_t ts_ns = real_get_ns();
+	uint64_t ts_ns = tai_get_ns();
 	if (chan_update(ch, ts_ns, data)) {
 		ERROR(ch, "%s(): chan_update failed", __func__);
 		return -1;
