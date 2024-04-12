@@ -31,6 +31,8 @@ int main(int argc, char *argv[])
 
 	struct sensor s = {0};
 
+	struct timespec start, end;
+	clock_gettime(CLOCK_REALTIME, &start);
 	while (running && s.seqnr >= 0) {
 		READ_WAIT(mcast42, &s);
 
@@ -49,8 +51,14 @@ int main(int argc, char *argv[])
 			fflush(stdout);
 		}
 	}
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	int64_t start_ns = start.tv_sec * 1000000000 + start.tv_nsec;
+	int64_t end_ns = end.tv_sec * 1000000000 + end.tv_nsec;
+	int64_t diff_ns = end_ns - start_ns;
 
 	printf("%s(): terminating loop (d=%ld,running=%s)\n", __func__, s.seqnr, running ? "true" : "false");
+	printf("Loop ran for %.6f ms\n", (double)diff_ns / 1e6);
+
 	CLEANUP();
 	return 0;
 }

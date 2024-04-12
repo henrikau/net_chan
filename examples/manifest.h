@@ -15,7 +15,7 @@ struct sensor {
 	uint64_t seqnr;
 	uint64_t ts;
 	uint64_t tx_offset;
-};
+} __attribute__((packed));
 
 enum attr_idx {
 	IDX_42,

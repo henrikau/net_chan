@@ -35,17 +35,26 @@ int main(int argc, char *argv[])
 	running = 1;
 	signal(SIGINT, sighandler);
 
-	struct sensor s = {0};
+	struct sensor s = {
+		.seqnr = 0,
+		.val = 0xdeadbeef,
+		.ts = 0,
+		.tx_offset = 100,
+	};
+
 	struct timespec start, end;
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
-	struct periodic_timer *pt = pt_init(0, HZ_200, CLOCK_TAI);
+	struct periodic_timer *pt = pt_init_from_attr(&nc_channels[IDX_42]);
 	for (; s.seqnr < LIMIT && running; s.seqnr++) {
-		s.val = 0xdeadbeef;
 		int res = chan_send_now(ch, &s);
 		if (res < 0) {
 			printf("%s(): Send failed\n", __func__);
 			running = false;
+		}
+		if (!(s.seqnr % 100)) {
+			printf("seqnr=%"PRIu64", val=0x%08lx, ts=%"PRIu64", tx_offset=%"PRIu64"\n",
+				s.seqnr, s.val, s.ts, s.tx_offset);
 		}
 		pt_next_cycle(pt);
 	}
