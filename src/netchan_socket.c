@@ -229,7 +229,7 @@ static int _cbs_send_at(struct channel *ch, uint64_t *tx_ns)
 		sizeof(struct avtpdu_cshdr) + ch->payload_size,
 		0,
 		(struct sockaddr *) &ch->sk_addr,
-		sizeof(ch->sk_addr));
+		sizeof(ch->sk_addr)) - sizeof(struct avtpdu_cshdr);
 }
 
 static int _cbs_send_at_wait(struct channel *ch, uint64_t *tx_ns)
