@@ -581,7 +581,7 @@ int wait_for_tx_slot(struct channel *ch)
 	/* account for offload to NIC and wakeup accuracy */
 	ts_subtract_ns(&ts, 100000);
 
-	return clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, NULL);
+	return clock_nanosleep(CLOCK_TAI, TIMER_ABSTIME, &ts, NULL);
 }
 
 /* FIXME: Deprecated, only left as placeholder for later */
