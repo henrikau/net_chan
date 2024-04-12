@@ -39,7 +39,6 @@ void sighandler(int signum)
 {
     running = false;
     printf("%s(): Got signal (%d), closing\n", __func__, signum);
-    tx->stop();
     fflush(stdout);
 }
 
