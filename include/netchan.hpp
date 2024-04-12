@@ -109,6 +109,9 @@ public:
     bool ready(void) {
         return chan_ready(ch);
     }
+    void dump_state(void) {
+        chan_dump_state(ch);
+    }
 
     // Wait for 1 second before timing out
     bool ready_wait_once(void) {
@@ -137,10 +140,15 @@ public:
         ch = nh.new_tx_channel(attrs);
     }
 
+    // FIXME: implement send_at(), especially for SC_TAS channels!
+
     bool send(void *data) {
-      if (!ch || !chan_ready(ch))
+        if (!ch || !chan_ready(ch))
             return false;
-        wait_for_tx_slot(ch);
+
+        if (ch->sc == SC_TAS)
+            wait_for_tx_slot(ch);
+
         return chan_send_now(ch, data) == ch->payload_size;
     }
 
