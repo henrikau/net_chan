@@ -40,12 +40,21 @@ static bool verbose = false;
 static bool do_srp = false;
 static bool running = false;
 static bool tracing = false;
-static int period_ns = HZ_100;
+
+static struct channel_attrs base = {
+	.dst       = {0x01, 0x00, 0x5E, 0x01, 0x01, 0x00},
+	.stream_id = 0,
+	.sc	   = SC_CLASS_A,
+	.size      =  sizeof(uint64_t),
+	.interval_ns = HZ_100,
+};
+
 
 /* This example has slightly different needs than the plain example, so
  * we add our own parser.
  */
 static struct argp_option options[] = {
+       {"stream_class", 'C', "CLASS", 0, "Use specific streamclass (SC_CLASS_A, SC_CLASS_B, SC_TAS), default: SC_CLASS_A"},
        {"log_ts"    , 'L', "LOGFILE", 0, "Log timestamps to logfile, idx and .csv will be appended"},
        {"iterations", 'i', "M"      , 0, "Run for M iterations (<= 0 sets continous mode)"},
        {"nic"       , 'n', "NIC"    , 0, "Network Interface" },
@@ -67,6 +76,21 @@ static struct argp argp __attribute__((unused)) = {
 error_t parser(int key, char *arg, struct argp_state *state)
 {
       switch (key) {
+      case 'C':
+	      if (strcmp(arg, "SC_CLASS_A") == 0) {
+		      printf("Stream Class A\n");
+		      base.sc = SC_CLASS_A;
+	      } else if (strcmp(arg, "SC_CLASS_B") == 0) {
+		      printf("Stream Class B\n");
+		      base.sc = SC_CLASS_A;
+	      } else if (strcmp(arg, "SC_TAS") == 0) {
+		      printf("Using TAS\n");
+		      base.sc = SC_TAS;
+	      } else {
+		      fprintf(stderr, "Unknown stream-class (%s), aborting\n", arg);
+		      exit(-1);
+	      }
+	      break;
       case 'L':
 	      strncpy(logfile, arg, sizeof(logfile)-15); /* account for "-<num>.csv" */
 	      break;
@@ -83,11 +107,7 @@ error_t parser(int key, char *arg, struct argp_state *state)
 	      ensemble_size = atoi(arg);
 	      break;
       case 'P':
-      {
-	      int tmp = atoi(arg) * 1000;
-	      if (tmp <= 1*NS_IN_SEC && tmp >= 125 * NS_IN_US)
-		      period_ns = tmp;
-      }
+	      base.interval_ns = atoi(arg)*1000;
 	      break;
       case 'S':
 	      do_srp = true;
@@ -110,7 +130,7 @@ void print_conf(void)
 	printf("Ensemble size:\t%d (%d connections)\n", ensemble_size, ensemble_size * ensemble_size);
 	printf("Ensemble idx:\t%d\n", ensemble_idx);
 	printf("Iterations\t%d %s\n", iterations, iterations <= 0 ? "(Continous)" : "");
-	printf("Period:\t\t%d us (%.3f Hz)\n", period_ns/1000, 1e9/period_ns);
+	printf("Period:\t\t%lu us (%.3f Hz)\n", base.interval_ns/1000, 1e9/base.interval_ns);
 	printf("Logging to:\t%s\n", strlen(logfile) > 0 ? logfile : "Logging disabled");
 	printf("Verbose mode:\t%s\n", verbose ? "Enabled" : "Disabled");
 	printf("Use SRP:\t%s\n", do_srp ? "Enabled" : "Disabled");
@@ -129,17 +149,12 @@ bool valid_settings(void)
 			ENSEMBLE_SIZE_LIMIT, ENSEMBLE_SIZE_LIMIT*ENSEMBLE_SIZE_LIMIT);
 		return false;
 	}
+	if (base.interval_ns > 1 * NS_IN_SEC || base.interval_ns < 125 * NS_IN_US) {
+		fprintf(stderr, "Interval out of range, must be between 125us (8 kHz) and 1 sec (1 Hz)\n");
+		return false;
+	}
 	return true;
 }
-
-
-struct channel_attrs base = {
-	.dst       = {0x01, 0x00, 0x5E, 0x01, 0x01, 0x00},
-	.stream_id = 0,
-	.sc	   = SC_CLASS_A,
-	.size      =  sizeof(uint64_t),
-	.interval_ns = HZ_100,
-};
 
 
 void sighandler(int signum)
@@ -218,7 +233,6 @@ int main(int argc, char *argv[])
 		snprintf(logfile+strlen(logfile), sizeof(logfile), "-%u.csv", (unsigned short)ensemble_idx);
 
 	print_conf();
-	base.interval_ns = period_ns;
 
 	struct nethandler *nh = nh_create_init(nic, 2*ensemble_size + 1, strlen(logfile)>0 ? logfile : NULL);
 	if (!nh) {
@@ -252,6 +266,10 @@ int main(int argc, char *argv[])
 		base.dst[5] = id;
 		base.stream_id = id;
 		tx[idx] = chan_create_tx(nh, &base);
+		if (verbose) {
+			printf("Dumping channel state\n");
+			chan_dump_state(tx[idx]);
+		}
 	}
 
 	/* Prepare for starting Rx threads */
@@ -283,7 +301,7 @@ int main(int argc, char *argv[])
 	printf("%s() all %d Tx channels ready, syncing ensemble to start.\n", __func__, ensemble_size);
 
 	/* Signal ready, wait for all in ensemble to signal same */
-	struct periodic_timer *pt = pt_init(0, period_ns, CLOCK_TAI);
+	struct periodic_timer *pt = pt_init_from_attr(&base);
 	uint64_t data = ENTITY_READY_MAGIC;
 	while (running) {
 		pt_next_cycle(pt);
