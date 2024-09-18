@@ -44,7 +44,6 @@ struct logc
 	pthread_mutex_t m;
 	char *logfile;
 	int flush_ctr;
-
 	/* buffer */
 	struct log_buffer *lb;
 	struct wakeup_delay_buffer *wdb;
@@ -53,6 +52,8 @@ struct logc
 
 static int _log_create_wakeup_delay_buffer(struct logc *logc)
 {
+	if (!logc)
+		return -EINVAL;
 	logc->wdb = malloc(sizeof(struct wakeup_delay_buffer));
 	if (!logc->wdb)
 		return -ENOMEM;
@@ -71,6 +72,9 @@ static int _log_create_wakeup_delay_buffer(struct logc *logc)
 
 static int _log_create_ts(struct logc *logc)
 {
+	if (!logc)
+		return -EINVAL;
+
 	logc->lb = malloc(sizeof(struct log_buffer));
 	if (!logc->lb)
 		return -ENOMEM;

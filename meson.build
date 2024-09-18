@@ -179,6 +179,12 @@ t_utils = executable('testutils',
 		    build_by_default: true,
 		    dependencies: deps)
 
+t_logger = executable('testlogger',
+		      'test/test_logger.c',
+		      'test/unity.c',
+		      include_directories: include_directories('include'),
+		      build_by_default: true,
+		      dependencies: deps)
 
 test('pdu test', t_pdu)
 test('nh test', t_nh)
@@ -186,6 +192,7 @@ test('nh net fifo', t_net_fifo)
 test('channel test', t_chan)
 test('tas test', t_tas)
 test('test utils', t_utils)
+test('test logger', t_logger)
 
 # Generate documentation if doxygen is available.
 doxygen = find_program('doxygen', required: false)

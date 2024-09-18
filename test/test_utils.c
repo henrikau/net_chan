@@ -37,8 +37,13 @@ void tearDown(void)
 }
 
 
+
 static void test_ts_add_ok(void)
 {
+	/* Handle invalid input */
+	ts_subtract_ns(NULL, 750000000);
+	ts_add_ns(NULL, 750000000);
+
 	struct timespec ts = { .tv_sec = 1, .tv_nsec = 0 };
 	ts_subtract_ns(&ts, 100);
 	TEST_ASSERT(ts.tv_sec == 0);
