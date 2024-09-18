@@ -23,6 +23,7 @@ netchan = static_library('netchan',
 			 'src/logger.c',
 			include_directories: include_directories('include'),
 			dependencies: deps,
+			override_options: ['b_coverage=false'],
 			install: true
 		       )
 
@@ -57,7 +58,8 @@ executable(
    'src/netchan_args.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-	dependencies: deps,
+   dependencies: deps,
+   override_options: ['b_coverage=false'],
    link_with : [netchan])
 
 executable(
@@ -65,7 +67,8 @@ executable(
    'examples/invalid_talker.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-	dependencies: deps,
+   dependencies: deps,
+   override_options: ['b_coverage=false'],
    link_with : [netchan])
 
 executable(
@@ -74,7 +77,8 @@ executable(
    'src/netchan_args.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-	dependencies: deps,
+   dependencies: deps,
+   override_options: ['b_coverage=false'],
    link_with : netchan)
 
 executable(
@@ -82,7 +86,8 @@ executable(
    'examples/manychan.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-	dependencies: deps,
+   dependencies: deps,
+   override_options: ['b_coverage=false'],
    link_with : netchan)
 
 executable(
@@ -91,7 +96,8 @@ executable(
    'src/netchan_args.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-	dependencies: deps,
+   dependencies: deps,
+   override_options: ['b_coverage=false'],
    link_with : [netchan])
 executable(
    'sendat_rx',
@@ -99,7 +105,8 @@ executable(
    'src/netchan_args.c',
    include_directories: include_directories('include'),
    build_by_default: true,
-	dependencies: deps,
+   dependencies: deps,
+   override_options: ['b_coverage=false'],
    link_with : [netchan])
 
 # includes netchan.c directly to test internals
@@ -153,7 +160,7 @@ t_chan = executable('testchan',
 		    include_directories: include_directories('include'),
 		    build_by_default: true,
 		    dependencies: deps,
-		    link_with : netchan)
+		    link_with : netchan_so)
 
 t_tas = executable('testtas',
 		    'test/test_tas.c',
@@ -161,7 +168,7 @@ t_tas = executable('testtas',
 		    include_directories: include_directories('include'),
 		    build_by_default: true,
 		    dependencies: deps,
-		    link_with : netchan)
+		    link_with : netchan_so)
 
 # include netchan_utils.c directly into test internals
 t_utils = executable('testutils',

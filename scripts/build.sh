@@ -3,7 +3,12 @@ set -e
 
 pushd "$(dirname $(dirname $(realpath -s $0)))" > /dev/null
 test -e doxygen.in || touch doxygen.in
-test -d build/ || { mkdir build/ ; /usr/bin/meson build; }
+
+if [[ -d build/ ]]; then
+    meson setup --reconfigure build/ -Db_coverage=true
+else
+    meson setup build -Db_coverage=true
+fi
 
 ninja -C build/ && \
     g++ -o build/cpp_listener examples/listener.cpp build/libnetchan.a -lboost_program_options -pthread -I include && \

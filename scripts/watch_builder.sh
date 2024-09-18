@@ -18,7 +18,7 @@ echo ${dirs}
 # if more events are happening while build.sh is running, we will miss
 # them.
 while inotifywait -e modify -e create --exclude "\#" ${dirs} ; do
-    ./scripts/build.sh && ./scripts/run_tests.sh
+    ./scripts/build.sh && ./scripts/run_tests.sh && ./scripts/analyze_coverage.sh
     dirs=$(for f in $(find . -name "*.[c|h]" -o -name "meson.build"); do dirname ${f}; done|grep -v build|sort|uniq)
 done
 
