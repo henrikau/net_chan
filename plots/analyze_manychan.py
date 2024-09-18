@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import re
 import sys
 import math
 import pandas as pd
@@ -27,11 +28,12 @@ if __name__ == "__main__":
             files.append(Path(f))
     if args.directory:
         folder = Path(args.directory)
-        files.extend([f for f in folder.glob(f"filtered_*.csv") if os.path.isfile(f)])
+        files.extend([f for f in os.listdir(folder) if re.search(r'^filtered_[\d]+\.csv$', f)])
 
     # Read all files and store
     ncs = []
     for f in files:
+        print(f"Looking at {f}")
         try:
             # If the file is too short, NetChan_Stream throws a ValueError
             # Just ignore the file and continue processing.
@@ -72,11 +74,14 @@ if __name__ == "__main__":
                 fname = f"{Path(args.directory)}/"
             fname += f"{Path(args.out_file).stem}_{nc.get_figname()}"
 
-            print(f"Saving plot to {fname}")
-            fig.savefig(fname, bbox_inches='tight')
-            target_img = Image.open(fname)
-            target_img.save(fname, pnginfo=nc.get_metadata())
-            print(f"Saved to {fname}")
+            try:
+                print(f"Saving plot to {fname}")
+                fig.savefig(fname, bbox_inches='tight')
+                target_img = Image.open(fname)
+                target_img.save(fname, pnginfo=nc.get_metadata())
+                print(f"Saved to {fname}")
+            except:
+                print(f"Failed saving image, should probably investigate..")
         else:
             print(nc)
             plt.show()
